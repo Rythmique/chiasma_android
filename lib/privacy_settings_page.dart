@@ -60,38 +60,34 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              _buildRadioTile(
-                title: 'Tout le monde',
-                subtitle: 'Tous les utilisateurs peuvent voir votre profil',
-                value: 'all',
+              RadioGroup<String>(
                 groupValue: _profileVisibility,
                 onChanged: (value) {
-                  setState(() {
-                    _profileVisibility = value!;
-                  });
+                  if (value != null) {
+                    setState(() {
+                      _profileVisibility = value;
+                    });
+                  }
                 },
-              ),
-              _buildRadioTile(
-                title: 'Utilisateurs vérifiés uniquement',
-                subtitle: 'Seuls les enseignants vérifiés',
-                value: 'verified',
-                groupValue: _profileVisibility,
-                onChanged: (value) {
-                  setState(() {
-                    _profileVisibility = value!;
-                  });
-                },
-              ),
-              _buildRadioTile(
-                title: 'Personne',
-                subtitle: 'Votre profil est complètement masqué',
-                value: 'none',
-                groupValue: _profileVisibility,
-                onChanged: (value) {
-                  setState(() {
-                    _profileVisibility = value!;
-                  });
-                },
+                child: Column(
+                  children: [
+                    _buildRadioTile(
+                      title: 'Tout le monde',
+                      subtitle: 'Tous les utilisateurs peuvent voir votre profil',
+                      value: 'all',
+                    ),
+                    _buildRadioTile(
+                      title: 'Utilisateurs vérifiés uniquement',
+                      subtitle: 'Seuls les enseignants vérifiés',
+                      value: 'verified',
+                    ),
+                    _buildRadioTile(
+                      title: 'Personne',
+                      subtitle: 'Votre profil est complètement masqué',
+                      value: 'none',
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -301,7 +297,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
         Switch(
           value: value,
           onChanged: onChanged,
-          activeColor: const Color(0xFFF77F00),
+          activeThumbColor: const Color(0xFFF77F00),
         ),
       ],
     );
@@ -311,55 +307,40 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     required String title,
     required String subtitle,
     required String value,
-    required String groupValue,
-    required ValueChanged<String?> onChanged,
   }) {
-    final isSelected = value == groupValue;
-    return InkWell(
-      onTap: () => onChanged(value),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFFF77F00).withValues(alpha: 0.05)
-              : null,
-          borderRadius: BorderRadius.circular(8),
-          border: isSelected
-              ? Border.all(color: const Color(0xFFF77F00).withValues(alpha: 0.3))
-              : null,
-        ),
-        child: Row(
-          children: [
-            Radio<String>(
-              value: value,
-              groupValue: groupValue,
-              onChanged: onChanged,
-              activeColor: const Color(0xFFF77F00),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                    ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Radio<String>(
+            value: value,
+            activeColor: const Color(0xFFF77F00),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

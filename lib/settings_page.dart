@@ -318,7 +318,7 @@ class _SettingsPageState extends State<SettingsPage> {
       trailing: Switch(
         value: value,
         onChanged: enabled ? onChanged : null,
-        activeColor: const Color(0xFFF77F00),
+        activeThumbColor: const Color(0xFFF77F00),
       ),
     );
   }
@@ -394,33 +394,35 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Choisir la langue'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile(
-              title: const Text('Français'),
-              value: 'fr',
-              groupValue: 'fr',
-              activeColor: const Color(0xFFF77F00),
-              onChanged: (value) {
-                Navigator.pop(context);
-              },
-            ),
-            RadioListTile(
-              title: const Text('English'),
-              value: 'en',
-              groupValue: 'fr',
-              activeColor: const Color(0xFFF77F00),
-              onChanged: (value) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Langue modifiée - Fonctionnalité à venir'),
-                  ),
-                );
-              },
-            ),
-          ],
+        content: RadioGroup<String>(
+          groupValue: 'fr',
+          onChanged: (value) {
+            if (value == 'fr') {
+              Navigator.pop(context);
+            } else {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Langue modifiée - Fonctionnalité à venir'),
+                ),
+              );
+            }
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile(
+                title: const Text('Français'),
+                value: 'fr',
+                activeColor: const Color(0xFFF77F00),
+              ),
+              RadioListTile(
+                title: const Text('English'),
+                value: 'en',
+                activeColor: const Color(0xFFF77F00),
+              ),
+            ],
+          ),
         ),
       ),
     );
