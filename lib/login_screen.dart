@@ -484,13 +484,27 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 32),
 
                         // Footer
-                        Text(
-                          '© 2024 CHIASMA - République de Côte d\'Ivoire',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                          textAlign: TextAlign.center,
+                        Column(
+                          children: [
+                            Text(
+                              'www.chiasma.pro',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: const Color(0xFFF77F00),
+                                fontWeight: FontWeight.w600,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '© 2024 CHIASMA - République de Côte d\'Ivoire',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       ],
                     ),

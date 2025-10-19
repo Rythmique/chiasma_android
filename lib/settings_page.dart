@@ -706,6 +706,17 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 8),
               Row(
                 children: [
+                  Icon(Icons.language, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'www.chiasma.pro',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
                   Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(

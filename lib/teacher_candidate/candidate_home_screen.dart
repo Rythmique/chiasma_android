@@ -287,7 +287,7 @@ class CandidateSettingsPage extends StatelessWidget {
                 '🌐 Site web',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              Text('www.chiasma.com'),
+              Text('www.chiasma.pro'),
               SizedBox(height: 16),
               Text(
                 '© 2025 CHIASMA. Tous droits réservés.',
