@@ -10,6 +10,7 @@ import 'package:myapp/privacy_settings_page.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/services/notification_service.dart';
 import 'package:myapp/models/user_model.dart';
+import 'package:myapp/widgets/announcements_banner.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -726,6 +727,14 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 ],
               ),
+            ),
+          ),
+
+          // Annonces
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: AnnouncementsBanner(accountType: 'teacher_transfer'),
             ),
           ),
 
