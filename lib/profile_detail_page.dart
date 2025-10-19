@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/chat_page.dart';
+import 'package:myapp/services/subscription_service.dart';
+import 'package:myapp/services/firestore_service.dart';
 
 class ProfileDetailPage extends StatefulWidget {
+  final String userId;          // ID de l'utilisateur dont on consulte le profil
   final String name;
   final String fonction;
   final String zoneActuelle;
@@ -10,6 +14,7 @@ class ProfileDetailPage extends StatefulWidget {
 
   const ProfileDetailPage({
     super.key,
+    required this.userId,
     required this.name,
     required this.fonction,
     required this.zoneActuelle,
@@ -23,6 +28,95 @@ class ProfileDetailPage extends StatefulWidget {
 
 class _ProfileDetailPageState extends State<ProfileDetailPage> {
   bool _isFavorite = false;
+  bool _isLoadingFavorite = true;
+  final _subscriptionService = SubscriptionService();
+  final _firestoreService = FirestoreService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Incrémenter le compteur de vues quand le profil est ouvert
+    _incrementProfileView();
+    // Charger le statut favori
+    _loadFavoriteStatus();
+  }
+
+  Future<void> _incrementProfileView() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null && currentUser.uid != widget.userId) {
+        // Ne pas compter si c'est le propriétaire qui voit son propre profil
+        await _subscriptionService.incrementProfileViewCount(currentUser.uid);
+      }
+    } catch (e) {
+      // Erreur silencieuse - ne pas bloquer l'affichage du profil
+      debugPrint('Erreur lors de l\'incrémentation du compteur de vues: $e');
+    }
+  }
+
+  Future<void> _loadFavoriteStatus() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        final isFav = await _firestoreService.isFavorite(
+          currentUser.uid,
+          widget.userId,
+        );
+        if (mounted) {
+          setState(() {
+            _isFavorite = isFav;
+            _isLoadingFavorite = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Erreur lors du chargement du statut favori: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingFavorite = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      if (_isFavorite) {
+        await _firestoreService.removeFavorite(currentUser.uid, widget.userId);
+      } else {
+        await _firestoreService.addFavorite(currentUser.uid, widget.userId);
+      }
+
+      if (mounted) {
+        setState(() {
+          _isFavorite = !_isFavorite;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isFavorite
+                  ? 'Ajouté aux favoris ❤️'
+                  : 'Retiré des favoris',
+            ),
+            duration: const Duration(seconds: 2),
+            backgroundColor: _isFavorite ? Colors.red : const Color(0xFF009E60),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,26 +198,20 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
             ),
             actions: [
               IconButton(
-                icon: Icon(
-                  _isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: _isFavorite ? Colors.red : Colors.white,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _isFavorite = !_isFavorite;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        _isFavorite
-                            ? 'Ajouté aux favoris'
-                            : 'Retiré des favoris',
+                icon: _isLoadingFavorite
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Icon(
+                        _isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: _isFavorite ? Colors.red : Colors.white,
                       ),
-                      duration: const Duration(seconds: 1),
-                      backgroundColor: const Color(0xFF009E60),
-                    ),
-                  );
-                },
+                onPressed: _isLoadingFavorite ? null : _toggleFavorite,
               ),
             ],
           ),
