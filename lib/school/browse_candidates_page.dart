@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/job_application_model.dart';
 import '../services/jobs_service.dart';
+import '../services/subscription_service.dart';
 
 /// Page pour consulter les candidatures d'enseignants
 class BrowseCandidatesPage extends StatefulWidget {
@@ -13,10 +15,42 @@ class BrowseCandidatesPage extends StatefulWidget {
 
 class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
   final JobsService _jobsService = JobsService();
+  final SubscriptionService _subscriptionService = SubscriptionService();
+  final User? _currentUser = FirebaseAuth.instance.currentUser;
 
   // Filtres
   String? _selectedMatiere;
   List<String> _selectedNiveaux = [];
+
+  // Statut d'abonnement
+  bool _hasActiveSubscription = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSubscriptionStatus();
+  }
+
+  /// Vérifier le statut d'abonnement de l'école
+  Future<void> _checkSubscriptionStatus() async {
+    if (_currentUser == null) return;
+
+    try {
+      final subscription = await _subscriptionService.getActiveSubscription(_currentUser!.uid);
+      if (mounted) {
+        setState(() {
+          _hasActiveSubscription = subscription != null;
+        });
+      }
+    } catch (e) {
+      // En cas d'erreur, considérer comme non abonné
+      if (mounted) {
+        setState(() {
+          _hasActiveSubscription = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -362,10 +396,14 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
 
               // Coordonnées
               _buildDetailSection('Contact', ''),
-              _buildInfoRow(Icons.email, application.email),
-              if (application.telephones.isNotEmpty)
-                ...application.telephones
-                    .map((phone) => _buildInfoRow(Icons.phone, phone)),
+              if (_hasActiveSubscription) ...[
+                _buildInfoRow(Icons.email, application.email),
+                if (application.telephones.isNotEmpty)
+                  ...application.telephones
+                      .map((phone) => _buildInfoRow(Icons.phone, phone)),
+              ] else ...[
+                _buildLockedContactInfo(),
+              ],
               const SizedBox(height: 16),
 
               // Matières
@@ -504,6 +542,12 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
 
   /// Contacter un candidat
   void _contactCandidate(JobApplicationModel application) {
+    // Vérifier si l'école a un abonnement actif
+    if (!_hasActiveSubscription) {
+      _showSubscriptionRequiredDialog();
+      return;
+    }
+
     _jobsService.incrementApplicationContacts(application.id);
 
     showDialog(
@@ -735,5 +779,240 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
       _selectedMatiere = null;
       _selectedNiveaux = [];
     });
+  }
+
+  /// Widget pour afficher les informations de contact verrouillées
+  Widget _buildLockedContactInfo() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange[300]!),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.lock, color: Colors.orange[700], size: 32),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Informations de contact masquées',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Colors.orange[900],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Abonnez-vous pour accéder aux emails et téléphones',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.orange[800],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _showSubscriptionRequiredDialog,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF77F00),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              icon: const Icon(Icons.workspace_premium, size: 20),
+              label: const Text(
+                'Voir les tarifs d\'abonnement',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Afficher le dialogue demandant un abonnement
+  void _showSubscriptionRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.workspace_premium, color: Colors.orange[700], size: 28),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Abonnement requis',
+                style: TextStyle(fontSize: 20),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pour accéder aux coordonnées complètes des candidats (email et téléphone), vous devez souscrire à un abonnement.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Tarifs pour les écoles:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildPricingRow(
+                '1 semaine',
+                '5 000 FCFA',
+                Icons.calendar_today,
+                const Color(0xFFF77F00),
+              ),
+              const SizedBox(height: 8),
+              _buildPricingRow(
+                '1 mois',
+                '15 000 FCFA',
+                Icons.calendar_month,
+                const Color(0xFF009E60),
+                isRecommended: true,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Avec l\'abonnement, contactez autant de candidats que vous le souhaitez',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue[900],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Plus tard'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _navigateToSubscription();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF77F00),
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.workspace_premium),
+            label: const Text('S\'abonner'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Widget pour afficher une ligne de tarif
+  Widget _buildPricingRow(String duration, String price, IconData icon, Color color, {bool isRecommended = false}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: isRecommended ? Border.all(color: color, width: 2) : null,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      duration,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    if (isRecommended) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'RECOMMANDÉ',
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Text(
+            price,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Naviguer vers la page d'abonnement
+  void _navigateToSubscription() {
+    // TODO: Créer et naviguer vers SchoolSubscriptionPage
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Page d\'abonnement en cours de développement'),
+        backgroundColor: Color(0xFFF77F00),
+      ),
+    );
   }
 }
