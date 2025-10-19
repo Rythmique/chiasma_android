@@ -8,6 +8,7 @@ import 'package:myapp/notifications_page.dart';
 import 'package:myapp/user_info_page.dart';
 import 'package:myapp/privacy_settings_page.dart';
 import 'package:myapp/services/firestore_service.dart';
+import 'package:myapp/services/notification_service.dart';
 import 'package:myapp/models/user_model.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -122,6 +123,7 @@ class _SearchPageState extends State<SearchPage> {
   // Liste de profils fictifs avec données de recherche
   final List<Map<String, dynamic>> _allProfiles = [
     {
+      'userId': 'mock_user_1',
       'name': 'Jean Kouassi',
       'fonction': 'Professeur de Mathématiques',
       'zoneActuelle': 'Abidjan, Cocody',
@@ -130,6 +132,7 @@ class _SearchPageState extends State<SearchPage> {
       'isOnline': true,
     },
     {
+      'userId': 'mock_user_2',
       'name': 'Marie Koné',
       'fonction': 'Professeur de Français',
       'zoneActuelle': 'Bouaké, Centre',
@@ -138,6 +141,7 @@ class _SearchPageState extends State<SearchPage> {
       'isOnline': false,
     },
     {
+      'userId': 'mock_user_3',
       'name': 'Paul Diabaté',
       'fonction': 'Professeur d\'Anglais',
       'zoneActuelle': 'Daloa, Ouest',
@@ -146,6 +150,7 @@ class _SearchPageState extends State<SearchPage> {
       'isOnline': true,
     },
     {
+      'userId': 'mock_user_4',
       'name': 'Aminata Traoré',
       'fonction': 'Directeur d\'école',
       'zoneActuelle': 'Yamoussoukro',
@@ -154,6 +159,7 @@ class _SearchPageState extends State<SearchPage> {
       'isOnline': false,
     },
     {
+      'userId': 'mock_user_5',
       'name': 'Koffi Yao',
       'fonction': 'Censeur',
       'zoneActuelle': 'Man, Montagnes',
@@ -162,6 +168,7 @@ class _SearchPageState extends State<SearchPage> {
       'isOnline': true,
     },
     {
+      'userId': 'mock_user_6',
       'name': 'Adjoua Bamba',
       'fonction': 'Professeur de Mathématiques',
       'zoneActuelle': 'Korhogo, Nord',
@@ -170,6 +177,7 @@ class _SearchPageState extends State<SearchPage> {
       'isOnline': false,
     },
     {
+      'userId': 'mock_user_7',
       'name': 'Ibrahim Sangaré',
       'fonction': 'Professeur de Physique',
       'zoneActuelle': 'Abidjan, Abobo',
@@ -178,6 +186,7 @@ class _SearchPageState extends State<SearchPage> {
       'isOnline': true,
     },
     {
+      'userId': 'mock_user_8',
       'name': 'Aya N\'Guessan',
       'fonction': 'Professeur d\'Histoire',
       'zoneActuelle': 'San-Pedro',
@@ -186,6 +195,7 @@ class _SearchPageState extends State<SearchPage> {
       'isOnline': false,
     },
     {
+      'userId': 'mock_user_9',
       'name': 'Serge Ouattara',
       'fonction': 'Professeur de SVT',
       'zoneActuelle': 'Gagnoa, Centre-Ouest',
@@ -194,6 +204,7 @@ class _SearchPageState extends State<SearchPage> {
       'isOnline': true,
     },
     {
+      'userId': 'mock_user_10',
       'name': 'Fatou Diallo',
       'fonction': 'Professeur d\'Espagnol',
       'zoneActuelle': 'Abidjan, Marcory',
@@ -224,6 +235,42 @@ class _SearchPageState extends State<SearchPage> {
         return 'Match automatique activé - Aucune recherche nécessaire';
       default:
         return 'Rechercher...';
+    }
+  }
+
+  // Obtenir la couleur de bordure du filtre sélectionné
+  Color _getFilterBorderColor() {
+    switch (_selectedSearchMode) {
+      case 'zone_actuelle':
+        return const Color(0xFFF77F00); // Orange
+      case 'zone_souhaitee':
+        return const Color(0xFF009E60); // Vert
+      case 'fonction':
+        return const Color(0xFF2196F3); // Bleu
+      case 'dren':
+        return const Color(0xFF9C27B0); // Violet
+      case 'match_mutuel':
+        return const Color(0xFFE91E63); // Rose
+      default:
+        return Colors.grey.shade300;
+    }
+  }
+
+  // Obtenir la couleur de fond du filtre sélectionné
+  Color _getFilterBackgroundColor() {
+    switch (_selectedSearchMode) {
+      case 'zone_actuelle':
+        return const Color(0xFFF77F00).withValues(alpha: 0.05);
+      case 'zone_souhaitee':
+        return const Color(0xFF009E60).withValues(alpha: 0.05);
+      case 'fonction':
+        return const Color(0xFF2196F3).withValues(alpha: 0.05);
+      case 'dren':
+        return const Color(0xFF9C27B0).withValues(alpha: 0.05);
+      case 'match_mutuel':
+        return const Color(0xFFE91E63).withValues(alpha: 0.05);
+      default:
+        return Colors.white;
     }
   }
 
@@ -348,14 +395,52 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NotificationsPage(),
-                    ),
+              // Notification bell with badge
+              StreamBuilder<int>(
+                stream: NotificationService().streamUnreadCount(
+                  FirebaseAuth.instance.currentUser?.uid ?? '',
+                ),
+                builder: (context, snapshot) {
+                  final unreadCount = snapshot.data ?? 0;
+                  return Stack(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.notifications_outlined),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const NotificationsPage(),
+                            ),
+                          );
+                        },
+                      ),
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 18,
+                              minHeight: 18,
+                            ),
+                            child: Text(
+                              unreadCount > 99 ? '99+' : unreadCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
                   );
                 },
               ),
@@ -497,12 +582,15 @@ class _SearchPageState extends State<SearchPage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: _getFilterBackgroundColor(),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey[300]!),
+                      border: Border.all(
+                        color: _getFilterBorderColor(),
+                        width: 2,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
+                          color: _getFilterBorderColor().withValues(alpha: 0.2),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -720,6 +808,7 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildProfileCard(Map<String, dynamic> profile, int index) {
+    final userId = profile['userId'] as String;
     final isOnline = profile['isOnline'] as bool;
     final name = profile['name'] as String;
     final fonction = profile['fonction'] as String;
@@ -946,6 +1035,7 @@ class _SearchPageState extends State<SearchPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => ProfileDetailPage(
+                          userId: userId,
                           name: name,
                           fonction: fonction,
                           zoneActuelle: zoneActuelle,
@@ -1276,6 +1366,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => ProfileDetailPage(
+                          userId: 'mock_match_user_${index + 1}',
                           name: 'Enseignant ${index + 1}',
                           fonction: 'Professeur de Mathématiques',
                           zoneActuelle: 'Abidjan, Cocody',

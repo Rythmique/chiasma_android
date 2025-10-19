@@ -46,6 +46,7 @@ dependencies:
 
   # URL launcher pour ouvrir les pages de paiement
   url_launcher: ^6.3.1
+  timeago: ^3.7.1
 
 dev_dependencies:
   flutter_test:

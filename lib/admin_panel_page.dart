@@ -7,6 +7,7 @@ import 'package:myapp/models/user_model.dart';
 import 'package:myapp/models/subscription_model.dart';
 import 'package:myapp/models/job_application_model.dart';
 import 'package:myapp/models/job_offer_model.dart';
+import 'package:myapp/admin/manage_announcements_page.dart';
 
 class AdminPanelPage extends StatefulWidget {
   const AdminPanelPage({super.key});
@@ -60,9 +61,16 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 ),
                 Expanded(
                   child: _buildTabButton(
+                    'Annonces',
+                    Icons.campaign,
+                    3,
+                  ),
+                ),
+                Expanded(
+                  child: _buildTabButton(
                     'Paramètres',
                     Icons.settings,
-                    3,
+                    4,
                   ),
                 ),
               ],
@@ -128,6 +136,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       case 2:
         return _buildStatisticsTab();
       case 3:
+        return const ManageAnnouncementsPage();
+      case 4:
         return _buildSettingsTab();
       default:
         return const Center(child: Text('Contenu non disponible'));

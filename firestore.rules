@@ -114,6 +114,24 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
+    // Collection announcements - Annonces système
+    match /announcements/{announcementId} {
+      // Lecture: tous les utilisateurs authentifiés peuvent lire les annonces
+      allow read: if isSignedIn();
+      // Écriture: seuls les admins peuvent créer, modifier ou supprimer
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Collection notifications - Notifications utilisateur
+    match /notifications/{notificationId} {
+      // Lecture: utilisateur propriétaire ou admin
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      // Création: tout utilisateur authentifié ou admin (pour notifier les autres)
+      allow create: if isSignedIn();
+      // Mise à jour et suppression: propriétaire ou admin
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
     // Par défaut, tout est interdit
     match /{document=**} {
       allow read, write: if false;

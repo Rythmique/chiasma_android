@@ -1,280 +1,340 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:myapp/models/notification_model.dart';
+import 'package:myapp/services/notification_service.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
-class NotificationsPage extends StatelessWidget {
+class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
 
   @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  final NotificationService _notificationService = NotificationService();
+  final User? _currentUser = FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    // Configurer timeago en français
+    timeago.setLocaleMessages('fr', timeago.FrMessages());
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_currentUser == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Notifications'),
+          backgroundColor: const Color(0xFFF77F00),
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Text('Vous devez être connecté pour voir les notifications'),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
         backgroundColor: const Color(0xFFF77F00),
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
-          TextButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Toutes les notifications marquées comme lues'),
-                  backgroundColor: Color(0xFF009E60),
-                ),
-              );
+          // Marquer tout comme lu
+          IconButton(
+            icon: const Icon(Icons.done_all),
+            tooltip: 'Tout marquer comme lu',
+            onPressed: () async {
+              try {
+                await _notificationService.markAllAsRead(_currentUser!.uid);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Toutes les notifications sont marquées comme lues'),
+                      backgroundColor: Color(0xFF009E60),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Erreur: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
-            child: const Text(
-              'Tout marquer lu',
-              style: TextStyle(color: Colors.white),
-            ),
           ),
-        ],
-      ),
-      body: ListView(
-        children: [
-          _buildNotificationItem(
-            context,
-            icon: Icons.people,
-            iconColor: const Color(0xFF009E60),
-            title: 'Nouveau match mutuel trouvé !',
-            subtitle: 'Un enseignant de Yamoussoukro correspond à vos critères',
-            time: 'Il y a 5 min',
-            isUnread: true,
-          ),
-          const Divider(height: 1),
-          _buildNotificationItem(
-            context,
-            icon: Icons.message,
-            iconColor: const Color(0xFF2196F3),
-            title: 'Nouveau message',
-            subtitle: 'Jean Dupont vous a envoyé un message',
-            time: 'Il y a 1h',
-            isUnread: true,
-          ),
-          const Divider(height: 1),
-          _buildNotificationItem(
-            context,
-            icon: Icons.favorite,
-            iconColor: Colors.red,
-            title: 'Votre profil a été ajouté aux favoris',
-            subtitle: 'Un enseignant s\'intéresse à votre profil',
-            time: 'Il y a 2h',
-            isUnread: false,
-          ),
-          const Divider(height: 1),
-          _buildNotificationItem(
-            context,
-            icon: Icons.visibility,
-            iconColor: const Color(0xFF9C27B0),
-            title: 'Profil consulté',
-            subtitle: '3 enseignants ont consulté votre profil aujourd\'hui',
-            time: 'Il y a 3h',
-            isUnread: false,
-          ),
-          const Divider(height: 1),
-          _buildNotificationItem(
-            context,
-            icon: Icons.campaign,
-            iconColor: const Color(0xFFF77F00),
-            title: 'Nouvelle fonctionnalité',
-            subtitle: 'Découvrez la messagerie instantanée !',
-            time: 'Hier',
-            isUnread: false,
-          ),
-          const Divider(height: 1),
-          _buildNotificationItem(
-            context,
-            icon: Icons.workspace_premium,
-            iconColor: Colors.orange[700]!,
-            title: 'Offre Premium',
-            subtitle: 'Profitez de 20% de réduction sur l\'abonnement annuel',
-            time: 'Hier',
-            isUnread: false,
-          ),
-          const Divider(height: 1),
-          _buildNotificationItem(
-            context,
-            icon: Icons.message,
-            iconColor: const Color(0xFF2196F3),
-            title: 'Nouveau message',
-            subtitle: 'Marie Kouassi: "Bonjour, pouvons-nous discuter..."',
-            time: 'Il y a 2 jours',
-            isUnread: false,
-          ),
-          const Divider(height: 1),
-          _buildNotificationItem(
-            context,
-            icon: Icons.people,
-            iconColor: const Color(0xFF009E60),
-            title: 'Match mutuel',
-            subtitle: 'Vous avez 2 nouveaux matchs mutuels',
-            time: 'Il y a 3 jours',
-            isUnread: false,
-          ),
-          const Divider(height: 1),
-          _buildNotificationItem(
-            context,
-            icon: Icons.security,
-            iconColor: const Color(0xFF009E60),
-            title: 'Connexion depuis un nouveau appareil',
-            subtitle: 'Si ce n\'était pas vous, changez votre mot de passe',
-            time: 'Il y a 5 jours',
-            isUnread: false,
-          ),
-          const Divider(height: 1),
-          _buildNotificationItem(
-            context,
-            icon: Icons.info,
-            iconColor: const Color(0xFF2196F3),
-            title: 'Bienvenue sur CHIASMA',
-            subtitle: 'Complétez votre profil pour augmenter vos chances',
-            time: 'Il y a 1 semaine',
-            isUnread: false,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNotificationItem(
-    BuildContext context, {
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required String time,
-    required bool isUnread,
-  }) {
-    return Container(
-      color: isUnread
-          ? const Color(0xFFF77F00).withValues(alpha: 0.05)
-          : Colors.white,
-      child: ListTile(
-        leading: Stack(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                color: iconColor,
-                size: 24,
-              ),
-            ),
-            if (isUnread)
-              Positioned(
-                right: 0,
-                top: 0,
-                child: Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF77F00),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+          // Menu options
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) async {
+              if (value == 'delete_all') {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Supprimer toutes les notifications'),
+                    content: const Text('Êtes-vous sûr de vouloir supprimer toutes vos notifications ?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Annuler'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
                   ),
+                );
+
+                if (confirm == true && mounted) {
+                  try {
+                    await _notificationService.deleteAllNotifications(_currentUser!.uid);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Toutes les notifications ont été supprimées'),
+                          backgroundColor: Color(0xFF009E60),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Erreur: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'delete_all',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_sweep, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Tout supprimer'),
+                  ],
                 ),
               ),
-          ],
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+            ],
           ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[600],
-                fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal,
+        ],
+      ),
+      body: StreamBuilder<List<NotificationModel>>(
+        stream: _notificationService.streamUserNotifications(_currentUser!.uid),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFF77F00),
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              time,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[500],
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text('Erreur: ${snapshot.error}'),
+                ],
               ),
-            ),
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.more_vert, size: 20),
-          onPressed: () {
-            _showNotificationOptions(context);
-          },
-        ),
-        onTap: () {
-          // Action selon le type de notification
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Notification consultée'),
-              duration: Duration(seconds: 1),
-            ),
+            );
+          }
+
+          final notifications = snapshot.data ?? [];
+
+          if (notifications.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.notifications_none,
+                    size: 80,
+                    color: Colors.grey[300],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Aucune notification',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Vous serez notifié ici des nouvelles activités',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: notifications.length,
+            itemBuilder: (context, index) {
+              final notification = notifications[index];
+              return _buildNotificationCard(notification);
+            },
           );
         },
       ),
     );
   }
 
-  void _showNotificationOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+  Widget _buildNotificationCard(NotificationModel notification) {
+    final color = Color(NotificationModel.getColorForType(notification.type));
+    final icon = IconData(
+      NotificationModel.getIconForType(notification.type),
+      fontFamily: 'MaterialIcons',
+    );
+
+    return Dismissible(
+      key: Key(notification.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white),
       ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
+      onDismissed: (direction) async {
+        try {
+          await _notificationService.deleteNotification(notification.id);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Notification supprimée'),
+                duration: Duration(seconds: 2),
               ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Erreur: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      },
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        elevation: notification.isRead ? 0 : 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: notification.isRead ? Colors.grey.shade200 : color.withValues(alpha: 0.3),
+            width: notification.isRead ? 1 : 2,
+          ),
+        ),
+        child: InkWell(
+          onTap: () async {
+            if (!notification.isRead) {
+              await _notificationService.markAsRead(notification.id);
+            }
+            // TODO: Navigation selon le type de notification
+            // Par exemple: si type == 'message', aller à la conversation
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: notification.isRead ? Colors.white : color.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.check, color: Color(0xFF009E60)),
-              title: const Text('Marquer comme lu'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Marqué comme lu'),
-                    duration: Duration(seconds: 1),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icône
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Supprimer'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Notification supprimée'),
-                    duration: Duration(seconds: 1),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 12),
+                // Contenu
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              notification.title,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: notification.isRead ? FontWeight.w600 : FontWeight.bold,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ),
+                          if (!notification.isRead)
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        notification.message,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        timeago.format(notification.createdAt, locale: 'fr'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
                   ),
-                );
-              },
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-          ],
+          ),
         ),
       ),
     );
