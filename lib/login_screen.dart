@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/home_screen.dart';
 import 'package:myapp/forgot_password_screen.dart';
 import 'package:myapp/onboarding_page.dart';
@@ -44,12 +45,23 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Se connecter avec email, mot de passe ET matricule
-      final userCredential = await _authService.signInWithEmailPasswordAndMatricule(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        matricule: _matriculeController.text.trim(),
-      );
+      final matricule = _matriculeController.text.trim();
+      final UserCredential? userCredential;
+
+      // Si matricule fourni, vérifier avec matricule (enseignants permutation)
+      // Sinon, connexion simple (candidats et écoles)
+      if (matricule.isNotEmpty) {
+        userCredential = await _authService.signInWithEmailPasswordAndMatricule(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+          matricule: matricule,
+        );
+      } else {
+        userCredential = await _authService.signInWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+      }
 
       // Récupérer le type de compte de l'utilisateur
       if (mounted && userCredential != null && userCredential.user != null) {
@@ -269,25 +281,61 @@ class _LoginScreenState extends State<LoginScreen> {
                                 // Champ Matricule
                                 TextFormField(
                                   controller: _matriculeController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Numéro de matricule',
+                                  decoration: InputDecoration(
+                                    labelText: 'Numéro de matricule (optionnel)',
                                     hintText: '123456A',
-                                    prefixIcon: Icon(Icons.badge_outlined, color: Color(0xFFF77F00)),
+                                    prefixIcon: const Icon(Icons.badge_outlined, color: Color(0xFFF77F00)),
+                                    helperText: 'Réservé aux enseignants (permutation)',
+                                    helperStyle: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                    suffixIcon: Tooltip(
+                                      message: 'Les écoles et candidats n\'ont pas besoin de remplir ce champ',
+                                      child: Icon(Icons.info_outline, color: Colors.grey[400], size: 20),
+                                    ),
                                   ),
                                   keyboardType: TextInputType.text,
                                   textCapitalization: TextCapitalization.characters,
                                   enabled: !_isLoading,
                                   validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Veuillez entrer votre matricule';
-                                    }
-                                    // Validation: 6 chiffres + 1 lettre (ex: 123456A)
-                                    final matriculeRegex = RegExp(r'^\d{6}[A-Z]$');
-                                    if (!matriculeRegex.hasMatch(value.toUpperCase())) {
-                                      return 'Format invalide (ex: 123456A)';
+                                    // Matricule optionnel - valider seulement si rempli
+                                    if (value != null && value.isNotEmpty) {
+                                      // Validation: 6 chiffres + 1 lettre (ex: 123456A)
+                                      final matriculeRegex = RegExp(r'^\d{6}[A-Z]$');
+                                      if (!matriculeRegex.hasMatch(value.toUpperCase())) {
+                                        return 'Format invalide (ex: 123456A)';
+                                      }
                                     }
                                     return null;
                                   },
+                                ),
+                                const SizedBox(height: 8),
+                                // Information contextuelle
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.blue[200]!),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.lightbulb_outline, size: 16, color: Colors.blue[700]),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Écoles et candidats : laissez le matricule vide',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.blue[900],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                                 const SizedBox(height: 20),
 
