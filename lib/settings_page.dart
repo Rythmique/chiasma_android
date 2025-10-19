@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/privacy_settings_page.dart';
+import 'package:myapp/edit_profile_page.dart';
+import 'package:myapp/admin_panel_page.dart';
+import 'package:myapp/services/firestore_service.dart';
+import 'package:myapp/models/user_model.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -13,6 +18,36 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _emailNotifications = true;
   bool _messageNotifications = true;
   bool _matchNotifications = true;
+  final FirestoreService _firestoreService = FirestoreService();
+  UserModel? _currentUserData;
+  bool _isLoadingUserData = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUserData();
+  }
+
+  Future<void> _loadCurrentUserData() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      try {
+        final userData = await _firestoreService.getUser(currentUser.uid);
+        setState(() {
+          _currentUserData = userData;
+          _isLoadingUserData = false;
+        });
+      } catch (e) {
+        setState(() {
+          _isLoadingUserData = false;
+        });
+      }
+    } else {
+      setState(() {
+        _isLoadingUserData = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,18 +59,62 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: ListView(
         children: [
+          // Section Administration (visible uniquement pour les admins)
+          if (!_isLoadingUserData && _currentUserData != null && _currentUserData!.isAdmin) ...[
+            _buildSectionHeader('Administration'),
+            _buildSettingsTile(
+              icon: Icons.admin_panel_settings,
+              title: 'Panneau d\'administration',
+              subtitle: 'Gérer les utilisateurs et vérifications',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminPanelPage(),
+                  ),
+                );
+              },
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.purple[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.purple),
+                ),
+                child: const Text(
+                  'ADMIN',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.purple,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const Divider(height: 32),
+          ],
+
           // Section Compte
           _buildSectionHeader('Compte'),
           _buildSettingsTile(
             icon: Icons.person,
             title: 'Modifier le profil',
             subtitle: 'Nom, fonction, zones...',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Édition du profil - Fonctionnalité à venir'),
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const EditProfilePage(),
                 ),
               );
+              // Si le profil a été modifié, rafraîchir les données utilisateur
+              if (result == true && mounted) {
+                _loadCurrentUserData();
+                // Informer la page parente qu'une modification a eu lieu
+                if (context.mounted) {
+                  Navigator.pop(context, true);
+                }
+              }
             },
           ),
           _buildSettingsTile(
@@ -527,44 +606,185 @@ class _SettingsPageState extends State<SettingsPage> {
         title: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFFF77F00), Color(0xFF009E60)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFF77F00).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: const Icon(Icons.swap_horiz, color: Colors.white),
+              child: const Icon(Icons.swap_horiz, color: Colors.white, size: 28),
             ),
             const SizedBox(width: 12),
-            const Text('CHIASMA'),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'CHIASMA',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Version 1.0.0',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Colors.grey),
+                ),
+              ],
+            ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Version 1.0.0',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Plateforme de permutation d\'enseignants en Côte d\'Ivoire.',
-              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '© 2024 CHIASMA',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Description
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF77F00).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Plateforme de permutation et de matching professionnel pour les enseignants de Côte d\'Ivoire.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[800], height: 1.4),
+                  textAlign: TextAlign.justify,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Objectif
+              const Text(
+                'Notre mission',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFFF77F00)),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Faciliter les échanges de postes entre enseignants pour améliorer leur qualité de vie tout en maintenant l\'excellence de l\'enseignement.',
+                style: TextStyle(fontSize: 13, color: Colors.grey[700], height: 1.4),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Fonctionnalités principales
+              const Text(
+                'Fonctionnalités clés',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFFF77F00)),
+              ),
+              const SizedBox(height: 8),
+              _buildFeatureItem(Icons.search, 'Recherche avancée par zone et critères'),
+              _buildFeatureItem(Icons.people, 'Matching intelligent entre profils'),
+              _buildFeatureItem(Icons.chat_bubble, 'Messagerie sécurisée'),
+              _buildFeatureItem(Icons.star, 'Gestion des favoris et alertes'),
+              _buildFeatureItem(Icons.verified_user, 'Vérification des profils'),
+
+              const SizedBox(height: 16),
+
+              const Divider(),
+
+              // Informations légales
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.copyright, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    '2024 CHIASMA - Tous droits réservés',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Abidjan, Côte d\'Ivoire',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.email, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'contact@chiasma.ci',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Technologies
+              Text(
+                'Développé avec Flutter',
+                style: TextStyle(fontSize: 11, color: Colors.grey[500], fontStyle: FontStyle.italic),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(
+          TextButton.icon(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Ouverture des conditions d\'utilisation - Fonctionnalité à venir'),
+                ),
+              );
+            },
+            icon: const Icon(Icons.description, size: 16),
+            label: const Text('CGU'),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Ouverture de la politique de confidentialité - Fonctionnalité à venir'),
+                ),
+              );
+            },
+            icon: const Icon(Icons.privacy_tip, size: 16),
+            label: const Text('Confidentialité'),
+          ),
+          ElevatedButton(
             onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF77F00),
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureItem(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF009E60)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+            ),
           ),
         ],
       ),

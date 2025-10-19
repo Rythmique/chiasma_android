@@ -43,3 +43,17 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase Functions
+functions/node_modules/
+functions/lib/
+functions/.env
+functions/.env.local
+
+# Secrets - NEVER commit these!
+*.key
+*.pem
+**/secrets/
+.env
+.env.local
+.env.production

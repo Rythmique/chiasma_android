@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/profile_detail_page.dart';
 import 'package:myapp/chat_page.dart';
 import 'package:myapp/settings_page.dart';
 import 'package:myapp/subscription_page.dart';
 import 'package:myapp/notifications_page.dart';
+import 'package:myapp/user_info_page.dart';
+import 'package:myapp/privacy_settings_page.dart';
+import 'package:myapp/services/firestore_service.dart';
+import 'package:myapp/models/user_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -101,10 +106,18 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
-  String _selectedSearchMode = 'match_mutuel';
-  final int _freeViewsRemaining = 5;
+  String _selectedSearchMode = 'zone_actuelle'; // Par défaut: Par Zone Actuelle
+  final int _freeViewsRemaining = 5; // Compteur de consultations gratuites
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  // Données de l'utilisateur connecté (pour le match mutuel)
+  final Map<String, dynamic> _currentUser = {
+    'zoneActuelle': 'Abidjan, Cocody',
+    'zoneSouhaitee': 'Yamoussoukro',
+    'fonction': 'Professeur de Mathématiques',
+    'dren': 'Abidjan 1',
+  };
 
   // Liste de profils fictifs avec données de recherche
   final List<Map<String, dynamic>> _allProfiles = [
@@ -113,6 +126,7 @@ class _SearchPageState extends State<SearchPage> {
       'fonction': 'Professeur de Mathématiques',
       'zoneActuelle': 'Abidjan, Cocody',
       'zoneSouhaitee': 'Yamoussoukro',
+      'dren': 'Abidjan 1',
       'isOnline': true,
     },
     {
@@ -120,6 +134,7 @@ class _SearchPageState extends State<SearchPage> {
       'fonction': 'Professeur de Français',
       'zoneActuelle': 'Bouaké, Centre',
       'zoneSouhaitee': 'Abidjan, Plateau',
+      'dren': 'Bouaké',
       'isOnline': false,
     },
     {
@@ -127,6 +142,7 @@ class _SearchPageState extends State<SearchPage> {
       'fonction': 'Professeur d\'Anglais',
       'zoneActuelle': 'Daloa, Ouest',
       'zoneSouhaitee': 'San-Pedro',
+      'dren': 'Daloa',
       'isOnline': true,
     },
     {
@@ -134,6 +150,7 @@ class _SearchPageState extends State<SearchPage> {
       'fonction': 'Directeur d\'école',
       'zoneActuelle': 'Yamoussoukro',
       'zoneSouhaitee': 'Abidjan, Cocody',
+      'dren': 'Yamoussoukro',
       'isOnline': false,
     },
     {
@@ -141,6 +158,7 @@ class _SearchPageState extends State<SearchPage> {
       'fonction': 'Censeur',
       'zoneActuelle': 'Man, Montagnes',
       'zoneSouhaitee': 'Bouaké',
+      'dren': 'Man',
       'isOnline': true,
     },
     {
@@ -148,6 +166,7 @@ class _SearchPageState extends State<SearchPage> {
       'fonction': 'Professeur de Mathématiques',
       'zoneActuelle': 'Korhogo, Nord',
       'zoneSouhaitee': 'Abidjan, Yopougon',
+      'dren': 'Korhogo',
       'isOnline': false,
     },
     {
@@ -155,6 +174,7 @@ class _SearchPageState extends State<SearchPage> {
       'fonction': 'Professeur de Physique',
       'zoneActuelle': 'Abidjan, Abobo',
       'zoneSouhaitee': 'Daloa',
+      'dren': 'Abidjan 2',
       'isOnline': true,
     },
     {
@@ -162,6 +182,7 @@ class _SearchPageState extends State<SearchPage> {
       'fonction': 'Professeur d\'Histoire',
       'zoneActuelle': 'San-Pedro',
       'zoneSouhaitee': 'Abidjan, Cocody',
+      'dren': 'San-Pedro',
       'isOnline': false,
     },
     {
@@ -169,6 +190,7 @@ class _SearchPageState extends State<SearchPage> {
       'fonction': 'Professeur de SVT',
       'zoneActuelle': 'Gagnoa, Centre-Ouest',
       'zoneSouhaitee': 'Yamoussoukro',
+      'dren': 'Gagnoa',
       'isOnline': true,
     },
     {
@@ -176,6 +198,7 @@ class _SearchPageState extends State<SearchPage> {
       'fonction': 'Professeur d\'Espagnol',
       'zoneActuelle': 'Abidjan, Marcory',
       'zoneSouhaitee': 'Bouaké',
+      'dren': 'Abidjan 3',
       'isOnline': false,
     },
   ];
@@ -186,18 +209,67 @@ class _SearchPageState extends State<SearchPage> {
     super.dispose();
   }
 
+  // Obtenir le placeholder du champ de recherche selon le filtre actif
+  String get _searchHint {
+    switch (_selectedSearchMode) {
+      case 'zone_actuelle':
+        return 'Rechercher par zone actuelle (ex: Abidjan, Cocody)...';
+      case 'zone_souhaitee':
+        return 'Rechercher par zone souhaitée (ex: Yamoussoukro)...';
+      case 'fonction':
+        return 'Rechercher par fonction (ex: Professeur, Directeur)...';
+      case 'dren':
+        return 'Rechercher par DREN (ex: Abidjan 1, Bouaké)...';
+      case 'match_mutuel':
+        return 'Match automatique activé - Aucune recherche nécessaire';
+      default:
+        return 'Rechercher...';
+    }
+  }
+
   List<Map<String, dynamic>> get _filteredProfiles {
+    // Mode Match Mutuel : recherche automatique
+    if (_selectedSearchMode == 'match_mutuel') {
+      return _allProfiles.where((profile) {
+        // Match mutuel = la zone souhaitée de l'utilisateur correspond à la zone actuelle du profil
+        // ET la zone actuelle de l'utilisateur correspond à la zone souhaitée du profil
+        return profile['zoneActuelle'] == _currentUser['zoneSouhaitee'] &&
+               profile['zoneSouhaitee'] == _currentUser['zoneActuelle'];
+      }).toList();
+    }
+
+    // Si pas de recherche, retourner tous les profils
     if (_searchQuery.isEmpty) {
       return _allProfiles;
     }
 
     final query = _searchQuery.toLowerCase();
-    return _allProfiles.where((profile) {
-      return profile['name'].toString().toLowerCase().contains(query) ||
-             profile['fonction'].toString().toLowerCase().contains(query) ||
-             profile['zoneActuelle'].toString().toLowerCase().contains(query) ||
-             profile['zoneSouhaitee'].toString().toLowerCase().contains(query);
-    }).toList();
+
+    // Filtrer selon le mode de recherche sélectionné
+    switch (_selectedSearchMode) {
+      case 'zone_actuelle':
+        return _allProfiles.where((profile) {
+          return profile['zoneActuelle'].toString().toLowerCase().contains(query);
+        }).toList();
+
+      case 'zone_souhaitee':
+        return _allProfiles.where((profile) {
+          return profile['zoneSouhaitee'].toString().toLowerCase().contains(query);
+        }).toList();
+
+      case 'fonction':
+        return _allProfiles.where((profile) {
+          return profile['fonction'].toString().toLowerCase().contains(query);
+        }).toList();
+
+      case 'dren':
+        return _allProfiles.where((profile) {
+          return profile['dren'].toString().toLowerCase().contains(query);
+        }).toList();
+
+      default:
+        return _allProfiles;
+    }
   }
 
   @override
@@ -296,15 +368,19 @@ class _SearchPageState extends State<SearchPage> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
                 controller: _searchController,
+                enabled: _selectedSearchMode != 'match_mutuel', // Désactivé en mode match mutuel
                 onChanged: (value) {
                   setState(() {
                     _searchQuery = value;
                   });
                 },
                 decoration: InputDecoration(
-                  hintText: 'Rechercher par nom, fonction, zone...',
+                  hintText: _searchHint,
                   hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFFF77F00)),
+                  prefixIcon: Icon(
+                    _selectedSearchMode == 'match_mutuel' ? Icons.auto_awesome : Icons.search,
+                    color: const Color(0xFFF77F00),
+                  ),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear, color: Colors.grey),
@@ -317,12 +393,18 @@ class _SearchPageState extends State<SearchPage> {
                         )
                       : null,
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: _selectedSearchMode == 'match_mutuel'
+                      ? Colors.grey[100]
+                      : Colors.white,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: Colors.grey[300]!),
                   ),
                   enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  disabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: Colors.grey[300]!),
                   ),
@@ -396,7 +478,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
 
-          // Modes de recherche
+          // Menu déroulant pour les modes de recherche
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -406,42 +488,153 @@ class _SearchPageState extends State<SearchPage> {
                   Text(
                     'Mode de recherche',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.grey[800],
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _buildSearchModeCard(
-                    'match_mutuel',
-                    'Match Mutuel',
-                    'Trouve automatiquement les correspondances parfaites',
-                    Icons.sync_alt,
-                    const Color(0xFF009E60),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildSearchModeCard(
-                    'zone_actuelle',
-                    'Par Zone Actuelle',
-                    'Rechercher par zone géographique actuelle',
-                    Icons.location_on,
-                    const Color(0xFFF77F00),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildSearchModeCard(
-                    'fonction',
-                    'Par Fonction',
-                    'Professeur, Directeur, Censeur...',
-                    Icons.work,
-                    const Color(0xFF2196F3),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildSearchModeCard(
-                    'dren',
-                    'Par DREN',
-                    'Direction Régionale de l\'Éducation Nationale',
-                    Icons.apartment,
-                    const Color(0xFF9C27B0),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[300]!),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedSearchMode,
+                        isExpanded: true,
+                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFF77F00)),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'zone_actuelle',
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF77F00).withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.location_on,
+                                    color: Color(0xFFF77F00),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text('Par Zone Actuelle'),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'zone_souhaitee',
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF009E60).withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.location_searching,
+                                    color: Color(0xFF009E60),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text('Par Zone Souhaitée'),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'fonction',
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2196F3).withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.work,
+                                    color: Color(0xFF2196F3),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text('Par Fonction'),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'dren',
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF9C27B0).withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.apartment,
+                                    color: Color(0xFF9C27B0),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text('Par DREN'),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'match_mutuel',
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.sync_alt,
+                                    color: Color(0xFF4CAF50),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text('Match Mutuel'),
+                              ],
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedSearchMode = value!;
+                            // Réinitialiser la recherche lors du changement de filtre
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                        },
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -522,89 +715,6 @@ class _SearchPageState extends State<SearchPage> {
 
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSearchModeCard(
-    String mode,
-    String title,
-    String description,
-    IconData icon,
-    Color color,
-  ) {
-    final isSelected = _selectedSearchMode == mode;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedSearchMode = mode;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.1) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? color : Colors.grey[300]!,
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isSelected ? color : Colors.grey[100],
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                icon,
-                color: isSelected ? Colors.white : Colors.grey[600],
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? color : Colors.grey[800],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              Icon(
-                Icons.check_circle,
-                color: color,
-                size: 24,
-              ),
-          ],
-        ),
       ),
     );
   }
@@ -1338,11 +1448,42 @@ class MessagesPage extends StatelessWidget {
 }
 
 // Page de profil
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
   @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  // Clé pour forcer le rafraîchissement du FutureBuilder
+  int _refreshKey = 0;
+
+  void _refreshProfile() {
+    if (mounted) {
+      setState(() {
+        _refreshKey++;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Mon Profil'),
+          backgroundColor: const Color(0xFFF77F00),
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Text('Aucun utilisateur connecté'),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mon Profil'),
@@ -1357,128 +1498,204 @@ class ProfilePage extends StatelessWidget {
                 MaterialPageRoute(
                   builder: (context) => const SettingsPage(),
                 ),
-              );
+              ).then((_) => _refreshProfile()); // Rafraîchir après retour des paramètres
             },
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFFF77F00),
-                    const Color(0xFFF77F00).withValues(alpha: 0.8),
+      body: FutureBuilder<UserModel?>(
+        key: ValueKey(_refreshKey), // Utiliser la clé pour forcer le rafraîchissement
+        future: FirestoreService().getUser(currentUser.uid),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFF77F00),
+              ),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Erreur de chargement',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      snapshot.error.toString(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
                   ],
                 ),
               ),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.white,
-                    child: Text(
-                      'JD',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFFF77F00),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Jean Dupont',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Professeur de Mathématiques',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.badge,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Matricule : MAT123456',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+            );
+          }
+
+          final userData = snapshot.data;
+
+          if (userData == null) {
+            return const Center(
+              child: Text('Aucune donnée utilisateur trouvée'),
+            );
+          }
+
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFFF77F00),
+                        const Color(0xFFF77F00).withValues(alpha: 0.8),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildInfoCard(
-                    'Informations personnelles',
-                    [
-                      _buildInfoRow(Icons.email, 'Email', 'jean.dupont@education.ci'),
-                      _buildInfoRow(Icons.phone, 'Téléphone', '+225 07 XX XX XX XX'),
-                      _buildInfoRow(Icons.location_city, 'DREN', 'Abidjan 1'),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Colors.white,
+                        child: Text(
+                          _getInitials(userData.nom),
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFF77F00),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        userData.nom,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        userData.fonction,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              userData.isVerified
+                                  ? Icons.verified_user
+                                  : Icons.pending,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              userData.isVerified
+                                  ? 'Profil vérifié'
+                                  : 'En attente de vérification',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  _buildInfoCard(
-                    'Zones',
-                    [
-                      _buildInfoRow(Icons.location_on, 'Zone actuelle', 'Abidjan, Cocody'),
-                      _buildInfoRow(Icons.location_searching, 'Zone souhaitée', 'Yamoussoukro'),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildInfoCard(
+                        'Informations personnelles',
+                        [
+                          // Matricule uniquement pour les admins
+                          if (userData.isAdmin)
+                            _buildInfoRow(Icons.badge, 'Matricule', userData.matricule),
+                          _buildInfoRow(Icons.email, 'Email', userData.email),
+                          if (userData.telephones.isNotEmpty)
+                            _buildInfoRow(Icons.phone, 'Téléphone', userData.telephones.first),
+                          if (userData.dren != null)
+                            _buildInfoRow(Icons.location_city, 'DREN', userData.dren!),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildInfoCard(
+                        'Zones',
+                        [
+                          _buildInfoRow(Icons.location_on, 'Zone actuelle', userData.zoneActuelle),
+                          if (userData.zonesSouhaitees.isNotEmpty)
+                            _buildInfoRow(
+                              Icons.location_searching,
+                              'Zones souhaitées',
+                              userData.zonesSouhaitees.join(', '),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildActionCard(
+                        context,
+                        'Abonnement',
+                        'Compte Gratuit',
+                        'Passez au premium pour des fonctionnalités illimitées',
+                        Icons.workspace_premium,
+                        const Color(0xFF009E60),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildMenuList(context),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  _buildActionCard(
-                    context,
-                    'Abonnement',
-                    'Compte Gratuit',
-                    'Passez au premium pour des fonctionnalités illimitées',
-                    Icons.workspace_premium,
-                    const Color(0xFF009E60),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildMenuList(context),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
+  }
+
+  String _getInitials(String name) {
+    final words = name.split(' ');
+    if (words.isEmpty) return '??';
+    if (words.length == 1) return words[0][0].toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
   }
 
   Widget _buildInfoCard(String title, List<Widget> children) {
@@ -1640,37 +1857,26 @@ class ProfilePage extends StatelessWidget {
       child: Column(
         children: [
           _buildMenuItem(
+            Icons.account_circle_outlined,
+            'Mes informations complètes',
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UserInfoPage(),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          _buildMenuItem(
             Icons.privacy_tip_outlined,
             'Confidentialité',
             () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const SettingsPage(),
-                ),
-              );
-            },
-          ),
-          const Divider(height: 1),
-          _buildMenuItem(
-            Icons.help_outline,
-            'Aide et support',
-            () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Page d\'aide - Fonctionnalité à venir'),
-                ),
-              );
-            },
-          ),
-          const Divider(height: 1),
-          _buildMenuItem(
-            Icons.info_outline,
-            'À propos',
-            () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('CHIASMA v1.0.0 - © 2024'),
+                  builder: (context) => const PrivacySettingsPage(),
                 ),
               );
             },
@@ -1679,9 +1885,45 @@ class ProfilePage extends StatelessWidget {
           _buildMenuItem(
             Icons.logout,
             'Déconnexion',
-            () {
-              // Retour à la page de connexion
-              Navigator.of(context).pushReplacementNamed('/login');
+            () async {
+              // Afficher un dialogue de confirmation
+              final shouldLogout = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.logout, color: Colors.red),
+                      SizedBox(width: 12),
+                      Text('Déconnexion'),
+                    ],
+                  ),
+                  content: const Text('Êtes-vous sûr de vouloir vous déconnecter ?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Annuler'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Déconnexion'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (shouldLogout == true && context.mounted) {
+                await FirebaseAuth.instance.signOut();
+                if (context.mounted) {
+                  Navigator.of(context).pushReplacementNamed('/');
+                }
+              }
             },
             color: Colors.red,
           ),
@@ -1693,7 +1935,7 @@ class ProfilePage extends StatelessWidget {
   Widget _buildMenuItem(
     IconData icon,
     String title,
-    VoidCallback onTap, {
+    dynamic onTap, {
     Color? color,
   }) {
     return ListTile(

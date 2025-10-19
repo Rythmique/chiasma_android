@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final String accountType; // 'teacher_transfer', 'teacher_candidate', 'school'
+
+  const RegisterScreen({
+    super.key,
+    this.accountType = 'teacher_transfer', // Par défaut pour compatibilité
+  });
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -11,7 +18,18 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
   final _formKey = GlobalKey<FormState>();
+  final _authService = AuthService();
+
+  // Contrôleurs pour les champs de base
+  final _nomController = TextEditingController();
+  final _matriculeController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _fonctionController = TextEditingController();
+  final _zoneActuelleController = TextEditingController();
+  final _drenController = TextEditingController();
+  final _infosZoneController = TextEditingController();
   final _passwordController = TextEditingController();
 
   // Contrôleurs pour les numéros de téléphone (max 3)
@@ -22,6 +40,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    _nomController.dispose();
+    _matriculeController.dispose();
+    _emailController.dispose();
+    _fonctionController.dispose();
+    _zoneActuelleController.dispose();
+    _drenController.dispose();
+    _infosZoneController.dispose();
     _passwordController.dispose();
     for (var controller in _phoneControllers) {
       controller.dispose();
@@ -63,6 +88,81 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _zoneControllers[index].dispose();
         _zoneControllers.removeAt(index);
       });
+    }
+  }
+
+  Future<void> _handleRegister() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Collecter les téléphones (uniquement les champs remplis)
+      List<String> telephones = _phoneControllers
+          .map((controller) => controller.text.trim())
+          .where((phone) => phone.isNotEmpty)
+          .toList();
+
+      // Collecter les zones souhaitées (uniquement les champs remplis)
+      List<String> zonesSouhaitees = _zoneControllers
+          .map((controller) => controller.text.trim())
+          .where((zone) => zone.isNotEmpty)
+          .toList();
+
+      // Créer le compte
+      await _authService.signUpWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        accountType: widget.accountType, // Passer le type de compte
+        matricule: _matriculeController.text.trim(),
+        nom: _nomController.text.trim(),
+        telephones: telephones,
+        fonction: _fonctionController.text.trim(),
+        zoneActuelle: _zoneActuelleController.text.trim(),
+        dren: _drenController.text.trim().isEmpty ? null : _drenController.text.trim(),
+        infosZoneActuelle: _infosZoneController.text.trim(),
+        zonesSouhaitees: zonesSouhaitees,
+      );
+
+      // Connexion automatique et redirection vers HomeScreen
+      if (mounted) {
+        // Afficher un message de succès
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inscription réussie! Bienvenue sur CHIASMA.'),
+            backgroundColor: Color(0xFF009E60),
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        // Rediriger vers l'écran d'accueil (l'utilisateur est déjà connecté)
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      // Afficher l'erreur
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -240,12 +340,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                       // Champ Nom complet
                                       TextFormField(
+                                        controller: _nomController,
                                         decoration: const InputDecoration(
                                           labelText: 'Nom complet',
                                           hintText: 'Entrez votre nom complet',
                                           prefixIcon: Icon(Icons.person_outline, color: Color(0xFFF77F00)),
                                         ),
                                         keyboardType: TextInputType.name,
+                                        enabled: !_isLoading,
                                         validator: (value) {
                                           if (value == null || value.isEmpty) {
                                             return 'Veuillez entrer votre nom complet';
@@ -260,12 +362,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                       // Champ Matricule
                                       TextFormField(
+                                        controller: _matriculeController,
                                         decoration: const InputDecoration(
                                           labelText: 'Numéro de matricule',
                                           hintText: '123456A',
                                           prefixIcon: Icon(Icons.badge_outlined, color: Color(0xFFF77F00)),
                                         ),
                                         keyboardType: TextInputType.text,
+                                        enabled: !_isLoading,
                                         inputFormatters: [
                                           LengthLimitingTextInputFormatter(7),
                                           UpperCaseTextFormatter(),
@@ -286,12 +390,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                       // Champ Email
                                       TextFormField(
+                                        controller: _emailController,
                                         decoration: const InputDecoration(
                                           labelText: 'Adresse email',
                                           hintText: 'exemple@email.ci',
                                           prefixIcon: Icon(Icons.email_outlined, color: Color(0xFFF77F00)),
                                         ),
                                         keyboardType: TextInputType.emailAddress,
+                                        enabled: !_isLoading,
                                         validator: (value) {
                                           if (value == null || value.isEmpty) {
                                             return 'Veuillez entrer votre email';
@@ -380,12 +486,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                       // Champ Fonction
                                       TextFormField(
+                                        controller: _fonctionController,
                                         decoration: const InputDecoration(
                                           labelText: 'Fonction',
                                           hintText: 'Votre fonction actuelle',
                                           prefixIcon: Icon(Icons.work_outline, color: Color(0xFFF77F00)),
                                         ),
                                         keyboardType: TextInputType.text,
+                                        enabled: !_isLoading,
                                         validator: (value) {
                                           if (value == null || value.isEmpty) {
                                             return 'Veuillez entrer votre fonction';
@@ -397,12 +505,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                       // Champ Zone actuelle
                                       TextFormField(
+                                        controller: _zoneActuelleController,
                                         decoration: const InputDecoration(
                                           labelText: 'Zone actuelle',
                                           hintText: 'Votre zone de travail actuelle',
                                           prefixIcon: Icon(Icons.location_on_outlined, color: Color(0xFFF77F00)),
                                         ),
                                         keyboardType: TextInputType.text,
+                                        enabled: !_isLoading,
                                         validator: (value) {
                                           if (value == null || value.isEmpty) {
                                             return 'Veuillez entrer votre zone actuelle';
@@ -414,6 +524,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                       // Champ DREN (optionnel)
                                       TextFormField(
+                                        controller: _drenController,
                                         decoration: InputDecoration(
                                           labelText: 'DREN (optionnel)',
                                           hintText: 'Direction Régionale de l\'Éducation Nationale',
@@ -424,11 +535,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           ),
                                         ),
                                         keyboardType: TextInputType.text,
+                                        enabled: !_isLoading,
                                       ),
                                       const SizedBox(height: 20),
 
                                       // Champ Informations sur la zone actuelle
                                       TextFormField(
+                                        controller: _infosZoneController,
                                         decoration: const InputDecoration(
                                           labelText: 'Informations sur votre zone actuelle',
                                           hintText: 'Ex: Proximité des commerces, écoles, centres de santé, accès routier, conditions de vie, etc. (min. 50 caractères)',
@@ -437,6 +550,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         ),
                                         keyboardType: TextInputType.multiline,
                                         maxLines: 4,
+                                        enabled: !_isLoading,
                                         validator: (value) {
                                           if (value == null || value.isEmpty) {
                                             return 'Veuillez décrire votre zone actuelle';
@@ -579,44 +693,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                       // Bouton d'inscription
                                       ElevatedButton(
-                                        onPressed: () {
-                                          if (_formKey.currentState!.validate()) {
-                                            // Afficher un message de succès
-                                            showDialog(
-                                              context: context,
-                                              builder: (context) => AlertDialog(
-                                                title: const Text('Inscription réussie'),
-                                                content: const Text(
-                                                  'Votre compte a été créé avec succès!\n\n'
-                                                  'Vous allez recevoir un email de confirmation.',
-                                                ),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed: () {
-                                                      Navigator.pop(context);
-                                                      Navigator.pop(context);
-                                                    },
-                                                    child: const Text('OK'),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }
-                                        },
+                                        onPressed: _isLoading ? null : _handleRegister,
                                         style: ElevatedButton.styleFrom(
                                           padding: const EdgeInsets.symmetric(vertical: 18),
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(12),
                                           ),
                                         ),
-                                        child: const Text(
-                                          'S\'inscrire',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
+                                        child: _isLoading
+                                            ? const SizedBox(
+                                                height: 20,
+                                                width: 20,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                ),
+                                              )
+                                            : const Text(
+                                                'S\'inscrire',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
                                       ),
                                       const SizedBox(height: 20),
 

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/home_screen.dart';
 import 'package:myapp/forgot_password_screen.dart';
-import 'package:myapp/register_screen.dart';
+import 'package:myapp/onboarding_page.dart';
+import 'package:myapp/services/auth_service.dart';
+import 'package:myapp/services/firestore_service.dart';
+import 'package:myapp/teacher_candidate/candidate_home_screen.dart';
+import 'package:myapp/school/school_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,7 +16,89 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
+  bool _isLoading = false;
   final _formKey = GlobalKey<FormState>();
+  final _authService = AuthService();
+  final _firestoreService = FirestoreService();
+
+  // Contrôleurs pour récupérer les valeurs
+  final _matriculeController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _matriculeController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Se connecter avec email, mot de passe ET matricule
+      final userCredential = await _authService.signInWithEmailPasswordAndMatricule(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        matricule: _matriculeController.text.trim(),
+      );
+
+      // Récupérer le type de compte de l'utilisateur
+      if (mounted && userCredential != null && userCredential.user != null) {
+        final userData = await _firestoreService.getUser(userCredential.user!.uid);
+
+        if (userData != null && mounted) {
+          // Redirection selon le type de compte
+          Widget homeScreen;
+
+          switch (userData.accountType) {
+            case 'teacher_transfer':
+              homeScreen = const HomeScreen(); // Permutations
+              break;
+            case 'teacher_candidate':
+              homeScreen = const CandidateHomeScreen();
+              break;
+            case 'school':
+              homeScreen = const SchoolHomeScreen();
+              break;
+            default:
+              homeScreen = const HomeScreen();
+          }
+
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => homeScreen),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      // Afficher l'erreur
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -182,12 +268,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                 // Champ Matricule
                                 TextFormField(
+                                  controller: _matriculeController,
                                   decoration: const InputDecoration(
                                     labelText: 'Numéro de matricule',
                                     hintText: '123456A',
                                     prefixIcon: Icon(Icons.badge_outlined, color: Color(0xFFF77F00)),
                                   ),
                                   keyboardType: TextInputType.text,
+                                  textCapitalization: TextCapitalization.characters,
+                                  enabled: !_isLoading,
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
                                       return 'Veuillez entrer votre matricule';
@@ -204,12 +293,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                 // Champ Email
                                 TextFormField(
+                                  controller: _emailController,
                                   decoration: const InputDecoration(
                                     labelText: 'Adresse email',
                                     hintText: 'exemple@email.ci',
                                     prefixIcon: Icon(Icons.email_outlined, color: Color(0xFFF77F00)),
                                   ),
                                   keyboardType: TextInputType.emailAddress,
+                                  enabled: !_isLoading,
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
                                       return 'Veuillez entrer votre email';
@@ -224,6 +315,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                 // Champ Mot de passe
                                 TextFormField(
+                                  controller: _passwordController,
                                   decoration: InputDecoration(
                                     labelText: 'Mot de passe',
                                     hintText: '••••••••',
@@ -240,6 +332,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ),
                                   obscureText: _obscurePassword,
+                                  enabled: !_isLoading,
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
                                       return 'Veuillez entrer votre mot de passe';
@@ -277,30 +370,30 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                 // Bouton de connexion
                                 ElevatedButton(
-                                  onPressed: () {
-                                    if (_formKey.currentState!.validate()) {
-                                      // Navigation vers la page d'accueil
-                                      Navigator.of(context).pushReplacement(
-                                        MaterialPageRoute(
-                                          builder: (context) => const HomeScreen(),
-                                        ),
-                                      );
-                                    }
-                                  },
+                                  onPressed: _isLoading ? null : _handleLogin,
                                   style: ElevatedButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(vertical: 18),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                                  child: const Text(
-                                    'Se connecter',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Se connecter',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
                                 ),
                                 const SizedBox(height: 20),
 
@@ -317,7 +410,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (context) => const RegisterScreen(),
+                                            builder: (context) => const OnboardingPage(),
                                           ),
                                         );
                                       },

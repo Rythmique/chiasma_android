@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:myapp/models/subscription_model.dart';
+import 'package:myapp/services/subscription_service.dart';
+import 'package:myapp/services/moneyfusion_service.dart';
 
 class SubscriptionPage extends StatefulWidget {
   const SubscriptionPage({super.key});
@@ -8,7 +12,18 @@ class SubscriptionPage extends StatefulWidget {
 }
 
 class _SubscriptionPageState extends State<SubscriptionPage> {
-  String _selectedPlan = 'monthly';
+  final SubscriptionService _subscriptionService = SubscriptionService();
+  final MoneyFusionService _moneyFusionService = MoneyFusionService();
+
+  SubscriptionType _selectedPlan = SubscriptionType.monthly;
+  final TextEditingController _phoneController = TextEditingController();
+  bool _isProcessing = false;
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +75,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Débloquez toutes les fonctionnalités',
+                    'Consultations illimitées pendant toute la durée',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.white,
@@ -87,7 +102,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   _buildFeatureItem(
                     Icons.visibility,
                     'Consultations illimitées',
-                    'Voir autant de profils que vous voulez',
+                    'Consultez autant de profils que vous voulez',
                     const Color(0xFFF77F00),
                   ),
                   _buildFeatureItem(
@@ -122,7 +137,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Plans tarifaires
+                  // Plans tarifaires - NOUVEAUX TARIFS
                   const Text(
                     'Choisissez votre plan',
                     style: TextStyle(
@@ -133,29 +148,29 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   const SizedBox(height: 16),
 
                   _buildPlanCard(
-                    'monthly',
+                    SubscriptionType.monthly,
                     'Mensuel',
-                    '2 000 FCFA',
-                    'par mois',
-                    'Annulation à tout moment',
+                    '500 FCFA',
+                    '1 mois',
+                    'Essayez pour commencer',
                     false,
                   ),
                   const SizedBox(height: 12),
                   _buildPlanCard(
-                    'quarterly',
+                    SubscriptionType.quarterly,
                     'Trimestriel',
-                    '5 000 FCFA',
-                    'pour 3 mois',
-                    'Économisez 17%',
+                    '1 500 FCFA',
+                    '3 mois',
+                    'Économisez - Seulement 500 FCFA/mois',
                     false,
                   ),
                   const SizedBox(height: 12),
                   _buildPlanCard(
-                    'yearly',
+                    SubscriptionType.yearly,
                     'Annuel',
-                    '15 000 FCFA',
-                    'pour 12 mois',
-                    'Économisez 38% - Meilleure offre !',
+                    '5 000 FCFA',
+                    '12 mois au lieu de 10',
+                    'Meilleure offre - 2 mois GRATUITS !',
                     true,
                   ),
                   const SizedBox(height: 32),
@@ -164,7 +179,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: _isProcessing ? null : () {
                         _showPaymentDialog(context);
                       },
                       style: ElevatedButton.styleFrom(
@@ -175,13 +190,22 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Souscrire maintenant',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      child: _isProcessing
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Souscrire maintenant',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -213,7 +237,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
 
                   // Conditions
                   Text(
-                    'En souscrivant, vous acceptez nos conditions générales. L\'abonnement se renouvelle automatiquement sauf annulation.',
+                    'En souscrivant, vous acceptez nos conditions générales. L\'abonnement ne se renouvelle pas automatiquement.',
                     style: TextStyle(
                       fontSize: 11,
                       color: Colors.grey[600],
@@ -289,7 +313,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   }
 
   Widget _buildPlanCard(
-    String value,
+    SubscriptionType value,
     String title,
     String price,
     String period,
@@ -438,18 +462,21 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
               'Orange Money',
               Icons.phone_android,
               Colors.orange,
+              'orange_money',
             ),
             const SizedBox(height: 12),
             _buildPaymentOption(
               'MTN Money',
               Icons.phone_android,
               Colors.yellow[700]!,
+              'mtn_money',
             ),
             const SizedBox(height: 12),
             _buildPaymentOption(
               'Moov Money',
               Icons.phone_android,
               Colors.blue,
+              'moov_money',
             ),
           ],
         ),
@@ -463,11 +490,16 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     );
   }
 
-  Widget _buildPaymentOption(String name, IconData icon, Color color) {
+  Widget _buildPaymentOption(
+    String name,
+    IconData icon,
+    Color color,
+    String method,
+  ) {
     return InkWell(
       onTap: () {
         Navigator.pop(context);
-        _showPaymentConfirmation(context, name);
+        _showPhoneNumberDialog(context, method, name);
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -501,28 +533,45 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     );
   }
 
-  void _showPaymentConfirmation(BuildContext context, String method) {
+  void _showPhoneNumberDialog(
+    BuildContext context,
+    String method,
+    String methodName,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        title: const Text('Confirmer le paiement'),
+        title: const Text('Numéro de téléphone'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Vous allez être redirigé vers $method pour finaliser votre paiement.',
-              textAlign: TextAlign.center,
+              'Entrez votre numéro $methodName',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
             ),
             const SizedBox(height: 16),
-            Text(
-              _getPlanPrice(),
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFF77F00),
+            TextField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(
+                hintText: '0123456789',
+                prefixText: '+225 ',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFF77F00),
+                    width: 2,
+                  ),
+                ),
               ),
             ),
           ],
@@ -535,35 +584,151 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Redirection vers le paiement...'),
-                  backgroundColor: Color(0xFF009E60),
-                  duration: Duration(seconds: 2),
-                ),
-              );
+              _processPayment(method, methodName);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF77F00),
             ),
-            child: const Text('Confirmer'),
+            child: const Text('Continuer'),
           ),
         ],
       ),
     );
   }
 
-  String _getPlanPrice() {
-    switch (_selectedPlan) {
-      case 'monthly':
-        return '2 000 FCFA';
-      case 'quarterly':
-        return '5 000 FCFA';
-      case 'yearly':
-        return '15 000 FCFA';
-      default:
-        return '';
+  Future<void> _processPayment(String method, String methodName) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      _showErrorDialog('Vous devez être connecté pour souscrire');
+      return;
     }
+
+    if (_phoneController.text.trim().isEmpty) {
+      _showErrorDialog('Veuillez entrer votre numéro de téléphone');
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final phoneNumber = _moneyFusionService.formatPhoneNumber(
+        _phoneController.text.trim(),
+      );
+
+      final result = await _subscriptionService.processSubscriptionPayment(
+        userId: currentUser.uid,
+        type: _selectedPlan,
+        phoneNumber: phoneNumber,
+        paymentMethod: method,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+
+        if (result['success'] == true) {
+          _showPaymentProcessingDialog(
+            result['transaction_id'],
+            methodName,
+          );
+        } else {
+          _showErrorDialog(
+            result['message'] ?? 'Erreur lors du paiement',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+        _showErrorDialog('Erreur: $e');
+      }
+    }
+  }
+
+  void _showPaymentProcessingDialog(String transactionId, String methodName) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.info_outline, color: Color(0xFF2196F3)),
+            SizedBox(width: 12),
+            Text('Paiement en cours'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(
+              color: Color(0xFFF77F00),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Veuillez composer #144# (pour $methodName) et valider la transaction.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Montant: ${SubscriptionModel.getPrice(_selectedPlan)} FCFA',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Transaction ID: $transactionId',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red),
+            SizedBox(width: 12),
+            Text('Erreur'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 }

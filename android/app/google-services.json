@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1086488724723",
+    "project_id": "chiasma-android",
+    "storage_bucket": "chiasma-android.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1086488724723:android:32bd33fb6d7201c15b2386",
+        "android_client_info": {
+          "package_name": "chiasma.android"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6pNeJa7d0KqSCsbvCwEnzxIkCBjp4AqY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

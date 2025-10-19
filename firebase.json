@@ -1,0 +1,31 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "chiasma-android",
+          "appId": "1:1086488724723:android:32bd33fb6d7201c15b2386",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "chiasma-android",
+          "configurations": {
+            "android": "1:1086488724723:android:32bd33fb6d7201c15b2386",
+            "web": "1:1086488724723:web:b0a2abf6d5238b0c5b2386"
+          }
+        }
+      }
+    }
+  },
+  "functions": {
+    "source": "functions",
+    "predeploy": [
+      "npm --prefix \"$RESOURCE_DIR\" run build"
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}
