@@ -21,36 +21,42 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId; // Permettre création lors inscription
-      allow update: if isOwner(userId); // Permettre mise à jour de son propre profil
+      allow update: if isOwner(userId) || isAdmin(); // Propriétaire ou admin peuvent modifier
       allow delete: if isAdmin(); // Seuls les admins peuvent supprimer
     }
 
     // Collection payment_transactions - Les utilisateurs peuvent lire leurs propres transactions
     // Seules les Cloud Functions peuvent écrire
     match /payment_transactions/{transactionId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if false; // Seulement via Cloud Functions
     }
 
     // Collection subscriptions - Les utilisateurs peuvent lire leur propre abonnement
     // Seules les Cloud Functions peuvent écrire
     match /subscriptions/{subscriptionId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if false; // Seulement via Cloud Functions
+    }
+
+    // Collection app_config - Configuration de l'application
+    match /app_config/{configId} {
+      allow read: if isSignedIn(); // Tous les utilisateurs peuvent lire la config
+      allow write: if isAdmin(); // Seuls les admins peuvent modifier
     }
 
     // Collection favoris - Les utilisateurs peuvent gérer leurs propres favoris
     match /favoris/{favoriId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Collection recherches - Les utilisateurs peuvent gérer leurs propres recherches
     match /recherches/{rechercheId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Collection job_applications - Candidatures des enseignants
@@ -63,8 +69,8 @@ service cloud.firestore {
       );
       // Création: seulement le propriétaire
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      // Mise à jour: seulement le propriétaire
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // Mise à jour: propriétaire ou admin
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       // Suppression: propriétaire ou admin
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
@@ -82,10 +88,30 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
         request.resource.data.schoolId == request.auth.uid &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType == 'school';
-      // Mise à jour: seulement le propriétaire (école)
-      allow update: if isSignedIn() && resource.data.schoolId == request.auth.uid;
+      // Mise à jour: propriétaire (école) ou admin
+      allow update: if isSignedIn() && (resource.data.schoolId == request.auth.uid || isAdmin());
       // Suppression: propriétaire ou admin
       allow delete: if isSignedIn() && (resource.data.schoolId == request.auth.uid || isAdmin());
+    }
+
+    // Collection offer_applications - Candidatures aux offres spécifiques
+    match /offer_applications/{applicationId} {
+      // Lecture: candidat propriétaire, école de l'offre, admins
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || // Le candidat
+        get(/databases/$(database)/documents/job_offers/$(resource.data.offerId)).data.schoolId == request.auth.uid || // L'école
+        isAdmin()
+      );
+      // Création: candidat crée sa propre candidature
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // Mise à jour: candidat, école ou admin
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        get(/databases/$(database)/documents/job_offers/$(resource.data.offerId)).data.schoolId == request.auth.uid ||
+        isAdmin()
+      );
+      // Suppression: candidat ou admin
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Par défaut, tout est interdit
