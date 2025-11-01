@@ -107,7 +107,7 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
 
       return true;
     } catch (e) {
-      print('Erreur lors de l\'incrémentation du quota: $e');
+      debugPrint('Erreur lors de l\'incrémentation du quota: $e');
       return false;
     }
   }
@@ -137,7 +137,7 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
 
       return user.hasAccess;
     } catch (e) {
-      print('Erreur lors de la vérification des permissions: $e');
+      debugPrint('Erreur lors de la vérification des permissions: $e');
       return false;
     }
   }
@@ -259,7 +259,7 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
         );
       });
     } catch (e) {
-      print('Erreur lors de la consommation du quota: $e');
+      debugPrint('Erreur lors de la consommation du quota: $e');
       return QuotaResult(
         success: false,
         message: 'Erreur: $e',
@@ -285,7 +285,7 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('Erreur lors de l\'activation de l\'abonnement: $e');
+      debugPrint('Erreur lors de l\'activation de l\'abonnement: $e');
       rethrow;
     }
   }
@@ -329,9 +329,9 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
       }
 
       await batch.commit();
-      print('${expiredUsersQuery.docs.length} comptes expirés désactivés');
+      debugPrint('${expiredUsersQuery.docs.length} comptes expirés désactivés');
     } catch (e) {
-      print('Erreur lors de la vérification des expirations: $e');
+      debugPrint('Erreur lors de la vérification des expirations: $e');
     }
   }
 
@@ -344,7 +344,7 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('Erreur lors de la réinitialisation du quota: $e');
+      debugPrint('Erreur lors de la réinitialisation du quota: $e');
       rethrow;
     }
   }
