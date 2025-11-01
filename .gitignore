@@ -48,6 +48,9 @@ app.*.map.json
 functions/node_modules/
 functions/lib/
 functions/.env
+
+# CinetPay Configuration (CONTIENT L'API KEY - NE PAS COMMIT!)
+assets/config/cinetpay_config.json
 functions/.env.local
 
 # Secrets - NEVER commit these!

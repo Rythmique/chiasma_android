@@ -159,6 +159,17 @@ class JobsService {
     }
   }
 
+  /// Stream des offres d'un établissement (mises à jour en temps réel)
+  Stream<List<JobOfferModel>> streamJobOffersBySchoolId(String schoolId) {
+    return _firestore
+        .collection(_jobOffersCollection)
+        .where('schoolId', isEqualTo: schoolId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => JobOfferModel.fromFirestore(doc)).toList());
+  }
+
   /// Récupérer une offre par ID
   Future<JobOfferModel?> getJobOfferById(String offerId) async {
     try {
@@ -293,9 +304,24 @@ class JobsService {
 
   /// Stream des offres actives
   Stream<List<JobOfferModel>> streamActiveOffers({int limit = 20}) {
+    // Requête simplifiée sans vérification d'expiration pour éviter l'erreur d'index
+    // L'index composite sera créé dans Firebase Console
     return _firestore
         .collection(_jobOffersCollection)
         .where('status', isEqualTo: 'active')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => JobOfferModel.fromFirestore(doc)).toList());
+  }
+
+  /// Stream des offres ouvertes (pour les candidats)
+  /// Accepte 'open' et 'active' pour compatibilité avec anciennes offres
+  Stream<List<JobOfferModel>> streamOpenJobOffers({int limit = 50}) {
+    return _firestore
+        .collection(_jobOffersCollection)
+        .where('status', whereIn: ['open', 'active'])
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
@@ -365,6 +391,45 @@ class JobsService {
     }
   }
 
+  /// Créer une candidature à une offre
+  Future<String> createOfferApplication(OfferApplicationModel application) async {
+    try {
+      final docRef = await _firestore
+          .collection(_offerApplicationsCollection)
+          .add(application.toMap());
+
+      // Incrémenter le compteur de candidatures de l'offre
+      await incrementOfferApplicantsCount(application.offerId);
+
+      return docRef.id;
+    } catch (e) {
+      throw Exception('Erreur lors de la création de la candidature: $e');
+    }
+  }
+
+  /// Vérifier si un utilisateur a déjà postulé à une offre
+  Future<OfferApplicationModel?> getOfferApplicationByUserAndOffer(
+    String userId,
+    String offerId,
+  ) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection(_offerApplicationsCollection)
+          .where('userId', isEqualTo: userId)
+          .where('offerId', isEqualTo: offerId)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return null;
+      }
+
+      return OfferApplicationModel.fromFirestore(querySnapshot.docs.first);
+    } catch (e) {
+      throw Exception('Erreur lors de la vérification de la candidature: $e');
+    }
+  }
+
   /// Récupérer les candidatures pour une offre (pour les recruteurs)
   Future<List<OfferApplicationModel>> getOfferApplications(String offerId) async {
     try {
@@ -379,6 +444,48 @@ class JobsService {
           .toList();
     } catch (e) {
       throw Exception('Erreur lors de la récupération des candidatures: $e');
+    }
+  }
+
+  /// Incrémenter le compteur de vues d'une offre
+  Future<void> incrementOfferViewCount(String offerId) async {
+    try {
+      await _firestore
+          .collection(_jobOffersCollection)
+          .doc(offerId)
+          .update({
+        'viewsCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      // Erreur silencieuse pour ne pas bloquer l'affichage
+    }
+  }
+
+  /// Incrémenter le compteur de candidatures d'une offre
+  Future<void> incrementOfferApplicantsCount(String offerId) async {
+    try {
+      await _firestore
+          .collection(_jobOffersCollection)
+          .doc(offerId)
+          .update({
+        'applicantsCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      // Erreur silencieuse
+    }
+  }
+
+  /// Décrémenter le compteur de candidatures d'une offre
+  Future<void> decrementOfferApplicantsCount(String offerId) async {
+    try {
+      await _firestore
+          .collection(_jobOffersCollection)
+          .doc(offerId)
+          .update({
+        'applicantsCount': FieldValue.increment(-1),
+      });
+    } catch (e) {
+      // Erreur silencieuse
     }
   }
 
@@ -400,12 +507,41 @@ class JobsService {
     }
   }
 
-  /// Retirer une candidature
+  /// Retirer une candidature (change le statut à 'withdrawn')
   Future<void> withdrawApplication(String applicationId) async {
     try {
       await updateApplicationStatus(applicationId, 'withdrawn');
     } catch (e) {
       throw Exception('Erreur lors du retrait de la candidature: $e');
+    }
+  }
+
+  /// Supprimer complètement une candidature (suppression de Firestore)
+  Future<void> deleteOfferApplication(String applicationId) async {
+    try {
+      // Récupérer la candidature avant de la supprimer pour avoir l'offerId
+      final doc = await _firestore
+          .collection(_offerApplicationsCollection)
+          .doc(applicationId)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data();
+        final offerId = data?['offerId'] as String?;
+
+        // Supprimer la candidature
+        await _firestore
+            .collection(_offerApplicationsCollection)
+            .doc(applicationId)
+            .delete();
+
+        // Décrémenter le compteur de candidatures de l'offre
+        if (offerId != null) {
+          await decrementOfferApplicantsCount(offerId);
+        }
+      }
+    } catch (e) {
+      throw Exception('Erreur lors de la suppression de la candidature: $e');
     }
   }
 
@@ -431,5 +567,19 @@ class JobsService {
         .map((snapshot) => snapshot.docs
             .map((doc) => OfferApplicationModel.fromFirestore(doc))
             .toList());
+  }
+
+  /// Incrémenter le compteur de vues d'une candidature
+  Future<void> incrementApplicationViewCount(String applicationId) async {
+    try {
+      await _firestore
+          .collection(_offerApplicationsCollection)
+          .doc(applicationId)
+          .update({
+        'viewsCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      // Erreur silencieuse pour ne pas bloquer l'affichage
+    }
   }
 }

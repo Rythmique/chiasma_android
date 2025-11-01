@@ -2,7 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/job_offer_model.dart';
 import '../services/jobs_service.dart';
+import '../services/firestore_service.dart';
+import '../widgets/subscription_status_banner.dart';
+import '../widgets/quota_status_widget.dart';
+import '../widgets/welcome_quota_dialog.dart';
+import '../widgets/subscription_required_dialog.dart';
+import '../widgets/announcements_banner.dart';
 import 'create_job_offer_page.dart';
+import 'view_applications_page.dart';
 
 /// Page de gestion des offres d'emploi de l'établissement
 class MyJobOffersPage extends StatefulWidget {
@@ -14,6 +21,7 @@ class MyJobOffersPage extends StatefulWidget {
 
 class _MyJobOffersPageState extends State<MyJobOffersPage> {
   final JobsService _jobsService = JobsService();
+  final FirestoreService _firestoreService = FirestoreService();
   final String? _schoolId = FirebaseAuth.instance.currentUser?.uid;
 
   @override
@@ -43,9 +51,45 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
           ),
         ],
       ),
-      body: FutureBuilder<List<JobOfferModel>>(
-        future: _jobsService.getJobOffersBySchoolId(_schoolId),
-        builder: (context, snapshot) {
+      body: Column(
+        children: [
+          // Annonces
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: AnnouncementsBanner(accountType: 'school'),
+          ),
+
+          // Statut de vérification et quota
+          StreamBuilder(
+            stream: _firestoreService.getUserStream(_schoolId),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const SizedBox.shrink();
+              final user = snapshot.data!;
+
+              // Afficher le dialogue de bienvenue si première connexion
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                WelcomeQuotaDialog.showIfFirstTime(context, user);
+
+                // Vérifier si le quota est épuisé
+                if (user.isFreeQuotaExhausted && !user.hasAccess) {
+                  SubscriptionRequiredDialog.show(context, user.accountType);
+                }
+              });
+
+              return Column(
+                children: [
+                  SubscriptionStatusBanner(user: user),
+                  QuotaStatusWidget(user: user),
+                ],
+              );
+            },
+          ),
+
+          // Liste des offres
+          Expanded(
+            child: StreamBuilder<List<JobOfferModel>>(
+              stream: _jobsService.streamJobOffersBySchoolId(_schoolId),
+              builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -69,19 +113,17 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
             return _buildEmptyView(context);
           }
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              setState(() {}); // Force rebuild
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: offers.length,
+            itemBuilder: (context, index) {
+              return _buildOfferCard(offers[index]);
             },
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: offers.length,
-              itemBuilder: (context, index) {
-                return _buildOfferCard(offers[index]);
-              },
-            ),
           );
         },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
@@ -143,7 +185,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
 
   /// Carte d'une offre
   Widget _buildOfferCard(JobOfferModel offer) {
-    final isActive = offer.status == 'active';
+    final isActive = offer.status == 'open';
     final expirationDate = offer.expiresAt ?? DateTime.now().add(const Duration(days: 30));
     final daysRemaining = expirationDate.difference(DateTime.now()).inDays;
     final isExpiringSoon = daysRemaining <= 7;
@@ -173,7 +215,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    isActive ? 'Active' : 'Inactive',
+                    isActive ? 'Ouverte' : 'Fermée',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -257,7 +299,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
                   child: OutlinedButton.icon(
                     onPressed: () => _showOfferDetails(offer),
                     icon: const Icon(Icons.visibility, size: 18),
-                    label: const Text('Voir'),
+                    label: const Text('Détails'),
                     style: OutlinedButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                     ),
@@ -265,15 +307,17 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _toggleOfferStatus(offer),
-                    icon: Icon(
-                      isActive ? Icons.pause : Icons.play_arrow,
-                      size: 18,
-                    ),
-                    label: Text(isActive ? 'Suspendre' : 'Activer'),
-                    style: OutlinedButton.styleFrom(
+                  child: ElevatedButton.icon(
+                    onPressed: offer.applicantsCount > 0
+                        ? () => _viewApplications(offer)
+                        : null,
+                    icon: const Icon(Icons.people, size: 18),
+                    label: Text('${offer.applicantsCount}'),
+                    style: ElevatedButton.styleFrom(
                       visualDensity: VisualDensity.compact,
+                      backgroundColor: offer.applicantsCount > 0
+                          ? const Color(0xFF009E60)
+                          : Colors.grey,
                     ),
                   ),
                 ),
@@ -286,6 +330,16 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Voir les candidatures pour une offre
+  void _viewApplications(JobOfferModel offer) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ViewApplicationsPage(offer: offer),
       ),
     );
   }
@@ -367,7 +421,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
 
   /// Basculer le statut d'une offre
   Future<void> _toggleOfferStatus(JobOfferModel offer) async {
-    final newStatus = offer.status == 'active' ? 'inactive' : 'active';
+    final newStatus = offer.status == 'open' ? 'closed' : 'open';
 
     try {
       await _jobsService.updateJobOffer(offer.id, {'status': newStatus});
@@ -377,7 +431,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              newStatus == 'active'
+              newStatus == 'open'
                   ? 'Offre activée'
                   : 'Offre suspendue',
             ),
@@ -398,11 +452,22 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
 
   /// Afficher le menu d'une offre
   void _showOfferMenu(JobOfferModel offer) {
+    final isActive = offer.status == 'open';
+
     showModalBottomSheet(
       context: context,
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          ListTile(
+            leading: Icon(isActive ? Icons.pause : Icons.play_arrow),
+            title: Text(isActive ? 'Suspendre l\'offre' : 'Activer l\'offre'),
+            onTap: () {
+              Navigator.pop(context);
+              _toggleOfferStatus(offer);
+            },
+          ),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.edit),
             title: const Text('Modifier'),
@@ -419,6 +484,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
               _duplicateOffer(offer);
             },
           ),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.delete, color: Colors.red),
             title: const Text('Supprimer', style: TextStyle(color: Colors.red)),
@@ -441,7 +507,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
       ),
     ).then((result) {
       if (result == true && mounted) {
-        setState(() {}); // Refresh la liste
+        // Pas besoin de setState car on utilise StreamBuilder
       }
     });
   }

@@ -15,6 +15,7 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   UserModel? _schoolInfo;
+  bool _showContactInfo = true; // Afficher les coordonnées aux candidats abonnés
 
   // Contrôleurs
   final _nomController = TextEditingController();
@@ -60,6 +61,7 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
               ? schoolInfo.telephones.first
               : '';
           _zoneActuelleController.text = schoolInfo.zoneActuelle;
+          _showContactInfo = schoolInfo.showContactInfo;
         });
       }
     } catch (e) {
@@ -94,6 +96,7 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
         'telephones': _telephoneController.text.trim().isNotEmpty
             ? [_telephoneController.text.trim()]
             : [],
+        'showContactInfo': _showContactInfo,
       };
 
       await FirebaseFirestore.instance
@@ -225,7 +228,66 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
+
+                    // Option de confidentialité
+                    Card(
+                      elevation: 2,
+                      child: SwitchListTile(
+                        title: const Text(
+                          'Afficher mes coordonnées',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          _showContactInfo
+                              ? 'Les candidats abonnés peuvent voir votre email et téléphone'
+                              : 'Vos coordonnées restent privées, seule la messagerie est disponible',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _showContactInfo ? Colors.green[700] : Colors.orange[700],
+                          ),
+                        ),
+                        secondary: Icon(
+                          _showContactInfo ? Icons.visibility : Icons.visibility_off,
+                          color: _showContactInfo ? Colors.green : Colors.orange,
+                        ),
+                        value: _showContactInfo,
+                        activeTrackColor: const Color(0xFF009E60),
+                        onChanged: (bool value) {
+                          setState(() {
+                            _showContactInfo = value;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Note d'information
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue[200]!),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Cette option permet aux candidats abonnés de voir vos coordonnées dans vos offres d\'emploi. Sinon, ils devront utiliser la messagerie intégrée.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue[900],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
 
                     // Informations du compte
                     if (_schoolInfo != null) ...[

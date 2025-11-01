@@ -19,6 +19,7 @@ class OfferApplicationModel {
   // Métadonnées
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final int viewsCount;            // Nombre de fois que l'école a vu cette candidature
 
   // Informations de l'offre (dénormalisées pour faciliter l'affichage)
   final String jobTitle;           // Titre du poste
@@ -37,6 +38,7 @@ class OfferApplicationModel {
     this.status = 'pending',
     required this.createdAt,
     this.updatedAt,
+    this.viewsCount = 0,
     required this.jobTitle,
     required this.schoolName,
     required this.schoolId,
@@ -55,6 +57,7 @@ class OfferApplicationModel {
       'status': status,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+      'viewsCount': viewsCount,
       'jobTitle': jobTitle,
       'schoolName': schoolName,
       'schoolId': schoolId,
@@ -78,6 +81,7 @@ class OfferApplicationModel {
       updatedAt: data['updatedAt'] != null
           ? (data['updatedAt'] as Timestamp).toDate()
           : null,
+      viewsCount: data['viewsCount'] ?? 0,
       jobTitle: data['jobTitle'] ?? '',
       schoolName: data['schoolName'] ?? '',
       schoolId: data['schoolId'] ?? '',
@@ -97,6 +101,7 @@ class OfferApplicationModel {
     String? status,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? viewsCount,
     String? jobTitle,
     String? schoolName,
     String? schoolId,
@@ -113,6 +118,7 @@ class OfferApplicationModel {
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      viewsCount: viewsCount ?? this.viewsCount,
       jobTitle: jobTitle ?? this.jobTitle,
       schoolName: schoolName ?? this.schoolName,
       schoolId: schoolId ?? this.schoolId,

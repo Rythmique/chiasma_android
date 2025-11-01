@@ -3,8 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/job_application_model.dart';
 import '../services/jobs_service.dart';
+import '../services/firestore_service.dart';
 import 'edit_candidate_profile_page.dart';
 import 'register_candidate_page.dart';
+import 'profile_views_page.dart';
 
 /// Page détaillée de la candidature de l'utilisateur
 class MyApplicationPage extends StatefulWidget {
@@ -16,7 +18,38 @@ class MyApplicationPage extends StatefulWidget {
 
 class _MyApplicationPageState extends State<MyApplicationPage> {
   final JobsService _jobsService = JobsService();
+  final FirestoreService _firestoreService = FirestoreService();
   final String? _userId = FirebaseAuth.instance.currentUser?.uid;
+  int _profileViewsCount = 0;
+  bool _isLoadingViewsCount = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileViewsCount();
+  }
+
+  Future<void> _loadProfileViewsCount() async {
+    final userId = _userId;
+    if (userId == null) return;
+
+    try {
+      final count = await _firestoreService.getProfileViewsCount(userId);
+      if (mounted) {
+        setState(() {
+          _profileViewsCount = count;
+          _isLoadingViewsCount = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur lors du chargement du compteur de vues: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingViewsCount = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -290,25 +323,76 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+        child: Column(
           children: [
-            _buildStatItem(
-              context,
-              icon: Icons.visibility,
-              label: 'Vues',
-              value: application.viewsCount.toString(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileViewsPage(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: _isLoadingViewsCount
+                          ? Column(
+                              children: [
+                                Icon(Icons.visibility,
+                                    color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(height: 4),
+                                const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Vues de profil',
+                                  style: TextStyle(
+                                      fontSize: 12, color: Colors.grey[600]),
+                                ),
+                              ],
+                            )
+                          : _buildStatItem(
+                              context,
+                              icon: Icons.visibility,
+                              label: 'Vues de profil',
+                              value: _profileViewsCount.toString(),
+                            ),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 40,
+                  color: Colors.grey[300],
+                ),
+                Expanded(
+                  child: _buildStatItem(
+                    context,
+                    icon: Icons.contact_mail,
+                    label: 'Contacts',
+                    value: application.contactsCount.toString(),
+                  ),
+                ),
+              ],
             ),
-            Container(
-              width: 1,
-              height: 40,
-              color: Colors.grey[300],
-            ),
-            _buildStatItem(
-              context,
-              icon: Icons.contact_mail,
-              label: 'Contacts',
-              value: application.contactsCount.toString(),
+            const SizedBox(height: 8),
+            Text(
+              'Appuyez sur "Vues de profil" pour voir qui a consulté votre profil',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

@@ -27,8 +27,9 @@ class AuthService {
     required List<String> zonesSouhaitees,
   }) async {
     try {
-      // Vérifier si le matricule existe déjà (sauf pour les candidats et écoles)
-      if (accountType == 'teacher_transfer') {
+      // Vérifier si le matricule existe déjà (uniquement pour teacher_transfer)
+      // Les candidats et écoles n'ont pas de matricule
+      if (accountType == 'teacher_transfer' && matricule.isNotEmpty) {
         bool matriculeExists = await _firestoreService.checkMatriculeExists(matricule);
         if (matriculeExists) {
           throw Exception('Ce numéro de matricule est déjà utilisé');
@@ -58,7 +59,9 @@ class AuthService {
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           isOnline: true,
-          isVerified: false,
+          isVerified: true, // Vérifié automatiquement à l'inscription
+          freeQuotaUsed: 0, // Commence à 0
+          // freeQuotaLimit est calculé automatiquement selon accountType
         );
 
         await _firestoreService.createUser(newUser);

@@ -17,10 +17,15 @@ class UserModel {
   final bool isOnline;
   final bool isVerified;
   final bool isAdmin;
-  final int profileViewsCount;           // Nombre de consultations de profils effectuées
-  final int freeViewsRemaining;          // Consultations gratuites restantes
-  final bool hasActiveSubscription;      // Possède un abonnement actif
-  final DateTime? subscriptionEndDate;   // Date de fin de l'abonnement actuel
+  final bool showContactInfo;            // Afficher les coordonnées (pour les écoles)
+  final int profileViewsCount;           // Nombre de vues du profil (pour les candidats)
+
+  // Système de quotas et abonnements
+  final int freeQuotaUsed;               // Quota gratuit utilisé
+  final int freeQuotaLimit;              // Limite de quota gratuit selon le type de compte
+  final DateTime? verificationExpiresAt; // Date d'expiration de la vérification
+  final String? subscriptionDuration;    // Durée choisie: '1_week', '1_month', '3_months', '6_months', '12_months'
+  final DateTime? lastQuotaResetDate;    // Date du dernier reset de quota
 
   UserModel({
     required this.uid,
@@ -39,11 +44,48 @@ class UserModel {
     this.isOnline = false,
     this.isVerified = false,
     this.isAdmin = false,
-    this.profileViewsCount = 0,
-    this.freeViewsRemaining = 5,        // 5 consultations gratuites par défaut
-    this.hasActiveSubscription = false,
-    this.subscriptionEndDate,
-  });
+    this.showContactInfo = true,        // Par défaut, les écoles affichent leurs coordonnées
+    this.profileViewsCount = 0,         // Par défaut 0 vue
+    this.freeQuotaUsed = 0,            // Par défaut 0 quota utilisé
+    int? freeQuotaLimit,               // Calculé selon le type de compte si non fourni
+    this.verificationExpiresAt,
+    this.subscriptionDuration,
+    this.lastQuotaResetDate,
+  }) : freeQuotaLimit = freeQuotaLimit ?? _getDefaultQuotaLimit(accountType);
+
+  // Calcul du quota gratuit par défaut selon le type de compte
+  static int _getDefaultQuotaLimit(String accountType) {
+    switch (accountType) {
+      case 'teacher_transfer':
+        return 5;  // 5 consultations gratuites
+      case 'teacher_candidate':
+        return 2;  // 2 candidatures gratuites
+      case 'school':
+        return 1;  // 1 offre d'emploi gratuite
+      default:
+        return 0;
+    }
+  }
+
+  // Vérifier si le quota gratuit est épuisé
+  bool get isFreeQuotaExhausted => freeQuotaUsed >= freeQuotaLimit;
+
+  // Vérifier si la vérification a expiré
+  bool get isVerificationExpired {
+    if (verificationExpiresAt == null) return false;
+    return DateTime.now().isAfter(verificationExpiresAt!);
+  }
+
+  // Vérifier si l'utilisateur peut accéder à l'application
+  bool get hasAccess => isVerified && !isVerificationExpired;
+
+  // Calculer le nombre de jours restants avant expiration
+  int? get daysUntilExpiration {
+    if (verificationExpiresAt == null) return null;
+    final now = DateTime.now();
+    if (now.isAfter(verificationExpiresAt!)) return 0;
+    return verificationExpiresAt!.difference(now).inDays;
+  }
 
   // Convertir en Map pour Firestore
   Map<String, dynamic> toMap() {
@@ -64,11 +106,16 @@ class UserModel {
       'isOnline': isOnline,
       'isVerified': isVerified,
       'isAdmin': isAdmin,
+      'showContactInfo': showContactInfo,
       'profileViewsCount': profileViewsCount,
-      'freeViewsRemaining': freeViewsRemaining,
-      'hasActiveSubscription': hasActiveSubscription,
-      'subscriptionEndDate': subscriptionEndDate != null
-          ? Timestamp.fromDate(subscriptionEndDate!)
+      'freeQuotaUsed': freeQuotaUsed,
+      'freeQuotaLimit': freeQuotaLimit,
+      'verificationExpiresAt': verificationExpiresAt != null
+          ? Timestamp.fromDate(verificationExpiresAt!)
+          : null,
+      'subscriptionDuration': subscriptionDuration,
+      'lastQuotaResetDate': lastQuotaResetDate != null
+          ? Timestamp.fromDate(lastQuotaResetDate!)
           : null,
     };
   }
@@ -76,6 +123,48 @@ class UserModel {
   // Créer à partir d'un document Firestore
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+
+    // Gestion robuste des timestamps (peuvent être null)
+    DateTime now = DateTime.now();
+    DateTime createdAt = now;
+    DateTime updatedAt = now;
+
+    try {
+      if (data['createdAt'] != null) {
+        createdAt = (data['createdAt'] as Timestamp).toDate();
+      }
+    } catch (e) {
+      // Si erreur de conversion, utiliser la date actuelle
+      createdAt = now;
+    }
+
+    try {
+      if (data['updatedAt'] != null) {
+        updatedAt = (data['updatedAt'] as Timestamp).toDate();
+      }
+    } catch (e) {
+      // Si erreur de conversion, utiliser la date actuelle
+      updatedAt = now;
+    }
+
+    DateTime? verificationExpiresAt;
+    try {
+      if (data['verificationExpiresAt'] != null) {
+        verificationExpiresAt = (data['verificationExpiresAt'] as Timestamp).toDate();
+      }
+    } catch (e) {
+      verificationExpiresAt = null;
+    }
+
+    DateTime? lastQuotaResetDate;
+    try {
+      if (data['lastQuotaResetDate'] != null) {
+        lastQuotaResetDate = (data['lastQuotaResetDate'] as Timestamp).toDate();
+      }
+    } catch (e) {
+      lastQuotaResetDate = null;
+    }
+
     return UserModel(
       uid: doc.id,
       email: data['email'] ?? '',
@@ -88,17 +177,18 @@ class UserModel {
       dren: data['dren'],
       infosZoneActuelle: data['infosZoneActuelle'] ?? '',
       zonesSouhaitees: List<String>.from(data['zonesSouhaitees'] ?? []),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: createdAt,
+      updatedAt: updatedAt,
       isOnline: data['isOnline'] ?? false,
       isVerified: data['isVerified'] ?? false,
       isAdmin: data['isAdmin'] ?? false,
-      profileViewsCount: data['profileViewsCount'] ?? 0,
-      freeViewsRemaining: data['freeViewsRemaining'] ?? 5,
-      hasActiveSubscription: data['hasActiveSubscription'] ?? false,
-      subscriptionEndDate: data['subscriptionEndDate'] != null
-          ? (data['subscriptionEndDate'] as Timestamp).toDate()
-          : null,
+      showContactInfo: data['showContactInfo'] ?? true, // Par défaut true pour compatibilité
+      profileViewsCount: data['profileViewsCount'] ?? 0, // Par défaut 0 pour compatibilité
+      freeQuotaUsed: data['freeQuotaUsed'] ?? 0,
+      freeQuotaLimit: data['freeQuotaLimit'],
+      verificationExpiresAt: verificationExpiresAt,
+      subscriptionDuration: data['subscriptionDuration'],
+      lastQuotaResetDate: lastQuotaResetDate,
     );
   }
 
@@ -120,10 +210,13 @@ class UserModel {
     bool? isOnline,
     bool? isVerified,
     bool? isAdmin,
+    bool? showContactInfo,
     int? profileViewsCount,
-    int? freeViewsRemaining,
-    bool? hasActiveSubscription,
-    DateTime? subscriptionEndDate,
+    int? freeQuotaUsed,
+    int? freeQuotaLimit,
+    DateTime? verificationExpiresAt,
+    String? subscriptionDuration,
+    DateTime? lastQuotaResetDate,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -142,37 +235,13 @@ class UserModel {
       isOnline: isOnline ?? this.isOnline,
       isVerified: isVerified ?? this.isVerified,
       isAdmin: isAdmin ?? this.isAdmin,
+      showContactInfo: showContactInfo ?? this.showContactInfo,
       profileViewsCount: profileViewsCount ?? this.profileViewsCount,
-      freeViewsRemaining: freeViewsRemaining ?? this.freeViewsRemaining,
-      hasActiveSubscription: hasActiveSubscription ?? this.hasActiveSubscription,
-      subscriptionEndDate: subscriptionEndDate ?? this.subscriptionEndDate,
+      freeQuotaUsed: freeQuotaUsed ?? this.freeQuotaUsed,
+      freeQuotaLimit: freeQuotaLimit ?? this.freeQuotaLimit,
+      verificationExpiresAt: verificationExpiresAt ?? this.verificationExpiresAt,
+      subscriptionDuration: subscriptionDuration ?? this.subscriptionDuration,
+      lastQuotaResetDate: lastQuotaResetDate ?? this.lastQuotaResetDate,
     );
-  }
-
-  // Vérifier si l'utilisateur peut consulter des profils
-  bool canViewProfiles(bool subscriptionSystemEnabled) {
-    // Si le système d'abonnement est désactivé, tout le monde a accès illimité
-    if (!subscriptionSystemEnabled) return true;
-
-    // Si l'utilisateur a un abonnement actif, il a accès illimité
-    if (hasActiveSubscription && subscriptionEndDate != null) {
-      if (DateTime.now().isBefore(subscriptionEndDate!)) {
-        return true;
-      }
-    }
-
-    // Sinon, vérifier s'il reste des consultations gratuites
-    return freeViewsRemaining > 0;
-  }
-
-  // Obtenir le statut de l'utilisateur
-  String getSubscriptionStatus(bool subscriptionSystemEnabled) {
-    if (!subscriptionSystemEnabled) return 'unlimited_free';
-    if (hasActiveSubscription && subscriptionEndDate != null &&
-        DateTime.now().isBefore(subscriptionEndDate!)) {
-      return 'premium';
-    }
-    if (freeViewsRemaining > 0) return 'free_limited';
-    return 'expired';
   }
 }

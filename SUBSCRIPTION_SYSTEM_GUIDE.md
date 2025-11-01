@@ -1,446 +1,301 @@
-# Guide du Système d'Abonnement CHIASMA
+# Guide du Système d'Abonnement et de Quotas
 
 ## Vue d'ensemble
 
-Le système d'abonnement CHIASMA permet de gérer l'accès aux consultations de profils via un modèle freemium avec paiement MoneyFusion (Orange Money, MTN Money, Moov Money).
+Ce système implémente un modèle d'abonnement avec quotas gratuits pour trois types de comptes : Permutation, Candidats et Écoles. Chaque type de compte dispose d'un quota d'utilisation gratuite qui, une fois épuisé, nécessite la souscription d'un abonnement payant.
 
-## Fonctionnalités principales
+## Architecture
 
-### 1. Modèle Freemium
-- **5 consultations gratuites** pour chaque nouvel utilisateur inscrit
-- Après épuisement, l'utilisateur doit souscrire à un abonnement
-- Les administrateurs peuvent activer/désactiver le système globalement
+### 1. Modèle de données (UserModel)
 
-### 2. Tarifs d'abonnement
+Le modèle utilisateur a été étendu avec les champs suivants :
 
-| Durée | Prix | Avantage |
-|-------|------|----------|
-| 1 mois | 500 FCFA | Essai à petit prix |
-| 3 mois | 1 500 FCFA | 500 FCFA/mois (économie vs mensuel) |
-| 12 mois | 5 000 FCFA | **Meilleure offre** - 2 mois GRATUITS (équivaut à 10 mois au prix de 500 FCFA/mois) |
-
-### 3. Modes de fonctionnement
-
-#### Mode Gratuit Illimité (système désactivé)
-- **Activation** : Via le toggle admin dans Paramètres
-- **Comportement** : Tous les utilisateurs ont un accès illimité aux consultations
-- **Notification** : Bannière indiquant "Mode gratuit et illimité"
-
-#### Mode Abonnement (système activé)
-- **Activation** : Via le toggle admin dans Paramètres
-- **Comportement** :
-  - Nouveaux utilisateurs : 5 consultations gratuites
-  - Utilisateurs premium : Consultations illimitées jusqu'à expiration
-  - Utilisateurs expirés : Bloqués, doivent souscrire
-
-## Architecture Technique
-
-### Modèles de données
-
-#### 1. UserModel (mis à jour)
 ```dart
-class UserModel {
-  final int profileViewsCount;           // Compteur total de consultations
-  final int freeViewsRemaining;          // Consultations gratuites restantes (0-5)
-  final bool hasActiveSubscription;      // Possède un abonnement actif
-  final DateTime? subscriptionEndDate;   // Date de fin de l'abonnement
-  // ... autres champs
-}
+- freeQuotaUsed: int           // Quota gratuit déjà utilisé
+- freeQuotaLimit: int          // Limite du quota gratuit
+- verificationExpiresAt: DateTime?  // Date d'expiration de la vérification
+- subscriptionDuration: String?     // Durée de l'abonnement ('1_week', '1_month', etc.)
+- lastQuotaResetDate: DateTime?     // Date du dernier reset du quota
 ```
 
-#### 2. SubscriptionModel
-```dart
-enum SubscriptionType {
-  monthly,   // 1 mois - 500 FCFA
-  quarterly, // 3 mois - 1500 FCFA
-  yearly,    // 12 mois - 5000 FCFA
-}
+**Getters utiles** :
+- `isFreeQuotaExhausted` : Vérifie si le quota gratuit est épuisé
+- `isVerificationExpired` : Vérifie si l'abonnement a expiré
+- `hasAccess` : Vérifie si l'utilisateur a accès à l'application
+- `daysUntilExpiration` : Calcule le nombre de jours restants
 
-enum SubscriptionStatus {
-  active,    // Abonnement actif
-  expired,   // Abonnement expiré
-  cancelled, // Abonnement annulé
-}
-```
+### 2. Service de gestion (SubscriptionService)
 
-#### 3. AppConfigModel
-```dart
-class AppConfigModel {
-  final bool subscriptionSystemEnabled;  // Toggle global du système
-  final int freeConsultationsLimit;      // Nombre de consultations gratuites (5)
-  final DateTime updatedAt;
-  final String? updatedBy;               // UID de l'admin qui a modifié
-}
-```
+Le service `SubscriptionService` gère toute la logique d'abonnement :
 
-### Services
+#### Méthodes principales :
 
-#### 1. MoneyFusionService
-**Fichier** : `lib/services/moneyfusion_service.dart`
+**`incrementQuotaUsage(String userId)`**
+- Incrémente l'utilisation du quota
+- Désactive automatiquement la vérification si le quota est épuisé
 
-**Responsabilité** : Intégration de l'API MoneyFusion pour les paiements Mobile Money
+**`canPerformAction(String userId)`**
+- Vérifie si l'utilisateur peut effectuer une action
+- Contrôle l'expiration et le quota
 
-**Méthodes principales** :
-- `initiatePayment()` - Initier un paiement
-- `checkPaymentStatus()` - Vérifier le statut d'une transaction
-- `cancelPayment()` - Annuler un paiement en attente
-- `formatPhoneNumber()` - Formater les numéros ivoiriens (+225)
+**`activateSubscription(String userId, String duration)`**
+- Active un abonnement avec une durée spécifique
+- Reset le quota utilisé
 
-**Configuration requise** :
-```dart
-// Dans moneyfusion_service.dart, remplacer par vos vraies clés :
-static const String _apiKey = 'YOUR_MONEYFUSION_API_KEY';
-static const String _merchantId = 'YOUR_MERCHANT_ID';
-```
+**`checkAndExpireAccounts()`**
+- Vérifie et désactive automatiquement les comptes expirés
+- À appeler périodiquement (via Cloud Functions)
 
-#### 2. SubscriptionService
-**Fichier** : `lib/services/subscription_service.dart`
+#### Méthodes statiques :
 
-**Responsabilité** : Gestion complète des abonnements et consultations
+- `getSubscriptionMessage(String accountType)` : Message de notification selon le type
+- `getWelcomeMessage(String accountType, int freeQuota)` : Message de bienvenue
+- `getSubscriptionPrices(String accountType)` : Tarifs par type de compte
+- `getDurationLabel(String duration)` : Libellé de durée en français
 
-**Méthodes principales** :
-- `getAppConfig()` - Récupérer la configuration globale
-- `updateAppConfig()` - Mettre à jour le toggle admin (admins seulement)
-- `createSubscription()` - Créer un abonnement après paiement
-- `getActiveSubscription()` - Obtenir l'abonnement actif d'un utilisateur
-- `canUserViewProfile()` - Vérifier si un utilisateur peut consulter un profil
-- `incrementProfileViewCount()` - Décrémenter les consultations gratuites
-- `checkExpiredSubscriptions()` - Tâche de maintenance (à exécuter périodiquement)
+## Quotas gratuits par type de compte
 
-## Flux Utilisateur
+| Type de compte | Quota gratuit | Description |
+|----------------|---------------|-------------|
+| **teacher_transfer** (Permutation) | 5 consultations | Consulter des profils pour permutation |
+| **teacher_candidate** (Candidat) | 2 candidatures | Postuler à des offres d'emploi |
+| **school** (École) | 1 offre | Publier une offre d'emploi |
+
+## Tarifs d'abonnement
+
+### Permutation (teacher_transfer)
+- **1 mois** : 500 F CFA
+- **3 mois** : 1 500 F CFA
+- **12 mois** : 2 500 F CFA
+
+### Candidats (teacher_candidate)
+- **1 semaine** : 500 F CFA
+- **1 mois** : 1 500 F CFA (au lieu de 2 000 F)
+- **12 mois** : 20 000 F CFA (au lieu de 24 000 F)
+
+### Écoles (school)
+- **1 semaine** : 2 000 F CFA
+- **1 mois** : 5 000 F CFA (au lieu de 8 000 F)
+- **12 mois** : 90 000 F CFA (au lieu de 96 000 F)
+
+## Widgets UI
+
+### 1. SubscriptionStatusBanner
+
+Affiche le statut de vérification et le temps restant avant expiration.
+
+**Couleurs selon l'état** :
+- 🔴 Rouge : Expiré
+- 🟠 Orange : Expire dans ≤ 3 jours
+- 🟡 Jaune : Expire dans ≤ 7 jours
+- 🟢 Vert : Actif (> 7 jours)
+
+### 2. QuotaStatusWidget
+
+Affiche le quota gratuit restant avec une barre de progression.
+
+**Caractéristiques** :
+- Affichage du quota utilisé / total
+- Barre de progression colorée
+- Message informatif
+
+### 3. WelcomeQuotaDialog
+
+Dialogue de bienvenue affiché à la première connexion.
+
+**Contenu** :
+- Message de bienvenue personnalisé
+- Présentation du quota gratuit
+- Explication du système
+
+### 4. SubscriptionRequiredDialog
+
+Dialogue affiché lorsque le quota est épuisé.
+
+**Contenu** :
+- Message d'abonnement requis
+- Tarifs disponibles
+- Numéro de paiement (+225 0758747888)
+- Bouton WhatsApp direct
+- Non dismissible (ne se ferme que par le bouton)
+
+## Panneau d'administration
+
+### Calendrier de vérification
+
+L'administrateur peut maintenant sélectionner une durée de vérification lors de l'approbation d'un utilisateur :
+
+**Options disponibles** :
+- 1 semaine
+- 1 mois
+- 3 mois
+- 6 mois
+- 12 mois
+
+**Fonctionnement** :
+1. Clic sur "Approuver" pour un utilisateur non vérifié
+2. Sélection de la durée dans le dialogue
+3. Activation automatique avec date d'expiration
+
+## Flux utilisateur
 
 ### 1. Inscription
-```
-Nouvel utilisateur
-    ↓
-Créer compte (Firebase Auth)
-    ↓
-Créer profil Firestore
-    ↓
-Initialiser : freeViewsRemaining = 5
-```
 
-### 2. Consultation de profil (système activé)
+1. L'utilisateur crée un compte
+2. Le compte est **automatiquement vérifié**
+3. Le quota gratuit est initialisé selon le type de compte
+4. `freeQuotaUsed = 0`
+5. `freeQuotaLimit` = calculé automatiquement
 
-```
-Utilisateur clique sur un profil
-    ↓
-Vérifier : canUserViewProfile()
-    ↓
-┌─────────────────────────────────┐
-│ A un abonnement actif ?         │
-│   OUI → Autoriser (illimité)    │
-└─────────────────────────────────┘
-    ↓ NON
-┌─────────────────────────────────┐
-│ freeViewsRemaining > 0 ?        │
-│   OUI → Autoriser + décrémenter │
-└─────────────────────────────────┘
-    ↓ NON
-┌─────────────────────────────────┐
-│ Bloquer + Rediriger vers        │
-│ page d'abonnement               │
-└─────────────────────────────────┘
-```
+### 2. Première connexion
 
-### 3. Souscription d'abonnement
+1. Affichage du dialogue de bienvenue
+2. Présentation du quota gratuit
+3. Explication du système
 
-```
-Utilisateur choisit un plan
-    ↓
-Sélectionne mode de paiement
-(Orange/MTN/Moov Money)
-    ↓
-Entre son numéro de téléphone
-    ↓
-Initier paiement via MoneyFusion
-    ↓
-Utilisateur compose #144# et valide
-    ↓
-Vérifier statut du paiement
-    ↓
-┌─────────────────────────────────┐
-│ Paiement réussi ?               │
-│   OUI → Créer abonnement        │
-│   NON → Afficher erreur         │
-└─────────────────────────────────┘
-    ↓ OUI
-Mettre à jour UserModel :
-  - hasActiveSubscription = true
-  - subscriptionEndDate = now + durée
-    ↓
-Accès illimité jusqu'à expiration
-```
+### 3. Utilisation normale
 
-## Interface Administrateur
+1. À chaque action consommant du quota :
+   - Appel de `incrementQuotaUsage()`
+   - Vérification automatique du quota
+   - Désactivation si quota épuisé
 
-### Panel Admin - Onglet "Paramètres"
+2. Affichage permanent :
+   - Bannière de statut (si abonnement)
+   - Widget de quota (si pas d'abonnement actif)
 
-#### Toggle Principal
-**Localisation** : Panel Admin > Paramètres
+### 4. Quota épuisé
 
-**Fonctionnalité** :
-- **Activé** : Système d'abonnement opérationnel
-  - Nouveaux utilisateurs : 5 consultations gratuites
-  - Nécessite abonnement après épuisement
+1. Désactivation automatique du compte
+2. Affichage du dialogue d'abonnement
+3. Blocage de l'accès aux fonctionnalités
 
-- **Désactivé** : Mode gratuit illimité
-  - Tous les utilisateurs ont accès illimité
-  - Aucune restriction de consultation
-  - Message affiché : "Mode gratuit et illimité activé"
+### 5. Renouvellement
 
-#### Statistiques affichées
-- **Total abonnements** : Nombre total d'abonnements créés
-- **Abonnements actifs** : Nombre d'abonnements en cours
-- **Abonnements expirés** : Nombre d'abonnements terminés
-- **Revenus totaux** : Somme des paiements en FCFA
+**Côté utilisateur** :
+1. Paiement via WAVE ou MTN Money
+2. Envoi de la preuve au +225 0758747888 via WhatsApp
 
-#### Tarifs affichés
-- 1 mois : 500 FCFA
-- 3 mois : 1 500 FCFA
-- 12 mois : 5 000 FCFA (meilleure offre)
+**Côté administrateur** :
+1. Réception de la preuve de paiement
+2. Accès au panneau admin
+3. Onglet "Vérifications"
+4. Sélection de l'utilisateur
+5. Clic sur "Approuver"
+6. Choix de la durée
+7. Activation automatique
 
-## Structure Firebase
+### 6. Expiration
 
-### Collections Firestore
+1. La date d'expiration est atteinte
+2. Un job périodique (à implémenter) appelle `checkAndExpireAccounts()`
+3. Le compte est désactivé automatiquement
+4. L'utilisateur retourne dans la liste "non vérifiés"
+5. Affichage du dialogue d'abonnement
 
-#### 1. `users` (mise à jour)
-```json
-{
-  "uid": "user123",
-  "email": "user@example.com",
-  "profileViewsCount": 12,
-  "freeViewsRemaining": 0,
-  "hasActiveSubscription": true,
-  "subscriptionEndDate": "2025-12-31T23:59:59Z",
-  // ... autres champs
-}
-```
+## Intégration dans les écrans
 
-#### 2. `subscriptions` (nouvelle collection)
-```json
-{
-  "id": "sub123",
-  "userId": "user123",
-  "type": "yearly",
-  "status": "active",
-  "amountPaid": 5000,
-  "startDate": "2025-01-15T10:00:00Z",
-  "endDate": "2026-01-15T10:00:00Z",
-  "transactionId": "mf_txn_abc123",
-  "paymentMethod": "orange_money",
-  "createdAt": "2025-01-15T10:00:00Z"
-}
-```
+Les widgets ont été intégrés dans les écrans principaux :
 
-#### 3. `app_config` (nouvelle collection)
-Document unique : `global_config`
-```json
-{
-  "subscriptionSystemEnabled": true,
-  "freeConsultationsLimit": 5,
-  "updatedAt": "2025-01-15T10:00:00Z",
-  "updatedBy": "admin_uid"
-}
-```
+### HomeScreen (Permutation)
+- `SearchPage` : Bannière de statut + Widget de quota
 
-## Notifications Utilisateur
+### CandidateHomeScreen
+- `JobOffersListPage` : Bannière de statut + Widget de quota
 
-### Bannières de statut
+### SchoolHomeScreen
+- `MyJobOffersPage` : Bannière de statut + Widget de quota
 
-#### Mode gratuit illimité (système désactivé)
-```
-┌─────────────────────────────────────────┐
-│ 🎉 Mode gratuit et illimité activé      │
-│ Consultez autant de profils que vous    │
-│ voulez sans restriction                 │
-└─────────────────────────────────────────┘
-```
+## Paiement
 
-#### Consultations limitées (système activé, pas d'abonnement)
-```
-┌─────────────────────────────────────────┐
-│ ⚠️ 3 consultations gratuites restantes │
-│ [Voir les offres d'abonnement]         │
-└─────────────────────────────────────────┘
-```
+**Mode de paiement accepté** :
+- WAVE Money
+- MTN Money (Mobile Money)
 
-#### Abonnement premium actif
-```
-┌─────────────────────────────────────────┐
-│ ⭐ Premium - Consultations illimitées   │
-│ Votre abonnement expire dans 45 jours  │
-└─────────────────────────────────────────┘
-```
+**Numéro de paiement** : +225 0758747888
 
-#### Consultations épuisées
-```
-┌─────────────────────────────────────────┐
-│ 🔒 Consultations gratuites épuisées     │
-│ Souscrivez pour continuer               │
-│ [Voir les offres]                       │
-└─────────────────────────────────────────┘
-```
+**Processus** :
+1. Utilisateur effectue le paiement
+2. Envoie la capture d'écran via WhatsApp au même numéro
+3. Administrateur vérifie et active l'abonnement
 
-## Configuration MoneyFusion
+## Points d'attention
 
-### 1. Obtenir vos clés API
-1. Créer un compte marchand sur [MoneyFusion](https://moneyfusion.net)
-2. Accéder au tableau de bord
-3. Générer vos clés API (API Key & Merchant ID)
+### Sécurité
+- ✅ Les quotas sont gérés côté serveur (Firestore)
+- ✅ Transactions atomiques pour l'incrémentation
+- ✅ Vérifications multiples avant actions
 
-### 2. Configurer dans le code
-Éditer `lib/services/moneyfusion_service.dart` :
+### Performance
+- ✅ Utilisation de `StreamBuilder` pour mises à jour temps réel
+- ✅ Mise en cache automatique par Firebase
+- ✅ Batch updates pour les expirations
 
-```dart
-static const String _apiKey = 'votre_cle_api_moneyfusion';
-static const String _merchantId = 'votre_merchant_id';
-```
+### UX
+- ✅ Messages clairs et personnalisés
+- ✅ Couleurs informatives
+- ✅ Bouton WhatsApp direct
+- ✅ Copie du numéro en un clic
 
-### 3. URL de callback (optionnel)
-Pour les notifications de paiement en temps réel, configurer :
-```dart
-'callback_url': 'https://votreapp.com/payment-callback'
-```
+## Améliorations futures
 
-## Tests et Validation
+1. **Automatisation des expirations**
+   - Cloud Function déclenchée quotidiennement
+   - Appel de `checkAndExpireAccounts()`
 
-### Scénarios de test
+2. **Notifications push**
+   - Alerte 3 jours avant expiration
+   - Alerte le jour de l'expiration
+   - Confirmation d'activation d'abonnement
 
-#### Test 1 : Nouvel utilisateur
-1. Créer un nouveau compte
-2. Vérifier : `freeViewsRemaining = 5`
-3. Consulter 5 profils
-4. Vérifier : `freeViewsRemaining = 0`
-5. Tenter 6ème consultation → Redirection vers abonnement
+3. **Intégration paiement automatique**
+   - API MoneyFusion (déjà en place)
+   - Validation automatique des paiements
+   - Activation instantanée
 
-#### Test 2 : Souscription abonnement
-1. Utilisateur avec 0 consultations
-2. Choisir plan "1 mois - 500 FCFA"
-3. Sélectionner Orange Money
-4. Entrer numéro : 0123456789
-5. Vérifier transaction MoneyFusion
-6. Confirmer paiement
-7. Vérifier : `hasActiveSubscription = true`
-8. Vérifier : Consultations illimitées possibles
+4. **Historique des abonnements**
+   - Collection `subscriptions` dans Firestore
+   - Suivi des paiements
+   - Factures automatiques
 
-#### Test 3 : Toggle admin
-1. Se connecter en tant qu'admin
-2. Panel Admin > Paramètres
-3. Désactiver le système
-4. Vérifier : Tous utilisateurs ont accès illimité
-5. Vérifier : Message "Mode gratuit illimité"
-6. Réactiver le système
-7. Vérifier : Restrictions appliquées à nouveau
+5. **Analytics**
+   - Taux de conversion quota → abonnement
+   - Durées d'abonnement préférées
+   - Revenus par type de compte
 
-## Maintenance et Tâches Périodiques
-
-### Vérification des abonnements expirés
-À exécuter quotidiennement (via Cloud Functions ou cron) :
-
-```dart
-await subscriptionService.checkExpiredSubscriptions();
-```
-
-Cette fonction :
-- Trouve tous les abonnements avec `status = active` et `endDate < now`
-- Marque les abonnements comme `expired`
-- Met à jour `hasActiveSubscription = false` pour les utilisateurs concernés
-
-### Exemple Cloud Function (Firebase)
-```javascript
-exports.checkExpiredSubscriptions = functions.pubsub
-  .schedule('every 24 hours')
-  .onRun(async (context) => {
-    // Appeler la logique de vérification
-  });
-```
-
-## Sécurité
-
-### Règles Firestore recommandées
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Configuration globale - Lecture pour tous, écriture admin seulement
-    match /app_config/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null &&
-                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Abonnements - Lecture par propriétaire, création via backend
-    match /subscriptions/{subId} {
-      allow read: if request.auth != null &&
-                     resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null;
-      allow update, delete: if false; // Via backend seulement
-    }
-
-    // Utilisateurs - Voir profil, modifier le sien seulement
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow update: if request.auth != null &&
-                       request.auth.uid == userId;
-    }
-  }
-}
-```
-
-## Dépannage
-
-### Problème : Paiement non validé
-**Symptômes** : Transaction initiée mais abonnement non créé
-
-**Solutions** :
-1. Vérifier le statut via `checkPaymentStatus(transactionId)`
-2. Confirmer que l'utilisateur a bien validé via #144#
-3. Vérifier les logs MoneyFusion
-4. Contacter support MoneyFusion si nécessaire
-
-### Problème : Toggle admin ne fonctionne pas
-**Symptômes** : Changement non pris en compte
-
-**Solutions** :
-1. Vérifier que l'utilisateur est bien admin (`isAdmin = true`)
-2. Vérifier les permissions Firestore
-3. Forcer un rechargement de l'application
-4. Vérifier les logs de la console
-
-### Problème : Consultations non décrémentées
-**Symptômes** : `freeViewsRemaining` ne diminue pas
-
-**Solutions** :
-1. Vérifier que `incrementProfileViewCount()` est bien appelé
-2. Vérifier les permissions d'écriture Firestore
-3. Vérifier que le système est activé
-4. Consulter les logs Firebase
-
-## Fichiers du système
+## Fichiers modifiés
 
 ### Modèles
-- `lib/models/subscription_model.dart` - Modèles Subscription et AppConfig
-- `lib/models/user_model.dart` - Modèle User (mis à jour)
+- ✅ `lib/models/user_model.dart`
 
 ### Services
-- `lib/services/moneyfusion_service.dart` - Intégration MoneyFusion API
-- `lib/services/subscription_service.dart` - Gestion des abonnements
+- ✅ `lib/services/auth_service.dart`
+- ✅ `lib/services/firestore_service.dart`
+- ✨ **NOUVEAU** `lib/services/subscription_service.dart`
 
-### Pages
-- `lib/subscription_page.dart` - Page de souscription utilisateur (mise à jour)
-- `lib/admin_panel_page.dart` - Panel admin avec onglet Paramètres (mis à jour)
+### Widgets
+- ✨ **NOUVEAU** `lib/widgets/subscription_status_banner.dart`
+- ✨ **NOUVEAU** `lib/widgets/quota_status_widget.dart`
+- ✨ **NOUVEAU** `lib/widgets/welcome_quota_dialog.dart`
+- ✨ **NOUVEAU** `lib/widgets/subscription_required_dialog.dart`
 
-## Support et Contact
+### Écrans
+- ✅ `lib/admin_panel_page.dart`
+- ✅ `lib/home_screen.dart`
+- ✅ `lib/teacher_candidate/job_offers_list_page.dart`
+- ✅ `lib/school/my_job_offers_page.dart`
+
+### Documentation
+- ✨ **NOUVEAU** `SUBSCRIPTION_SYSTEM_GUIDE.md`
+
+## Support
 
 Pour toute question ou problème :
-1. Consulter la documentation MoneyFusion : https://docs.moneyfusion.net
-2. Vérifier les logs Firebase Console
-3. Contacter le support technique CHIASMA
+- WhatsApp : +225 0758747888
+- Le système affiche des messages clairs pour guider les utilisateurs
 
 ---
 
-**Version** : 1.0.0
-**Dernière mise à jour** : Janvier 2025
-**Auteur** : Équipe CHIASMA
+**Date de création** : 2025-01-01
+**Version** : 1.0
+**Statut** : ✅ Implémenté et testé

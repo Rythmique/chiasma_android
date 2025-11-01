@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 class NotificationModel {
   final String id;
@@ -73,22 +74,22 @@ class NotificationModel {
   }
 
   // Obtenir l'icône selon le type
-  static int getIconForType(String type) {
+  static IconData getIconDataForType(String type) {
     switch (type) {
       case 'message':
-        return 0xe0ca; // Icons.message
+        return Icons.message;
       case 'match':
-        return 0xe547; // Icons.people
+        return Icons.people;
       case 'favorite':
-        return 0xe87e; // Icons.favorite
+        return Icons.favorite;
       case 'application':
-        return 0xe85d; // Icons.work
+        return Icons.work;
       case 'offer':
-        return 0xe85e; // Icons.business_center
+        return Icons.business_center;
       case 'system':
-        return 0xe7f6; // Icons.notifications
+        return Icons.notifications;
       default:
-        return 0xe7f6; // Icons.notifications
+        return Icons.notifications;
     }
   }
 

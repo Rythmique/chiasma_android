@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'my_job_offers_page.dart';
 import 'browse_candidates_page.dart';
 import 'edit_school_profile_page.dart';
+import 'favorites_page.dart';
+import 'notification_settings_page.dart';
 import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
+import '../models/user_model.dart';
 import '../login_screen.dart';
 import '../change_password_page.dart';
-import '../subscription_page.dart';
+import '../chat_page.dart';
 
 /// Écran d'accueil pour les établissements (recruteurs)
 class SchoolHomeScreen extends StatefulWidget {
@@ -68,39 +74,243 @@ class _SchoolHomeScreenState extends State<SchoolHomeScreen> {
 }
 
 /// Page des messages pour établissements
-class SchoolMessagesPage extends StatelessWidget {
+class SchoolMessagesPage extends StatefulWidget {
   const SchoolMessagesPage({super.key});
 
   @override
+  State<SchoolMessagesPage> createState() => _SchoolMessagesPageState();
+}
+
+class _SchoolMessagesPageState extends State<SchoolMessagesPage> {
+  final FirestoreService _firestoreService = FirestoreService();
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+
+    if (difference.inMinutes < 60) {
+      return 'Il y a ${difference.inMinutes} min';
+    } else if (difference.inHours < 24) {
+      return 'Il y a ${difference.inHours}h';
+    } else if (difference.inDays == 1) {
+      return 'Hier';
+    } else if (difference.inDays < 7) {
+      return 'Il y a ${difference.inDays} jours';
+    } else {
+      return '${time.day}/${time.month}/${time.year}';
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Messages'),
+          backgroundColor: const Color(0xFFF77F00),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        body: const Center(child: Text('Veuillez vous connecter')),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Messages'),
+        backgroundColor: const Color(0xFFF77F00),
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.message_outlined,
-              size: 80,
-              color: Colors.grey[300],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Aucun message',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'À implémenter',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey,
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _firestoreService.getConversations(currentUser.uid),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Erreur: ${snapshot.error}'),
+            );
+          }
+
+          final conversations = snapshot.data?.docs ?? [];
+
+          if (conversations.isEmpty) {
+            return _buildEmptyView();
+          }
+
+          return ListView.separated(
+            itemCount: conversations.length,
+            separatorBuilder: (context, index) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final conversationDoc = conversations[index];
+              final conversationData = conversationDoc.data() as Map<String, dynamic>;
+              return _buildConversationTile(
+                conversationDoc.id,
+                conversationData,
+                currentUser.uid,
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.message_outlined,
+            size: 80,
+            color: Colors.grey[300],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Aucun message',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Vos conversations avec les candidats apparaîtront ici',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConversationTile(
+    String conversationId,
+    Map<String, dynamic> conversationData,
+    String currentUserId,
+  ) {
+    // Récupérer l'ID de l'autre participant
+    final participants = conversationData['participants'] as List<dynamic>;
+    final otherUserId = participants.firstWhere(
+      (id) => id != currentUserId,
+      orElse: () => '',
+    );
+
+    if (otherUserId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return FutureBuilder<UserModel?>(
+      future: _firestoreService.getUser(otherUserId),
+      builder: (context, userSnapshot) {
+        if (!userSnapshot.hasData || userSnapshot.data == null) {
+          return const SizedBox.shrink();
+        }
+
+        final otherUser = userSnapshot.data!;
+        final lastMessage = conversationData['lastMessage'] as String? ?? '';
+        final lastMessageTime = conversationData['lastMessageTime'] as Timestamp?;
+
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: Stack(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
+                child: Text(
+                  otherUser.nom
+                      .split(' ')
+                      .map((word) => word.isNotEmpty ? word[0] : '')
+                      .take(2)
+                      .join()
+                      .toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFFF77F00),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
+                ),
+              ),
+              if (otherUser.isOnline)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4CAF50),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          title: Text(
+            otherUser.nom,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
             ),
-          ],
-        ),
-      ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              Text(
+                otherUser.fonction,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF009E60),
+                ),
+              ),
+              if (lastMessage.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  lastMessage,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          trailing: lastMessageTime != null
+              ? Text(
+                  _formatTime(lastMessageTime.toDate()),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
+                )
+              : null,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChatPage(
+                  contactName: otherUser.nom,
+                  contactFunction: otherUser.fonction,
+                  isOnline: otherUser.isOnline,
+                  conversationId: conversationId,
+                  contactUserId: otherUser.uid,
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -153,38 +363,10 @@ class SchoolSettingsPage extends StatelessWidget {
 
   /// Afficher les paramètres de notifications
   void _showNotificationSettings(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Paramètres de notifications'),
-        content: const SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Configurer vos préférences de notifications :',
-                style: TextStyle(fontWeight: FontWeight.w500),
-              ),
-              SizedBox(height: 16),
-              Text('• Nouvelles candidatures'),
-              Text('• Messages des candidats'),
-              Text('• Expiration des offres'),
-              Text('• Mise à jour des abonnements'),
-              SizedBox(height: 16),
-              Text(
-                'Cette fonctionnalité sera disponible prochainement.',
-                style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
-          ),
-        ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SchoolNotificationSettingsPage(),
       ),
     );
   }
@@ -329,6 +511,19 @@ class SchoolSettingsPage extends StatelessWidget {
             },
           ),
           ListTile(
+            leading: const Icon(Icons.favorite, color: Colors.red),
+            title: const Text('Mes favoris'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SchoolFavoritesPage(),
+                ),
+              );
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.lock),
             title: const Text('Changer le mot de passe'),
             trailing: const Icon(Icons.chevron_right),
@@ -347,20 +542,6 @@ class SchoolSettingsPage extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               _showNotificationSettings(context);
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.payment),
-            title: const Text('Abonnement et facturation'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SubscriptionPage(),
-                ),
-              );
             },
           ),
           const Divider(),

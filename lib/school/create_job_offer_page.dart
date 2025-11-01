@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/job_offer_model.dart';
-import '../models/user_model.dart';
 import '../services/jobs_service.dart';
+import '../services/firestore_service.dart';
+import '../widgets/zone_search_field.dart';
 
-/// Page pour créer ou modifier une offre d'emploi
+/// Page pour créer ou éditer une offre d'emploi
 class CreateJobOfferPage extends StatefulWidget {
-  final JobOfferModel? existingOffer;
+  final JobOfferModel? existingOffer; // Pour l'édition
 
   const CreateJobOfferPage({super.key, this.existingOffer});
 
@@ -16,69 +16,76 @@ class CreateJobOfferPage extends StatefulWidget {
 }
 
 class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
-  bool _isLoading = false;
   final _formKey = GlobalKey<FormState>();
-  final _jobsService = JobsService();
+  final JobsService _jobsService = JobsService();
+  final FirestoreService _firestoreService = FirestoreService();
+
+  bool _isLoading = false;
+  String? _schoolName;
 
   // Contrôleurs
-  final _posteController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  final TextEditingController _posteController = TextEditingController();
+  final TextEditingController _villeController = TextEditingController();
+  final TextEditingController _communeController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _salaireController = TextEditingController();
 
-  // Matières
-  final List<TextEditingController> _matiereControllers = [TextEditingController()];
+  // Sélections multiples
+  List<String> _selectedMatieres = [];
+  List<String> _selectedNiveaux = [];
+  List<String> _selectedExigences = [];
+  String _selectedTypeContrat = 'CDI';
 
-  // Niveaux sélectionnés
-  final List<String> _niveauxSelectionnes = [];
-
-  // Type de contrat
-  String _typeContrat = 'CDI';
-
-  // Durée de publication (en jours)
-  int _dureePublication = 30;
-
-  // Liste des niveaux disponibles
-  final List<String> _niveauxDisponibles = [
-    '6ème', '5ème', '4ème', '3ème',
-    '2nde', '1ère', 'Terminale',
-    'Primaire', 'Maternelle',
+  // Listes de choix
+  final List<String> _matieresDisponibles = [
+    'Mathématiques', 'Français', 'Anglais', 'Histoire-Géographie',
+    'Sciences Physiques', 'SVT', 'EPS', 'Arts Plastiques',
+    'Musique', 'Philosophie', 'Espagnol', 'Allemand',
+    'Économie', 'Informatique'
   ];
 
-  // Informations de l'établissement (chargées depuis Firestore)
-  UserModel? _schoolInfo;
+  final List<String> _niveauxDisponibles = [
+    '6ème', '5ème', '4ème', '3ème',
+    '2nde', '1ère', 'Terminale'
+  ];
+
+  final List<String> _exigencesDisponibles = [
+    'Licence', 'Master', 'Doctorat',
+    'CAFOP', 'Agrégation',
+    '1-3 ans d\'expérience', '3-5 ans d\'expérience', '5+ ans d\'expérience'
+  ];
+
+  final List<String> _typesContrat = [
+    'CDI', 'CDD', 'Vacataire', 'Stage'
+  ];
 
   @override
   void initState() {
     super.initState();
-    _loadSchoolInfo();
-    _initializeWithExistingOffer();
+    _loadSchoolName();
+
+    // Si édition, pré-remplir les champs
+    if (widget.existingOffer != null) {
+      _posteController.text = widget.existingOffer!.poste;
+      _villeController.text = widget.existingOffer!.ville;
+      _communeController.text = widget.existingOffer!.commune;
+      _descriptionController.text = widget.existingOffer!.description;
+      _salaireController.text = widget.existingOffer!.salaire ?? '';
+      _selectedMatieres = List.from(widget.existingOffer!.matieres);
+      _selectedNiveaux = List.from(widget.existingOffer!.niveaux);
+      _selectedExigences = List.from(widget.existingOffer!.exigences);
+      _selectedTypeContrat = widget.existingOffer!.typeContrat;
+    }
   }
 
-  /// Initialiser les champs avec une offre existante (pour l'édition)
-  void _initializeWithExistingOffer() {
-    final offer = widget.existingOffer;
-    if (offer == null) return;
-
-    _posteController.text = offer.poste;
-    _descriptionController.text = offer.description != 'Aucune description'
-        ? offer.description
-        : '';
-    _typeContrat = offer.typeContrat;
-    _niveauxSelectionnes.addAll(offer.niveaux);
-
-    // Initialiser les matières
-    _matiereControllers.clear();
-    for (var matiere in offer.matieres) {
-      _matiereControllers.add(TextEditingController(text: matiere));
-    }
-    if (_matiereControllers.isEmpty) {
-      _matiereControllers.add(TextEditingController());
-    }
-
-    // Calculer la durée de publication restante
-    if (offer.expiresAt != null) {
-      final daysRemaining = offer.expiresAt!.difference(DateTime.now()).inDays;
-      if (daysRemaining > 0 && daysRemaining <= 90) {
-        _dureePublication = daysRemaining;
+  Future<void> _loadSchoolName() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userData = await _firestoreService.getUser(user.uid);
+      if (userData != null && mounted) {
+        setState(() {
+          _schoolName = userData.nom;
+        });
       }
     }
   }
@@ -86,62 +93,29 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
   @override
   void dispose() {
     _posteController.dispose();
+    _villeController.dispose();
+    _communeController.dispose();
     _descriptionController.dispose();
-    for (var controller in _matiereControllers) {
-      controller.dispose();
-    }
+    _salaireController.dispose();
     super.dispose();
   }
 
-  /// Charger les informations de l'établissement
-  Future<void> _loadSchoolInfo() async {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) return;
-
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-
-      if (doc.exists && mounted) {
-        setState(() {
-          _schoolInfo = UserModel.fromFirestore(doc);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur de chargement: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _addMatiereField() {
-    setState(() {
-      _matiereControllers.add(TextEditingController());
-    });
-  }
-
-  void _removeMatiereField(int index) {
-    if (_matiereControllers.length > 1) {
-      setState(() {
-        _matiereControllers[index].dispose();
-        _matiereControllers.removeAt(index);
-      });
-    }
-  }
-
-  Future<void> _handleCreateOffer() async {
+  Future<void> _saveOffer() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_niveauxSelectionnes.isEmpty) {
+    if (_selectedMatieres.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez sélectionner au moins une matière'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedNiveaux.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Veuillez sélectionner au moins un niveau'),
@@ -151,383 +125,356 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
       return;
     }
 
-    if (_schoolInfo == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur: informations de l\'établissement non chargées'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) throw Exception('Utilisateur non connecté');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('Utilisateur non connecté');
 
-      // Collecter les matières
-      List<String> matieres = _matiereControllers
-          .map((c) => c.text.trim())
-          .where((m) => m.isNotEmpty)
-          .toList();
+      final offer = JobOfferModel(
+        id: widget.existingOffer?.id ?? '',
+        schoolId: user.uid,
+        nomEtablissement: _schoolName ?? 'Établissement',
+        poste: _posteController.text.trim(),
+        matieres: _selectedMatieres,
+        niveaux: _selectedNiveaux,
+        typeContrat: _selectedTypeContrat,
+        ville: _villeController.text.trim(),
+        commune: _communeController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? 'Aucune description'
+            : _descriptionController.text.trim(),
+        exigences: _selectedExigences,
+        salaire: _salaireController.text.trim().isEmpty
+            ? null
+            : _salaireController.text.trim(),
+        createdAt: widget.existingOffer?.createdAt ?? DateTime.now(),
+        expiresAt: DateTime.now().add(const Duration(days: 30)),
+        status: 'open',
+      );
 
-      if (matieres.isEmpty) {
-        throw Exception('Veuillez ajouter au moins une matière');
+      if (widget.existingOffer != null) {
+        // Mise à jour
+        await _jobsService.updateJobOffer(widget.existingOffer!.id, offer.toMap());
+      } else {
+        // Création
+        await _jobsService.createJobOffer(offer);
       }
 
-      final isEditing = widget.existingOffer != null;
-
-      if (isEditing) {
-        // Mode édition : mettre à jour l'offre existante
-        final updatedData = {
-          'poste': _posteController.text.trim(),
-          'matieres': matieres,
-          'niveaux': _niveauxSelectionnes,
-          'typeContrat': _typeContrat,
-          'description': _descriptionController.text.trim().isEmpty
-              ? 'Aucune description'
-              : _descriptionController.text.trim(),
-          'expiresAt': DateTime.now().add(Duration(days: _dureePublication)),
-        };
-
-        await _jobsService.updateJobOffer(widget.existingOffer!.id, updatedData);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Offre modifiée avec succès!'),
-              backgroundColor: Color(0xFF009E60),
+      if (mounted) {
+        Navigator.pop(context, true); // true indique succès
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.existingOffer != null
+                  ? 'Offre mise à jour avec succès'
+                  : 'Offre créée avec succès',
             ),
-          );
-          Navigator.pop(context, true);
-        }
-      } else {
-        // Mode création : créer une nouvelle offre
-        final offer = JobOfferModel(
-          id: '', // Sera défini par Firestore
-          schoolId: userId,
-          nomEtablissement: _schoolInfo!.nom,
-          ville: _extractVille(_schoolInfo!.zoneActuelle),
-          commune: _extractCommune(_schoolInfo!.zoneActuelle),
-          poste: _posteController.text.trim(),
-          matieres: matieres,
-          niveaux: _niveauxSelectionnes,
-          typeContrat: _typeContrat,
-          description: _descriptionController.text.trim().isEmpty
-              ? 'Aucune description'
-              : _descriptionController.text.trim(),
-          exigences: [], // Pourra être ajouté dans une version future
-          createdAt: DateTime.now(),
-          expiresAt: DateTime.now().add(Duration(days: _dureePublication)),
-          status: 'open',
+            backgroundColor: const Color(0xFF009E60),
+          ),
         );
-
-        await _jobsService.createJobOffer(offer);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Offre publiée avec succès!'),
-              backgroundColor: Color(0xFF009E60),
-            ),
-          );
-          Navigator.pop(context, true);
-        }
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
+            content: Text('Erreur: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
-  }
-
-  /// Extraire la ville depuis zoneActuelle (format: "Commune, Ville")
-  String _extractVille(String zoneActuelle) {
-    final parts = zoneActuelle.split(',');
-    return parts.length > 1 ? parts[1].trim() : zoneActuelle;
-  }
-
-  /// Extraire la commune depuis zoneActuelle (format: "Commune, Ville")
-  String _extractCommune(String zoneActuelle) {
-    final parts = zoneActuelle.split(',');
-    return parts.isNotEmpty ? parts[0].trim() : '';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existingOffer != null
-            ? 'Modifier l\'offre'
-            : 'Créer une offre d\'emploi'),
-        centerTitle: true,
+        title: Text(widget.existingOffer != null ? 'Modifier l\'offre' : 'Créer une offre'),
+        backgroundColor: const Color(0xFFF77F00),
+        foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Icône
-              Icon(
-                Icons.work,
-                size: 60,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                widget.existingOffer != null
-                    ? 'Modifiez votre offre d\'emploi'
-                    : 'Publiez votre offre d\'emploi',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.existingOffer != null
-                    ? 'Mettez à jour les informations de votre offre'
-                    : 'Recrutez les meilleurs enseignants pour votre établissement',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 24),
-
-              // Poste
-              TextFormField(
-                controller: _posteController,
-                decoration: const InputDecoration(
-                  labelText: 'Intitulé du poste *',
-                  prefixIcon: Icon(Icons.work_outline),
-                  border: OutlineInputBorder(),
-                  hintText: 'Ex: Professeur de Mathématiques',
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Veuillez saisir l\'intitulé du poste';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Matières
-              const Text(
-                'Matières enseignées *',
-                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              ..._matiereControllers.asMap().entries.map((entry) {
-                int index = entry.key;
-                TextEditingController controller = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: controller,
-                          decoration: InputDecoration(
-                            labelText: 'Matière ${index + 1}',
-                            prefixIcon: const Icon(Icons.book),
-                            border: const OutlineInputBorder(),
-                            hintText: 'Ex: Mathématiques',
-                          ),
-                          validator: (value) {
-                            if (index == 0 &&
-                                (value == null || value.trim().isEmpty)) {
-                              return 'Au moins une matière requise';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                      if (_matiereControllers.length > 1)
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle, color: Colors.red),
-                          onPressed: () => _removeMatiereField(index),
-                        ),
-                    ],
-                  ),
-                );
-              }),
-              TextButton.icon(
-                onPressed: _addMatiereField,
-                icon: const Icon(Icons.add),
-                label: const Text('Ajouter une matière'),
-              ),
-              const SizedBox(height: 16),
-
-              // Niveaux d'enseignement
-              const Text(
-                'Niveaux d\'enseignement *',
-                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _niveauxDisponibles.map((niveau) {
-                  final isSelected = _niveauxSelectionnes.contains(niveau);
-                  return FilterChip(
-                    label: Text(niveau),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() {
-                        if (selected) {
-                          _niveauxSelectionnes.add(niveau);
-                        } else {
-                          _niveauxSelectionnes.remove(niveau);
-                        }
-                      });
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-
-              // Type de contrat
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'Type de contrat *',
-                  prefixIcon: Icon(Icons.description),
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'CDI', child: Text('CDI')),
-                  DropdownMenuItem(value: 'CDD', child: Text('CDD')),
-                  DropdownMenuItem(value: 'Vacation', child: Text('Vacation')),
-                  DropdownMenuItem(value: 'Stage', child: Text('Stage')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _typeContrat = value;
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Durée de publication
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  Text(
-                    'Durée de publication: $_dureePublication jours',
-                    style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
-                  ),
-                  Slider(
-                    value: _dureePublication.toDouble(),
-                    min: 7,
-                    max: 90,
-                    divisions: 11,
-                    label: '$_dureePublication jours',
-                    onChanged: (value) {
-                      setState(() {
-                        _dureePublication = value.toInt();
-                      });
-                    },
-                  ),
-                  Text(
-                    'L\'offre expirera le ${DateTime.now().add(Duration(days: _dureePublication)).day}/${DateTime.now().add(Duration(days: _dureePublication)).month}/${DateTime.now().add(Duration(days: _dureePublication)).year}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Description
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description du poste (optionnel)',
-                  prefixIcon: Icon(Icons.notes),
-                  border: OutlineInputBorder(),
-                  hintText: 'Décrivez les missions, compétences requises...',
-                  alignLabelWithHint: true,
-                ),
-                maxLines: 5,
-              ),
-              const SizedBox(height: 24),
-
-              // Informations de l'établissement (lecture seule)
-              if (_schoolInfo != null) ...[
-                Card(
-                  color: Colors.blue[50],
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
+                  // Rappel sur la visibilité des contacts
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF009E60).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF009E60).withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(Icons.info, color: Colors.blue[700]),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Informations établissement',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue[900],
-                              ),
-                            ),
-                          ],
+                        Icon(
+                          Icons.info_outline,
+                          color: const Color(0xFF009E60),
+                          size: 24,
                         ),
-                        const Divider(),
-                        Text('Nom: ${_schoolInfo!.nom}'),
-                        Text('Localisation: ${_schoolInfo!.zoneActuelle}'),
-                        if (_schoolInfo!.telephones.isNotEmpty)
-                          Text('Contact: ${_schoolInfo!.telephones.first}'),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Visibilité de vos contacts',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Color(0xFF009E60),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Vos coordonnées (email et téléphones) peuvent être affichées dans vos offres d\'emploi pour faciliter le contact avec les candidats.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[800],
+                                  height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.pushNamed(context, '/edit-profile');
+                                },
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.settings,
+                                      size: 16,
+                                      color: Color(0xFF009E60),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'Gérer dans Paramètres > Modifier le profil',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF009E60),
+                                        fontWeight: FontWeight.w600,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-              ],
+                  const SizedBox(height: 24),
 
-              // Bouton de publication
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleCreateOffer,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  // Titre du poste
+                  TextFormField(
+                    controller: _posteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Titre du poste',
+                      hintText: 'Ex: Professeur de Mathématiques',
+                      prefixIcon: Icon(Icons.work),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Veuillez entrer le titre du poste';
+                      }
+                      return null;
+                    },
                   ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        widget.existingOffer != null
-                            ? 'Enregistrer les modifications'
-                            : 'Publier l\'offre',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
+                  const SizedBox(height: 16),
+
+                  // Type de contrat
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedTypeContrat,
+                    decoration: const InputDecoration(
+                      labelText: 'Type de contrat',
+                      prefixIcon: Icon(Icons.description),
+                    ),
+                    items: _typesContrat.map((type) {
+                      return DropdownMenuItem(value: type, child: Text(type));
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedTypeContrat = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Matières
+                  const Text(
+                    'Matières concernées *',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _matieresDisponibles.map((matiere) {
+                      final isSelected = _selectedMatieres.contains(matiere);
+                      return FilterChip(
+                        label: Text(matiere),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedMatieres.add(matiere);
+                            } else {
+                              _selectedMatieres.remove(matiere);
+                            }
+                          });
+                        },
+                        selectedColor: const Color(0xFFF77F00).withValues(alpha: 0.3),
+                        checkmarkColor: const Color(0xFFF77F00),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Niveaux
+                  const Text(
+                    'Niveaux (classes) *',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _niveauxDisponibles.map((niveau) {
+                      final isSelected = _selectedNiveaux.contains(niveau);
+                      return FilterChip(
+                        label: Text(niveau),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedNiveaux.add(niveau);
+                            } else {
+                              _selectedNiveaux.remove(niveau);
+                            }
+                          });
+                        },
+                        selectedColor: const Color(0xFF009E60).withValues(alpha: 0.3),
+                        checkmarkColor: const Color(0xFF009E60),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Localisation
+                  ZoneSearchField(
+                    labelText: 'Ville',
+                    hintText: 'Ex: Abidjan',
+                    icon: Icons.location_city,
+                    initialValue: _villeController.text,
+                    onZoneSelected: (zone) {
+                      _villeController.text = zone;
+                    },
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Veuillez entrer la ville';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  TextFormField(
+                    controller: _communeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Commune / Quartier',
+                      hintText: 'Ex: Cocody',
+                      prefixIcon: Icon(Icons.location_on),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Veuillez entrer la commune';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Exigences
+                  const Text(
+                    'Exigences',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _exigencesDisponibles.map((exigence) {
+                      final isSelected = _selectedExigences.contains(exigence);
+                      return FilterChip(
+                        label: Text(exigence),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedExigences.add(exigence);
+                            } else {
+                              _selectedExigences.remove(exigence);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Salaire (optionnel)
+                  TextFormField(
+                    controller: _salaireController,
+                    decoration: const InputDecoration(
+                      labelText: 'Salaire (optionnel)',
+                      hintText: 'Ex: 150 000 - 200 000 FCFA',
+                      prefixIcon: Icon(Icons.attach_money),
+                    ),
+                    keyboardType: TextInputType.text,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Description
+                  TextFormField(
+                    controller: _descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description du poste (optionnel)',
+                      hintText: 'Décrivez les responsabilités, avantages, etc.',
+                      prefixIcon: Icon(Icons.notes),
+                      alignLabelWithHint: true,
+                    ),
+                    maxLines: 5,
+                    textCapitalization: TextCapitalization.sentences,
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Bouton de soumission
+                  ElevatedButton.icon(
+                    onPressed: _saveOffer,
+                    icon: const Icon(Icons.check),
+                    label: Text(
+                      widget.existingOffer != null
+                          ? 'Mettre à jour l\'offre'
+                          : 'Publier l\'offre',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }

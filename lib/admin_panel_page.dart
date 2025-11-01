@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/services/firestore_service.dart';
-import 'package:myapp/services/subscription_service.dart';
 import 'package:myapp/services/jobs_service.dart';
+import 'package:myapp/services/subscription_service.dart';
 import 'package:myapp/models/user_model.dart';
-import 'package:myapp/models/subscription_model.dart';
 import 'package:myapp/models/job_application_model.dart';
 import 'package:myapp/models/job_offer_model.dart';
 import 'package:myapp/admin/manage_announcements_page.dart';
@@ -18,8 +16,8 @@ class AdminPanelPage extends StatefulWidget {
 
 class _AdminPanelPageState extends State<AdminPanelPage> {
   final FirestoreService _firestoreService = FirestoreService();
-  final SubscriptionService _subscriptionService = SubscriptionService();
   final JobsService _jobsService = JobsService();
+  final SubscriptionService _subscriptionService = SubscriptionService();
   int _selectedTab = 0;
 
   @override
@@ -700,12 +698,24 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   }
 
   Future<void> _approveVerification(UserModel user) async {
+    // Afficher le dialogue de sélection de durée
+    final duration = await showDialog<String>(
+      context: context,
+      builder: (context) => _buildDurationSelectionDialog(user),
+    );
+
+    if (duration == null) return; // L'utilisateur a annulé
+
     try {
-      await _firestoreService.updateUserVerificationStatus(user.uid, true);
+      // Activer l'abonnement avec la durée sélectionnée
+      await _subscriptionService.activateSubscription(user.uid, duration);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${user.nom} a été vérifié avec succès'),
+            content: Text(
+              '${user.nom} a été vérifié pour ${SubscriptionService.getDurationLabel(duration)}',
+            ),
             backgroundColor: const Color(0xFF009E60),
           ),
         );
@@ -720,6 +730,78 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         );
       }
     }
+  }
+
+  Widget _buildDurationSelectionDialog(UserModel user) {
+    // Options de durée disponibles
+    final durations = [
+      {'value': '1_week', 'label': '1 semaine'},
+      {'value': '1_month', 'label': '1 mois'},
+      {'value': '3_months', 'label': '3 mois'},
+      {'value': '6_months', 'label': '6 mois'},
+      {'value': '12_months', 'label': '12 mois'},
+    ];
+
+    return AlertDialog(
+      title: const Text('Durée de vérification'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sélectionnez la durée de vérification pour ${user.nom}',
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 16),
+          ...durations.map((duration) {
+            return InkWell(
+              onTap: () => Navigator.of(context).pop(duration['value']),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today,
+                      size: 20,
+                      color: Color(0xFFF77F00),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        duration['label']!,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: Colors.grey,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuler'),
+        ),
+      ],
+    );
   }
 
   Future<void> _rejectVerification(UserModel user) async {
@@ -789,367 +871,38 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     }
   }
 
-  // Onglet Paramètres - Gestion du système d'abonnement
+  // Onglet Paramètres
   Widget _buildSettingsTab() {
-    return StreamBuilder<AppConfigModel>(
-      stream: _subscriptionService.getAppConfigStream(),
-      builder: (context, configSnapshot) {
-        if (configSnapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.settings,
+              size: 64,
               color: Color(0xFFF77F00),
             ),
-          );
-        }
-
-        final config = configSnapshot.data ?? AppConfigModel(
-          subscriptionSystemEnabled: false,
-          freeConsultationsLimit: 5,
-          updatedAt: DateTime.now(),
-        );
-
-        return FutureBuilder<Map<String, int>>(
-          future: _subscriptionService.getSubscriptionStats(),
-          builder: (context, statsSnapshot) {
-            final stats = statsSnapshot.data ?? {
-              'total': 0,
-              'active': 0,
-              'expired': 0,
-              'revenue': 0,
-            };
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Gestion du système d\'abonnement',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Toggle principal du système
-                  Card(
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: config.subscriptionSystemEnabled
-                                      ? const Color(0xFF009E60).withValues(alpha: 0.1)
-                                      : Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Icon(
-                                  config.subscriptionSystemEnabled
-                                      ? Icons.lock_open
-                                      : Icons.lock,
-                                  color: config.subscriptionSystemEnabled
-                                      ? const Color(0xFF009E60)
-                                      : Colors.grey[600],
-                                  size: 32,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      config.subscriptionSystemEnabled
-                                          ? 'Système activé'
-                                          : 'Système désactivé',
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      config.subscriptionSystemEnabled
-                                          ? 'Les utilisateurs doivent souscrire après ${config.freeConsultationsLimit} consultations'
-                                          : 'Tous les utilisateurs ont un accès illimité gratuit',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Switch(
-                                value: config.subscriptionSystemEnabled,
-                                activeTrackColor: const Color(0xFF009E60),
-                                onChanged: (value) => _toggleSubscriptionSystem(value),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          const Divider(),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Consultations gratuites: ${config.freeConsultationsLimit} par nouvel utilisateur',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Tarifs d'abonnement
-                  const Text(
-                    'Tarifs d\'abonnement',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPricingCard(
-                    '1 mois',
-                    '500 FCFA',
-                    Icons.calendar_today,
-                    const Color(0xFFF77F00),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildPricingCard(
-                    '3 mois',
-                    '1 500 FCFA',
-                    Icons.calendar_month,
-                    const Color(0xFF009E60),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildPricingCard(
-                    '12 mois (Meilleure offre)',
-                    '5 000 FCFA',
-                    Icons.calendar_view_month,
-                    const Color(0xFF2196F3),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Statistiques des abonnements
-                  const Text(
-                    'Statistiques des abonnements',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatMiniCard(
-                          'Total',
-                          stats['total'].toString(),
-                          Icons.subscriptions,
-                          const Color(0xFFF77F00),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatMiniCard(
-                          'Actifs',
-                          stats['active'].toString(),
-                          Icons.check_circle,
-                          const Color(0xFF009E60),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatMiniCard(
-                          'Expirés',
-                          stats['expired'].toString(),
-                          Icons.cancel,
-                          Colors.orange,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatMiniCard(
-                          'Revenus',
-                          '${stats['revenue']} F',
-                          Icons.money,
-                          const Color(0xFF2196F3),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Informations de configuration
-                  if (config.updatedBy != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.history, size: 16, color: Colors.blue[700]),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Dernière modification: ${_formatDate(config.updatedAt)}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.blue[700],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildPricingCard(String duration, String price, IconData icon, Color color) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                duration,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+            SizedBox(height: 16),
             Text(
-              price,
+              'Paramètres',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: color,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatMiniCard(String label, String value, IconData icon, Color color) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 20),
-                const Spacer(),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
-              label,
+              'Aucun paramètre disponible pour le moment',
               style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
+                fontSize: 14,
+                color: Colors.grey,
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    final months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
-    return '${date.day} ${months[date.month - 1]} ${date.year} à ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-  }
-
-  Future<void> _toggleSubscriptionSystem(bool enabled) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
-
-    try {
-      await _subscriptionService.updateAppConfig(
-        subscriptionSystemEnabled: enabled,
-        adminUid: currentUser.uid,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              enabled
-                  ? 'Système d\'abonnement activé'
-                  : 'Système d\'abonnement désactivé - Mode gratuit illimité',
-            ),
-            backgroundColor: const Color(0xFF009E60),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 }

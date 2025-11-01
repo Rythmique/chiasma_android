@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:myapp/profile_detail_page.dart';
 import 'package:myapp/chat_page.dart';
 import 'package:myapp/settings_page.dart';
-import 'package:myapp/subscription_page.dart';
 import 'package:myapp/notifications_page.dart';
 import 'package:myapp/user_info_page.dart';
 import 'package:myapp/privacy_settings_page.dart';
@@ -11,6 +11,11 @@ import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/services/notification_service.dart';
 import 'package:myapp/models/user_model.dart';
 import 'package:myapp/widgets/announcements_banner.dart';
+import 'package:myapp/widgets/subscription_status_banner.dart';
+import 'package:myapp/widgets/quota_status_widget.dart';
+import 'package:myapp/widgets/welcome_quota_dialog.dart';
+import 'package:myapp/widgets/subscription_required_dialog.dart';
+import 'package:myapp/widgets/verified_badge.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,7 +26,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  final Set<int> _favoriteProfiles = {}; // Shared favorites state
 
   late final List<Widget> _pages;
 
@@ -29,14 +33,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _pages = [
-      SearchPage(
-        favoriteProfiles: _favoriteProfiles,
-        onFavoriteToggle: () => setState(() {}),
-      ),
-      FavoritesPage(
-        favoriteProfiles: _favoriteProfiles,
-        onFavoriteToggle: () => setState(() {}),
-      ),
+      const SearchPage(),
+      const FavoritesPage(),
       const MessagesPage(),
       const ProfilePage(),
     ];
@@ -94,14 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 // Page de recherche
 class SearchPage extends StatefulWidget {
-  final Set<int> favoriteProfiles;
-  final VoidCallback onFavoriteToggle;
-
-  const SearchPage({
-    super.key,
-    required this.favoriteProfiles,
-    required this.onFavoriteToggle,
-  });
+  const SearchPage({super.key});
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -109,117 +100,152 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   String _selectedSearchMode = 'zone_actuelle'; // Par défaut: Par Zone Actuelle
-  final int _freeViewsRemaining = 5; // Compteur de consultations gratuites
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  final FirestoreService _firestoreService = FirestoreService();
+  Set<String> _favoriteUserIds = {}; // IDs des profils favoris (vrais userId)
+  List<UserModel> _allUsers = []; // Liste de tous les utilisateurs réels depuis Firestore
+  bool _isLoadingUsers = true;
 
   // Données de l'utilisateur connecté (pour le match mutuel)
-  final Map<String, dynamic> _currentUser = {
+  Map<String, dynamic> _currentUser = {
     'zoneActuelle': 'Abidjan, Cocody',
     'zoneSouhaitee': 'Yamoussoukro',
     'fonction': 'Professeur de Mathématiques',
     'dren': 'Abidjan 1',
   };
 
-  // Liste de profils fictifs avec données de recherche
-  final List<Map<String, dynamic>> _allProfiles = [
-    {
-      'userId': 'mock_user_1',
-      'name': 'Jean Kouassi',
-      'fonction': 'Professeur de Mathématiques',
-      'zoneActuelle': 'Abidjan, Cocody',
-      'zoneSouhaitee': 'Yamoussoukro',
-      'dren': 'Abidjan 1',
-      'isOnline': true,
-    },
-    {
-      'userId': 'mock_user_2',
-      'name': 'Marie Koné',
-      'fonction': 'Professeur de Français',
-      'zoneActuelle': 'Bouaké, Centre',
-      'zoneSouhaitee': 'Abidjan, Plateau',
-      'dren': 'Bouaké',
-      'isOnline': false,
-    },
-    {
-      'userId': 'mock_user_3',
-      'name': 'Paul Diabaté',
-      'fonction': 'Professeur d\'Anglais',
-      'zoneActuelle': 'Daloa, Ouest',
-      'zoneSouhaitee': 'San-Pedro',
-      'dren': 'Daloa',
-      'isOnline': true,
-    },
-    {
-      'userId': 'mock_user_4',
-      'name': 'Aminata Traoré',
-      'fonction': 'Directeur d\'école',
-      'zoneActuelle': 'Yamoussoukro',
-      'zoneSouhaitee': 'Abidjan, Cocody',
-      'dren': 'Yamoussoukro',
-      'isOnline': false,
-    },
-    {
-      'userId': 'mock_user_5',
-      'name': 'Koffi Yao',
-      'fonction': 'Censeur',
-      'zoneActuelle': 'Man, Montagnes',
-      'zoneSouhaitee': 'Bouaké',
-      'dren': 'Man',
-      'isOnline': true,
-    },
-    {
-      'userId': 'mock_user_6',
-      'name': 'Adjoua Bamba',
-      'fonction': 'Professeur de Mathématiques',
-      'zoneActuelle': 'Korhogo, Nord',
-      'zoneSouhaitee': 'Abidjan, Yopougon',
-      'dren': 'Korhogo',
-      'isOnline': false,
-    },
-    {
-      'userId': 'mock_user_7',
-      'name': 'Ibrahim Sangaré',
-      'fonction': 'Professeur de Physique',
-      'zoneActuelle': 'Abidjan, Abobo',
-      'zoneSouhaitee': 'Daloa',
-      'dren': 'Abidjan 2',
-      'isOnline': true,
-    },
-    {
-      'userId': 'mock_user_8',
-      'name': 'Aya N\'Guessan',
-      'fonction': 'Professeur d\'Histoire',
-      'zoneActuelle': 'San-Pedro',
-      'zoneSouhaitee': 'Abidjan, Cocody',
-      'dren': 'San-Pedro',
-      'isOnline': false,
-    },
-    {
-      'userId': 'mock_user_9',
-      'name': 'Serge Ouattara',
-      'fonction': 'Professeur de SVT',
-      'zoneActuelle': 'Gagnoa, Centre-Ouest',
-      'zoneSouhaitee': 'Yamoussoukro',
-      'dren': 'Gagnoa',
-      'isOnline': true,
-    },
-    {
-      'userId': 'mock_user_10',
-      'name': 'Fatou Diallo',
-      'fonction': 'Professeur d\'Espagnol',
-      'zoneActuelle': 'Abidjan, Marcory',
-      'zoneSouhaitee': 'Bouaké',
-      'dren': 'Abidjan 3',
-      'isOnline': false,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadFavorites();
+    _loadUsers();
+    _loadCurrentUserData();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
+
+  // Charger les données de l'utilisateur connecté
+  Future<void> _loadCurrentUserData() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      final userData = await _firestoreService.getUser(currentUser.uid);
+      if (userData != null && mounted) {
+        setState(() {
+          _currentUser = {
+            'zoneActuelle': userData.zoneActuelle,
+            'zoneSouhaitee': userData.zonesSouhaitees.isNotEmpty
+                ? userData.zonesSouhaitees.first
+                : '',
+            'fonction': userData.fonction,
+            'dren': userData.dren ?? '',
+          };
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement données utilisateur: $e');
+    }
+  }
+
+  // Charger tous les utilisateurs depuis Firestore (filtrés par type de compte)
+  Future<void> _loadUsers() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      // Charger uniquement les utilisateurs de type "teacher_transfer" (permutation)
+      _firestoreService.getUsersByAccountType('teacher_transfer').listen((users) {
+        if (mounted) {
+          setState(() {
+            // Exclure l'utilisateur connecté de la liste
+            _allUsers = users.where((user) => user.uid != currentUser.uid).toList();
+            _isLoadingUsers = false;
+          });
+        }
+      });
+    } catch (e) {
+      debugPrint('Erreur chargement utilisateurs: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingUsers = false;
+        });
+      }
+    }
+  }
+
+  // Charger les favoris de l'utilisateur depuis Firestore
+  Future<void> _loadFavorites() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      // Écouter les changements dans la collection favorites
+      FirebaseFirestore.instance
+          .collection('favorites')
+          .where('userId', isEqualTo: currentUser.uid)
+          .snapshots()
+          .listen((snapshot) {
+        if (mounted) {
+          setState(() {
+            _favoriteUserIds = snapshot.docs
+                .map((doc) => doc.data()['favoriteUserId'] as String)
+                .toSet();
+          });
+        }
+      });
+    } catch (e) {
+      // Erreur lors du chargement des favoris
+      debugPrint('Erreur chargement favoris: $e');
+    }
+  }
+
+  // Basculer un profil en favori
+  Future<void> _toggleFavorite(String profileUserId) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      if (_favoriteUserIds.contains(profileUserId)) {
+        await _firestoreService.removeFavorite(currentUser.uid, profileUserId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Retiré des favoris'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      } else {
+        await _firestoreService.addFavorite(currentUser.uid, profileUserId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ajouté aux favoris'),
+              duration: Duration(seconds: 1),
+              backgroundColor: Color(0xFF009E60),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+
 
   // Obtenir le placeholder du champ de recherche selon le filtre actif
   String get _searchHint {
@@ -275,20 +301,21 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  List<Map<String, dynamic>> get _filteredProfiles {
+  List<UserModel> get _filteredProfiles {
     // Mode Match Mutuel : recherche automatique
     if (_selectedSearchMode == 'match_mutuel') {
-      return _allProfiles.where((profile) {
+      return _allUsers.where((user) {
         // Match mutuel = la zone souhaitée de l'utilisateur correspond à la zone actuelle du profil
         // ET la zone actuelle de l'utilisateur correspond à la zone souhaitée du profil
-        return profile['zoneActuelle'] == _currentUser['zoneSouhaitee'] &&
-               profile['zoneSouhaitee'] == _currentUser['zoneActuelle'];
+        final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty ? user.zonesSouhaitees.first : '';
+        return user.zoneActuelle == _currentUser['zoneSouhaitee'] &&
+               zoneSouhaitee == _currentUser['zoneActuelle'];
       }).toList();
     }
 
-    // Si pas de recherche, retourner tous les profils
+    // Si pas de recherche, retourner tous les utilisateurs
     if (_searchQuery.isEmpty) {
-      return _allProfiles;
+      return _allUsers;
     }
 
     final query = _searchQuery.toLowerCase();
@@ -296,27 +323,27 @@ class _SearchPageState extends State<SearchPage> {
     // Filtrer selon le mode de recherche sélectionné
     switch (_selectedSearchMode) {
       case 'zone_actuelle':
-        return _allProfiles.where((profile) {
-          return profile['zoneActuelle'].toString().toLowerCase().contains(query);
+        return _allUsers.where((user) {
+          return user.zoneActuelle.toLowerCase().contains(query);
         }).toList();
 
       case 'zone_souhaitee':
-        return _allProfiles.where((profile) {
-          return profile['zoneSouhaitee'].toString().toLowerCase().contains(query);
+        return _allUsers.where((user) {
+          return user.zonesSouhaitees.any((zone) => zone.toLowerCase().contains(query));
         }).toList();
 
       case 'fonction':
-        return _allProfiles.where((profile) {
-          return profile['fonction'].toString().toLowerCase().contains(query);
+        return _allUsers.where((user) {
+          return user.fonction.toLowerCase().contains(query);
         }).toList();
 
       case 'dren':
-        return _allProfiles.where((profile) {
-          return profile['dren'].toString().toLowerCase().contains(query);
+        return _allUsers.where((user) {
+          return (user.dren ?? '').toLowerCase().contains(query);
         }).toList();
 
       default:
-        return _allProfiles;
+        return _allUsers;
     }
   }
 
@@ -328,15 +355,18 @@ class _SearchPageState extends State<SearchPage> {
         slivers: [
           // AppBar avec dégradé
           SliverAppBar(
-            expandedHeight: 200,
+            expandedHeight: 120,
             floating: false,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
+              centerTitle: true,
+              titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               title: const Text(
                 'CHIASMA',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
+                  letterSpacing: 1.2,
+                  fontSize: 16,
                 ),
               ),
               background: Container(
@@ -348,48 +378,6 @@ class _SearchPageState extends State<SearchPage> {
                       const Color(0xFFF77F00),
                       const Color(0xFFF77F00).withValues(alpha: 0.8),
                       const Color(0xFF009E60),
-                    ],
-                  ),
-                ),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      const SizedBox(height: 20),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.visibility,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Consultations gratuites : $_freeViewsRemaining/5',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -500,66 +488,6 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
-              ),
-            ),
-          ),
-
-          // Bannière d'annonces système
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF009E60).withValues(alpha: 0.1),
-                    const Color(0xFFF77F00).withValues(alpha: 0.1),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFF77F00).withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF77F00).withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.campaign,
-                      color: Color(0xFFF77F00),
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Nouveauté',
-                          style: TextStyle(
-                            color: Colors.grey[800],
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Messagerie instantanée maintenant disponible !',
-                          style: TextStyle(
-                            color: Colors.grey[700],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
@@ -738,6 +666,36 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
 
+          // Statut de vérification et quota
+          SliverToBoxAdapter(
+            child: StreamBuilder<UserModel?>(
+              stream: _firestoreService.getUserStream(
+                FirebaseAuth.instance.currentUser?.uid ?? '',
+              ),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox.shrink();
+                final user = snapshot.data!;
+
+                // Afficher le dialogue de bienvenue si première connexion
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  WelcomeQuotaDialog.showIfFirstTime(context, user);
+
+                  // Vérifier si le quota est épuisé et afficher le dialogue
+                  if (user.isFreeQuotaExhausted && !user.hasAccess) {
+                    SubscriptionRequiredDialog.show(context, user.accountType);
+                  }
+                });
+
+                return Column(
+                  children: [
+                    SubscriptionStatusBanner(user: user),
+                    QuotaStatusWidget(user: user),
+                  ],
+                );
+              },
+            ),
+          ),
+
           // Liste des résultats
           SliverToBoxAdapter(
             child: Padding(
@@ -766,7 +724,18 @@ class _SearchPageState extends State<SearchPage> {
           ),
 
           // Cartes de profils
-          _filteredProfiles.isEmpty
+          _isLoadingUsers
+              ? const SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(48),
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFF77F00),
+                      ),
+                    ),
+                  ),
+                )
+              : _filteredProfiles.isEmpty
               ? SliverToBoxAdapter(
                   child: Center(
                     child: Padding(
@@ -816,13 +785,13 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Widget _buildProfileCard(Map<String, dynamic> profile, int index) {
-    final userId = profile['userId'] as String;
-    final isOnline = profile['isOnline'] as bool;
-    final name = profile['name'] as String;
-    final fonction = profile['fonction'] as String;
-    final zoneActuelle = profile['zoneActuelle'] as String;
-    final zoneSouhaitee = profile['zoneSouhaitee'] as String;
+  Widget _buildProfileCard(UserModel user, int index) {
+    final userId = user.uid;
+    final isOnline = user.isOnline;
+    final name = user.nom;
+    final fonction = user.fonction;
+    final zoneActuelle = user.zoneActuelle;
+    final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty ? user.zonesSouhaitees.first : 'Non spécifiée';
 
     // Get initials from name
     final initials = name.split(' ').map((word) => word[0]).take(2).join().toUpperCase();
@@ -915,6 +884,11 @@ class _SearchPageState extends State<SearchPage> {
                             ),
                           ),
                         ],
+                        const SizedBox(width: 4),
+                        VerifiedBadge(
+                          isVerified: user.isVerified,
+                          size: 18,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -930,32 +904,10 @@ class _SearchPageState extends State<SearchPage> {
               ),
               IconButton(
                 icon: Icon(
-                  widget.favoriteProfiles.contains(index) ? Icons.favorite : Icons.favorite_border,
-                  color: widget.favoriteProfiles.contains(index) ? Colors.red : Colors.grey[400],
+                  _favoriteUserIds.contains(userId) ? Icons.favorite : Icons.favorite_border,
+                  color: _favoriteUserIds.contains(userId) ? Colors.red : Colors.grey[400],
                 ),
-                onPressed: () {
-                  setState(() {
-                    if (widget.favoriteProfiles.contains(index)) {
-                      widget.favoriteProfiles.remove(index);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Retiré des favoris'),
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                    } else {
-                      widget.favoriteProfiles.add(index);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Ajouté aux favoris'),
-                          duration: Duration(seconds: 1),
-                          backgroundColor: Color(0xFF009E60),
-                        ),
-                      );
-                    }
-                  });
-                  widget.onFavoriteToggle();
-                },
+                onPressed: () => _toggleFavorite(userId),
               ),
             ],
           ),
@@ -1045,11 +997,6 @@ class _SearchPageState extends State<SearchPage> {
                       MaterialPageRoute(
                         builder: (context) => ProfileDetailPage(
                           userId: userId,
-                          name: name,
-                          fonction: fonction,
-                          zoneActuelle: zoneActuelle,
-                          zoneSouhaitee: zoneSouhaitee,
-                          isOnline: isOnline,
                         ),
                       ),
                     );
@@ -1077,6 +1024,7 @@ class _SearchPageState extends State<SearchPage> {
                           contactName: name,
                           contactFunction: fonction,
                           isOnline: isOnline,
+                          contactUserId: userId,
                         ),
                       ),
                     );
@@ -1103,31 +1051,76 @@ class _SearchPageState extends State<SearchPage> {
 
 // Page des favoris
 class FavoritesPage extends StatefulWidget {
-  final Set<int> favoriteProfiles;
-  final VoidCallback onFavoriteToggle;
-
-  const FavoritesPage({
-    super.key,
-    required this.favoriteProfiles,
-    required this.onFavoriteToggle,
-  });
+  const FavoritesPage({super.key});
 
   @override
   State<FavoritesPage> createState() => _FavoritesPageState();
 }
 
 class _FavoritesPageState extends State<FavoritesPage> {
+  final FirestoreService _firestoreService = FirestoreService();
+
+
+
+  Future<void> _removeFavorite(String favoriteUserId) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      await _firestoreService.removeFavorite(currentUser.uid, favoriteUserId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Retiré des favoris'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      return const Scaffold(
+        body: Center(child: Text('Veuillez vous connecter')),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mes Favoris'),
         backgroundColor: const Color(0xFFF77F00),
         foregroundColor: Colors.white,
       ),
-      body: widget.favoriteProfiles.isEmpty
-          ? Center(
+      body: StreamBuilder<List<UserModel>>(
+        stream: _firestoreService.getFavorites(currentUser.uid),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Erreur: ${snapshot.error}'),
+            );
+          }
+
+          final favorites = snapshot.data ?? [];
+
+          if (favorites.isEmpty) {
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -1158,20 +1151,27 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   ),
                 ],
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: widget.favoriteProfiles.length,
-              itemBuilder: (context, index) {
-                final profileIndex = widget.favoriteProfiles.elementAt(index);
-                return _buildFavoriteProfileCard(context, profileIndex);
-              },
-            ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: favorites.length,
+            itemBuilder: (context, index) {
+              final user = favorites[index];
+              return _buildFavoriteProfileCard(user);
+            },
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildFavoriteProfileCard(BuildContext context, int index) {
-    final isOnline = index % 3 == 0;
+  Widget _buildFavoriteProfileCard(UserModel user) {
+    // Get initials from name
+    final initials = user.nom.split(' ').map((word) => word[0]).take(2).join().toUpperCase();
+    final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty ? user.zonesSouhaitees.first : 'Non spécifiée';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -1197,7 +1197,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     radius: 30,
                     backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
                     child: Text(
-                      'AB',
+                      initials,
                       style: TextStyle(
                         color: const Color(0xFFF77F00),
                         fontWeight: FontWeight.bold,
@@ -1205,7 +1205,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       ),
                     ),
                   ),
-                  if (isOnline)
+                  if (user.isOnline)
                     Positioned(
                       right: 2,
                       bottom: 2,
@@ -1228,15 +1228,18 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          'Enseignant ${index + 1}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[800],
+                        Flexible(
+                          child: Text(
+                            user.nom,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (isOnline) ...[
+                        if (user.isOnline) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -1261,7 +1264,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Professeur de Mathématiques',
+                      user.fonction,
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey[600],
@@ -1275,18 +1278,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   Icons.favorite,
                   color: Colors.red,
                 ),
-                onPressed: () {
-                  setState(() {
-                    widget.favoriteProfiles.remove(index);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Retiré des favoris'),
-                        duration: Duration(seconds: 1),
-                      ),
-                    );
-                  });
-                  widget.onFavoriteToggle();
-                },
+                onPressed: () => _removeFavorite(user.uid),
               ),
             ],
           ),
@@ -1318,9 +1310,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
                               color: Colors.grey[600],
                             ),
                           ),
-                          const Text(
-                            'Abidjan, Cocody',
-                            style: TextStyle(
+                          Text(
+                            user.zoneActuelle,
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1350,9 +1342,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
                               color: Colors.grey[600],
                             ),
                           ),
-                          const Text(
-                            'Yamoussoukro',
-                            style: TextStyle(
+                          Text(
+                            zoneSouhaitee,
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1375,12 +1367,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => ProfileDetailPage(
-                          userId: 'mock_match_user_${index + 1}',
-                          name: 'Enseignant ${index + 1}',
-                          fonction: 'Professeur de Mathématiques',
-                          zoneActuelle: 'Abidjan, Cocody',
-                          zoneSouhaitee: 'Yamoussoukro',
-                          isOnline: isOnline,
+                          userId: user.uid,
                         ),
                       ),
                     );
@@ -1405,9 +1392,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => ChatPage(
-                          contactName: 'Enseignant ${index + 1}',
-                          contactFunction: 'Professeur de Mathématiques',
-                          isOnline: isOnline,
+                          contactName: user.nom,
+                          contactFunction: user.fonction,
+                          isOnline: user.isOnline,
+                          contactUserId: user.uid,
                         ),
                       ),
                     );
@@ -1433,120 +1421,330 @@ class _FavoritesPageState extends State<FavoritesPage> {
 }
 
 // Page des messages
-class MessagesPage extends StatelessWidget {
+class MessagesPage extends StatefulWidget {
   const MessagesPage({super.key});
 
   @override
+  State<MessagesPage> createState() => _MessagesPageState();
+}
+
+class _MessagesPageState extends State<MessagesPage> {
+  final FirestoreService _firestoreService = FirestoreService();
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+
+    if (difference.inMinutes < 1) {
+      return 'À l\'instant';
+    } else if (difference.inMinutes < 60) {
+      return 'Il y a ${difference.inMinutes} min';
+    } else if (difference.inHours < 24) {
+      return 'Il y a ${difference.inHours}h';
+    } else if (difference.inDays < 7) {
+      return 'Il y a ${difference.inDays}j';
+    } else {
+      return '${time.day}/${time.month}/${time.year}';
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Messages'),
+          backgroundColor: const Color(0xFFF77F00),
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Text('Veuillez vous connecter'),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Messages'),
         backgroundColor: const Color(0xFFF77F00),
         foregroundColor: Colors.white,
       ),
-      body: ListView.separated(
-        itemCount: 3,
-        separatorBuilder: (context, index) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final hasUnread = index == 0;
-          return ListTile(
-            leading: Stack(
-              children: [
-                CircleAvatar(
-                  backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
-                  child: Text(
-                    'E${index + 1}',
-                    style: const TextStyle(
-                      color: Color(0xFFF77F00),
-                      fontWeight: FontWeight.bold,
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _firestoreService.getConversations(currentUser.uid),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFF77F00),
+              ),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.red,
                     ),
-                  ),
-                ),
-                if (index == 0)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Erreur de chargement',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
                       ),
                     ),
-                  ),
-              ],
-            ),
-            title: Row(
-              children: [
-                Text(
-                  'Enseignant ${index + 1}',
-                  style: TextStyle(
-                    fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-                if (hasUnread) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF77F00),
-                      borderRadius: BorderRadius.circular(10),
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 100),
+                      child: SingleChildScrollView(
+                        child: Text(
+                          snapshot.error.toString(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
                     ),
-                    child: const Text(
-                      '2',
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final allConversations = snapshot.data?.docs ?? [];
+
+          // Filtrer les conversations avec lastMessageTime null pour éviter l'erreur Firestore
+          final conversations = allConversations.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return data['lastMessageTime'] != null;
+          }).toList();
+
+          if (conversations.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline,
+                    size: 80,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Aucune conversation',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      'Commencez une conversation en envoyant un message depuis un profil',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.grey[500],
                       ),
                     ),
                   ),
                 ],
-              ],
-            ),
-            subtitle: Text(
-              'Bonjour, je suis intéressé par une permutation...',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
               ),
-            ),
-            trailing: Text(
-              index == 0 ? 'Il y a 5 min' : 'Il y a ${index}h',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChatPage(
-                    contactName: 'Enseignant ${index + 1}',
-                    contactFunction: 'Professeur',
-                    isOnline: index == 0,
+            );
+          }
+
+          // Récupérer tous les IDs des autres participants en une fois
+          final otherUserIds = conversations.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final participants = data['participants'] as List<dynamic>;
+            return participants.firstWhere(
+              (id) => id != currentUser.uid,
+              orElse: () => null,
+            ) as String?;
+          }).where((id) => id != null).cast<String>().toSet().toList();
+
+          // Charger tous les utilisateurs en une seule fois
+          return FutureBuilder<Map<String, UserModel>>(
+            future: _loadUsersMap(otherUserIds),
+            builder: (context, usersSnapshot) {
+              if (usersSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFF77F00),
                   ),
-                ),
+                );
+              }
+
+              final usersMap = usersSnapshot.data ?? {};
+
+              return ListView.separated(
+                itemCount: conversations.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final conversationDoc = conversations[index];
+                  final conversationData = conversationDoc.data() as Map<String, dynamic>;
+                  final participants = conversationData['participants'] as List<dynamic>;
+                  final lastMessage = conversationData['lastMessage'] as String? ?? '';
+                  final lastMessageTime = conversationData['lastMessageTime'] as Timestamp?;
+                  final unreadCount = conversationData['unreadCount'] as Map<String, dynamic>? ?? {};
+
+                  // Trouver l'ID de l'autre participant
+                  final otherUserId = participants.firstWhere(
+                    (id) => id != currentUser.uid,
+                    orElse: () => null,
+                  ) as String?;
+
+                  if (otherUserId == null || !usersMap.containsKey(otherUserId)) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final otherUser = usersMap[otherUserId]!;
+                  final initials = otherUser.nom.split(' ')
+                      .map((word) => word[0])
+                      .take(2)
+                      .join()
+                      .toUpperCase();
+                  final hasUnread = (unreadCount[currentUser.uid] ?? 0) > 0;
+
+                  return ListTile(
+                    leading: Stack(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
+                          child: Text(
+                            initials,
+                            style: const TextStyle(
+                              color: Color(0xFFF77F00),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (otherUser.isOnline)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4CAF50),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    title: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            otherUser.nom,
+                            style: TextStyle(
+                              fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (hasUnread) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF77F00),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              unreadCount[currentUser.uid].toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    subtitle: Text(
+                      lastMessage.isEmpty ? 'Aucun message' : lastMessage,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: Text(
+                      lastMessageTime != null
+                          ? _formatTime(lastMessageTime.toDate())
+                          : '',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatPage(
+                            contactName: otherUser.nom,
+                            contactFunction: otherUser.fonction,
+                            isOnline: otherUser.isOnline,
+                            conversationId: conversationDoc.id,
+                            contactUserId: otherUserId,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               );
             },
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Nouveau message
-        },
-        backgroundColor: const Color(0xFFF77F00),
-        child: const Icon(Icons.edit, color: Colors.white),
-      ),
     );
+  }
+
+  // Charger tous les utilisateurs en une seule fois et retourner une map
+  Future<Map<String, UserModel>> _loadUsersMap(List<String> userIds) async {
+    final Map<String, UserModel> usersMap = {};
+
+    // Charger tous les utilisateurs en parallèle
+    await Future.wait(
+      userIds.map((userId) async {
+        try {
+          final user = await _firestoreService.getUser(userId);
+          if (user != null) {
+            usersMap[userId] = user;
+          }
+        } catch (e) {
+          debugPrint('Erreur chargement utilisateur $userId: $e');
+        }
+      }),
+    );
+
+    return usersMap;
   }
 }
 
+// Page de profil
 // Page de profil
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -1620,6 +1818,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Icon(
@@ -1637,10 +1836,18 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      snapshot.error.toString(),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600]),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 100),
+                      child: SingleChildScrollView(
+                        child: Text(
+                          snapshot.error.toString(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1770,15 +1977,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildActionCard(
-                        context,
-                        'Abonnement',
-                        'Compte Gratuit',
-                        'Passez au premium pour des fonctionnalités illimitées',
-                        Icons.workspace_premium,
-                        const Color(0xFF009E60),
-                      ),
-                      const SizedBox(height: 16),
                       _buildMenuList(context),
                     ],
                   ),
@@ -1863,83 +2061,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildActionCard(
-    BuildContext context,
-    String title,
-    String subtitle,
-    String description,
-    IconData icon,
-    Color color,
-  ) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const SubscriptionPage(),
-          ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              color.withValues(alpha: 0.1),
-              color.withValues(alpha: 0.05),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios, size: 16, color: color),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildMenuList(BuildContext context) {
     return Container(

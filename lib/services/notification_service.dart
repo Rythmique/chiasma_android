@@ -147,48 +147,4 @@ class NotificationService {
     }
   }
 
-  // Créer des notifications de test
-  Future<void> createTestNotifications(String userId) async {
-    final notifications = [
-      NotificationModel(
-        id: '',
-        userId: userId,
-        type: 'match',
-        title: 'Nouveau match',
-        message: 'Vous avez un nouveau match avec Jean Kouassi!',
-        createdAt: DateTime.now(),
-        data: {'profileId': 'mock_user_1'},
-      ),
-      NotificationModel(
-        id: '',
-        userId: userId,
-        type: 'favorite',
-        title: 'Nouveau favori',
-        message: 'Marie Koné a ajouté votre profil en favori',
-        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-        data: {'profileId': 'mock_user_2'},
-      ),
-      NotificationModel(
-        id: '',
-        userId: userId,
-        type: 'message',
-        title: 'Nouveau message',
-        message: 'Vous avez reçu un nouveau message',
-        createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-        data: {'conversationId': 'conv_123'},
-      ),
-      NotificationModel(
-        id: '',
-        userId: userId,
-        type: 'system',
-        title: 'Mise à jour du système',
-        message: 'De nouvelles fonctionnalités sont disponibles!',
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-      ),
-    ];
-
-    for (var notification in notifications) {
-      await createNotification(notification);
-    }
-  }
 }

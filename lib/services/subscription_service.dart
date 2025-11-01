@@ -1,479 +1,250 @@
-import 'dart:developer' as dev;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:myapp/models/subscription_model.dart';
 import 'package:myapp/models/user_model.dart';
-import 'package:myapp/services/moneyfusion_service.dart';
 
-/// Service pour gérer les abonnements et consultations
 class SubscriptionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final MoneyFusionService _moneyFusionService = MoneyFusionService();
 
-  // Collections Firestore
-  static const String _subscriptionsCollection = 'subscriptions';
-  static const String _usersCollection = 'users';
-  static const String _appConfigCollection = 'app_config';
-  static const String _appConfigDocId = 'global_config';
+  // Messages de notification selon le type de compte
+  static String getSubscriptionMessage(String accountType) {
+    switch (accountType) {
+      case 'teacher_transfer':
+        return '''
+Pour continuer à utiliser nos services, veuillez prendre un abonnement :
+• 500 F = 1 mois
+• 1 500 F = 3 mois
+• 2 500 F = 12 mois
 
-  /// Obtenir la configuration globale de l'application
-  Future<AppConfigModel> getAppConfig() async {
-    try {
-      final doc = await _firestore
-          .collection(_appConfigCollection)
-          .doc(_appConfigDocId)
-          .get();
+Faites un dépôt WAVE ou MTN Money au +225 0758747888,
+puis envoyez la capture de votre preuve de paiement au même numéro via WhatsApp.
+''';
+      case 'teacher_candidate':
+        return '''
+Pour continuer à postuler, veuillez prendre un abonnement :
+• 500 F = 1 semaine
+• 1 500 F = 1 mois (au lieu de 2 000 F)
+• 20 000 F = 12 mois (au lieu de 24 000 F)
 
-      if (doc.exists) {
-        return AppConfigModel.fromFirestore(doc);
-      } else {
-        // Créer une configuration par défaut
-        final defaultConfig = AppConfigModel(
-          subscriptionSystemEnabled: false, // Désactivé par défaut
-          freeConsultationsLimit: 5,
-          updatedAt: DateTime.now(),
-        );
-        await _firestore
-            .collection(_appConfigCollection)
-            .doc(_appConfigDocId)
-            .set(defaultConfig.toMap());
-        return defaultConfig;
-      }
-    } catch (e) {
-      dev.log('Erreur lors de la récupération de la config',
-              name: 'SubscriptionService', error: e);
-      // Retourner config par défaut en cas d'erreur
-      return AppConfigModel(
-        subscriptionSystemEnabled: false,
-        freeConsultationsLimit: 5,
-        updatedAt: DateTime.now(),
-      );
+Faites un dépôt WAVE ou MTN Money au +225 0758747888,
+puis envoyez la capture de votre preuve de paiement au même numéro via WhatsApp.
+''';
+      case 'school':
+        return '''
+Pour continuer à publier des offres, veuillez prendre un abonnement :
+• 2 000 F = 1 semaine
+• 5 000 F = 1 mois (au lieu de 8 000 F)
+• 90 000 F = 12 mois (au lieu de 96 000 F)
+
+Faites un dépôt WAVE ou MTN Money au +225 0758747888,
+puis envoyez la capture de votre preuve de paiement au même numéro via WhatsApp.
+''';
+      default:
+        return 'Veuillez contacter l\'administrateur pour plus d\'informations.';
     }
   }
 
-  /// Mettre à jour la configuration globale (admin seulement)
-  Future<void> updateAppConfig({
-    required bool subscriptionSystemEnabled,
-    required String adminUid,
-  }) async {
-    try {
-      final config = AppConfigModel(
-        subscriptionSystemEnabled: subscriptionSystemEnabled,
-        freeConsultationsLimit: 5,
-        updatedAt: DateTime.now(),
-        updatedBy: adminUid,
-      );
-
-      await _firestore
-          .collection(_appConfigCollection)
-          .doc(_appConfigDocId)
-          .set(config.toMap());
-
-      dev.log('Configuration mise à jour: système ${subscriptionSystemEnabled ? "activé" : "désactivé"}',
-              name: 'SubscriptionService');
-    } catch (e) {
-      dev.log('Erreur lors de la mise à jour de la config',
-              name: 'SubscriptionService', error: e);
-      rethrow;
+  // Message de bienvenue avec quota gratuit
+  static String getWelcomeMessage(String accountType, int freeQuota) {
+    switch (accountType) {
+      case 'teacher_transfer':
+        return 'Bienvenue ! Vous disposez de $freeQuota consultations gratuites.';
+      case 'teacher_candidate':
+        return 'Bienvenue ! Vous pouvez postuler gratuitement à $freeQuota offres d\'emploi.';
+      case 'school':
+        return 'Bienvenue ! Vous pouvez créer $freeQuota offre d\'emploi gratuite.';
+      default:
+        return 'Bienvenue !';
     }
   }
 
-  /// Stream de la configuration globale
-  Stream<AppConfigModel> getAppConfigStream() {
-    return _firestore
-        .collection(_appConfigCollection)
-        .doc(_appConfigDocId)
-        .snapshots()
-        .map((doc) {
-      if (doc.exists) {
-        return AppConfigModel.fromFirestore(doc);
-      } else {
-        return AppConfigModel(
-          subscriptionSystemEnabled: false,
-          freeConsultationsLimit: 5,
-          updatedAt: DateTime.now(),
-        );
-      }
-    });
-  }
-
-  /// Créer un abonnement après paiement réussi
-  Future<SubscriptionModel> createSubscription({
-    required String userId,
-    required SubscriptionType type,
-    required int amountPaid,
-    required String transactionId,
-    required String paymentMethod,
-  }) async {
+  // Incrémenter l'utilisation du quota gratuit
+  Future<bool> incrementQuotaUsage(String userId) async {
     try {
-      final now = DateTime.now();
-      final durationMonths = SubscriptionModel.getDurationMonths(type);
-      final endDate = DateTime(
-        now.year,
-        now.month + durationMonths,
-        now.day,
-      );
+      final userDoc = _firestore.collection('users').doc(userId);
 
-      final subscription = SubscriptionModel(
-        id: '', // Sera généré par Firestore
-        userId: userId,
-        type: type,
-        status: SubscriptionStatus.active,
-        amountPaid: amountPaid,
-        startDate: now,
-        endDate: endDate,
-        transactionId: transactionId,
-        paymentMethod: paymentMethod,
-        createdAt: now,
-      );
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(userDoc);
+        if (!snapshot.exists) {
+          throw Exception('Utilisateur introuvable');
+        }
 
-      final docRef = await _firestore
-          .collection(_subscriptionsCollection)
-          .add(subscription.toMap());
+        final userData = snapshot.data()!;
+        final currentUsed = userData['freeQuotaUsed'] ?? 0;
+        final limit = userData['freeQuotaLimit'] ?? 0;
 
-      // Mettre à jour le statut d'abonnement de l'utilisateur
-      await _firestore.collection(_usersCollection).doc(userId).update({
-        'hasActiveSubscription': true,
-        'subscriptionEndDate': Timestamp.fromDate(endDate),
-        'updatedAt': Timestamp.fromDate(now),
+        if (currentUsed >= limit) {
+          // Quota épuisé, désactiver la vérification
+          transaction.update(userDoc, {
+            'isVerified': false,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          return false;
+        }
+
+        // Incrémenter le quota utilisé
+        transaction.update(userDoc, {
+          'freeQuotaUsed': currentUsed + 1,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
       });
 
-      dev.log('Abonnement créé pour l\'utilisateur $userId jusqu\'au $endDate',
-              name: 'SubscriptionService');
-
-      return subscription.copyWith(id: docRef.id);
+      return true;
     } catch (e) {
-      dev.log('Erreur lors de la création de l\'abonnement',
-              name: 'SubscriptionService', error: e);
+      print('Erreur lors de l\'incrémentation du quota: $e');
+      return false;
+    }
+  }
+
+  // Vérifier si l'utilisateur peut effectuer une action
+  Future<bool> canPerformAction(String userId) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (!userDoc.exists) return false;
+
+      final user = UserModel.fromFirestore(userDoc);
+
+      // Vérifier l'expiration
+      if (user.isVerificationExpired) {
+        // Désactiver la vérification si expiré
+        await _firestore.collection('users').doc(userId).update({
+          'isVerified': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return false;
+      }
+
+      // Vérifier le quota
+      if (user.isFreeQuotaExhausted && !user.isVerified) {
+        return false;
+      }
+
+      return user.hasAccess;
+    } catch (e) {
+      print('Erreur lors de la vérification des permissions: $e');
+      return false;
+    }
+  }
+
+  // Activer un abonnement avec durée spécifique
+  Future<void> activateSubscription(
+    String userId,
+    String duration, // '1_week', '1_month', '3_months', '6_months', '12_months'
+  ) async {
+    try {
+      final expiresAt = _calculateExpirationDate(duration);
+
+      await _firestore.collection('users').doc(userId).update({
+        'isVerified': true,
+        'verificationExpiresAt': Timestamp.fromDate(expiresAt),
+        'subscriptionDuration': duration,
+        'freeQuotaUsed': 0, // Reset du quota
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Erreur lors de l\'activation de l\'abonnement: $e');
       rethrow;
     }
   }
 
-  /// Obtenir l'abonnement actif d'un utilisateur
-  Future<SubscriptionModel?> getActiveSubscription(String userId) async {
-    try {
-      final querySnapshot = await _firestore
-          .collection(_subscriptionsCollection)
-          .where('userId', isEqualTo: userId)
-          .where('status', isEqualTo: 'active')
-          .orderBy('endDate', descending: true)
-          .limit(1)
-          .get();
-
-      if (querySnapshot.docs.isNotEmpty) {
-        final subscription = SubscriptionModel.fromFirestore(
-            querySnapshot.docs.first);
-
-        // Vérifier si vraiment actif
-        if (subscription.isActive) {
-          return subscription;
-        }
-      }
-      return null;
-    } catch (e) {
-      dev.log('Erreur lors de la récupération de l\'abonnement',
-              name: 'SubscriptionService', error: e);
-      return null;
+  // Calculer la date d'expiration selon la durée
+  DateTime _calculateExpirationDate(String duration) {
+    final now = DateTime.now();
+    switch (duration) {
+      case '1_week':
+        return now.add(const Duration(days: 7));
+      case '1_month':
+        return DateTime(now.year, now.month + 1, now.day);
+      case '3_months':
+        return DateTime(now.year, now.month + 3, now.day);
+      case '6_months':
+        return DateTime(now.year, now.month + 6, now.day);
+      case '12_months':
+        return DateTime(now.year + 1, now.month, now.day);
+      default:
+        return DateTime(now.year, now.month + 1, now.day); // Par défaut 1 mois
     }
   }
 
-  /// Obtenir tous les abonnements d'un utilisateur
-  Stream<List<SubscriptionModel>> getUserSubscriptionsStream(String userId) {
-    return _firestore
-        .collection(_subscriptionsCollection)
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => SubscriptionModel.fromFirestore(doc))
-            .toList());
-  }
-
-  /// Vérifier et mettre à jour les abonnements expirés
-  Future<void> checkExpiredSubscriptions() async {
+  // Vérifier et expirer automatiquement les comptes
+  Future<void> checkAndExpireAccounts() async {
     try {
       final now = DateTime.now();
-      final querySnapshot = await _firestore
-          .collection(_subscriptionsCollection)
-          .where('status', isEqualTo: 'active')
-          .where('endDate', isLessThan: Timestamp.fromDate(now))
+      final expiredUsersQuery = await _firestore
+          .collection('users')
+          .where('isVerified', isEqualTo: true)
+          .where('verificationExpiresAt', isLessThan: Timestamp.fromDate(now))
           .get();
 
-      for (var doc in querySnapshot.docs) {
-        // Marquer l'abonnement comme expiré
-        await doc.reference.update({
-          'status': 'expired',
+      // Batch update pour performance
+      final batch = _firestore.batch();
+      for (var doc in expiredUsersQuery.docs) {
+        batch.update(doc.reference, {
+          'isVerified': false,
+          'updatedAt': FieldValue.serverTimestamp(),
         });
-
-        // Mettre à jour le statut de l'utilisateur
-        final subscription = SubscriptionModel.fromFirestore(doc);
-        await _firestore
-            .collection(_usersCollection)
-            .doc(subscription.userId)
-            .update({
-          'hasActiveSubscription': false,
-          'updatedAt': Timestamp.fromDate(now),
-        });
-
-        dev.log('Abonnement expiré pour l\'utilisateur ${subscription.userId}',
-                name: 'SubscriptionService');
       }
+
+      await batch.commit();
+      print('${expiredUsersQuery.docs.length} comptes expirés désactivés');
     } catch (e) {
-      dev.log('Erreur lors de la vérification des abonnements expirés',
-              name: 'SubscriptionService', error: e);
+      print('Erreur lors de la vérification des expirations: $e');
     }
   }
 
-  /// Incrémenter le compteur de consultations de profils
-  Future<void> incrementProfileViewCount(String userId) async {
+  // Réinitialiser le quota d'un utilisateur
+  Future<void> resetQuota(String userId) async {
     try {
-      await _firestore.collection(_usersCollection).doc(userId).update({
-        'profileViewsCount': FieldValue.increment(1),
-        'freeViewsRemaining': FieldValue.increment(-1),
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      await _firestore.collection('users').doc(userId).update({
+        'freeQuotaUsed': 0,
+        'lastQuotaResetDate': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
-
-      dev.log('Consultation de profil comptabilisée pour $userId',
-              name: 'SubscriptionService');
     } catch (e) {
-      dev.log('Erreur lors de l\'incrémentation du compteur',
-              name: 'SubscriptionService', error: e);
+      print('Erreur lors de la réinitialisation du quota: $e');
       rethrow;
     }
   }
 
-  /// Vérifier si un utilisateur peut consulter un profil
-  Future<Map<String, dynamic>> canUserViewProfile(String userId) async {
-    try {
-      // Récupérer la configuration
-      final config = await getAppConfig();
-
-      // Récupérer l'utilisateur
-      final userDoc = await _firestore
-          .collection(_usersCollection)
-          .doc(userId)
-          .get();
-
-      if (!userDoc.exists) {
+  // Obtenir les tarifs selon le type de compte
+  static Map<String, String> getSubscriptionPrices(String accountType) {
+    switch (accountType) {
+      case 'teacher_transfer':
         return {
-          'canView': false,
-          'reason': 'user_not_found',
-          'message': 'Utilisateur non trouvé',
+          '1_month': '500 F',
+          '3_months': '1 500 F',
+          '12_months': '2 500 F',
         };
-      }
-
-      final userData = UserModel.fromFirestore(userDoc);
-
-      // Si le système est désactivé, accès illimité
-      if (!config.subscriptionSystemEnabled) {
+      case 'teacher_candidate':
         return {
-          'canView': true,
-          'reason': 'unlimited_free',
-          'message': 'Mode gratuit et illimité activé',
+          '1_week': '500 F',
+          '1_month': '1 500 F',
+          '12_months': '20 000 F',
         };
-      }
-
-      // Si l'utilisateur a un abonnement actif
-      if (userData.hasActiveSubscription &&
-          userData.subscriptionEndDate != null &&
-          DateTime.now().isBefore(userData.subscriptionEndDate!)) {
+      case 'school':
         return {
-          'canView': true,
-          'reason': 'premium',
-          'message': 'Abonnement Premium actif',
-          'daysRemaining': userData.subscriptionEndDate!
-              .difference(DateTime.now())
-              .inDays,
+          '1_week': '2 000 F',
+          '1_month': '5 000 F',
+          '12_months': '90 000 F',
         };
-      }
-
-      // Vérifier les consultations gratuites restantes
-      if (userData.freeViewsRemaining > 0) {
-        return {
-          'canView': true,
-          'reason': 'free_limited',
-          'message': '${userData.freeViewsRemaining} consultations gratuites restantes',
-          'freeViewsRemaining': userData.freeViewsRemaining,
-        };
-      }
-
-      // Plus de consultations disponibles
-      return {
-        'canView': false,
-        'reason': 'expired',
-        'message': 'Consultations gratuites épuisées. Veuillez souscrire à un abonnement.',
-      };
-    } catch (e) {
-      dev.log('Erreur lors de la vérification des droits',
-              name: 'SubscriptionService', error: e);
-      return {
-        'canView': false,
-        'reason': 'error',
-        'message': 'Erreur lors de la vérification',
-      };
+      default:
+        return {};
     }
   }
 
-  /// Traiter un paiement d'abonnement
-  Future<Map<String, dynamic>> processSubscriptionPayment({
-    required String userId,
-    required SubscriptionType type,
-    required String phoneNumber,
-    required String paymentMethod,
-  }) async {
-    try {
-      final amount = SubscriptionModel.getPrice(type);
-      final typeLabel = SubscriptionModel.getTypeLabel(type);
-
-      dev.log('Traitement du paiement: $amount FCFA pour $typeLabel',
-              name: 'SubscriptionService');
-
-      // Récupérer les infos de l'utilisateur pour le nom
-      final userDoc = await _firestore
-          .collection(_usersCollection)
-          .doc(userId)
-          .get();
-
-      String customerName = 'Utilisateur';
-      if (userDoc.exists) {
-        final userData = userDoc.data();
-        customerName = userData?['nom'] ?? userData?['displayName'] ?? 'Utilisateur';
-      }
-
-      // Formater le numéro de téléphone (MoneyFusion attend format: 0123456789)
-      final formattedPhone = _moneyFusionService.formatPhoneNumber(phoneNumber);
-
-      dev.log('Numéro formaté: $formattedPhone', name: 'SubscriptionService');
-
-      // Initier le paiement via MoneyFusion (nouvelle API)
-      final paymentResult = await _moneyFusionService.initiatePayment(
-        amount: amount,
-        phoneNumber: formattedPhone,
-        customerName: customerName,
-        userId: userId,
-        orderId: 'sub_${DateTime.now().millisecondsSinceEpoch}',
-        items: [
-          {'Abonnement CHIASMA - $typeLabel': amount}
-        ],
-        // Optionnel: URLs de callback
-        // returnUrl: 'https://your-app-url.com/payment-success',
-        // webhookUrl: 'https://your-cloud-function-url/webhook',
-      );
-
-      if (paymentResult == null || paymentResult['success'] != true) {
-        return {
-          'success': false,
-          'message': 'Erreur lors de l\'initiation du paiement',
-          'error': paymentResult?['error'],
-        };
-      }
-
-      return {
-        'success': true,
-        'transaction_id': paymentResult['transaction_id'],
-        'status': paymentResult['status'],
-        'payment_url': paymentResult['payment_url'],
-        'message': 'Paiement initié avec succès',
-      };
-    } catch (e) {
-      dev.log('Erreur lors du traitement du paiement',
-              name: 'SubscriptionService', error: e);
-      return {
-        'success': false,
-        'message': 'Erreur lors du traitement du paiement',
-        'error': e.toString(),
-      };
-    }
-  }
-
-  /// Confirmer un paiement et activer l'abonnement
-  /// À appeler après vérification du statut du paiement
-  Future<Map<String, dynamic>> confirmPaymentAndActivateSubscription({
-    required String userId,
-    required String transactionId,
-    required SubscriptionType type,
-    required String paymentMethod,
-  }) async {
-    try {
-      // Vérifier le statut du paiement
-      final paymentStatus = await _moneyFusionService
-          .checkPaymentStatus(transactionId);
-
-      if (paymentStatus == null || paymentStatus['success'] != true) {
-        return {
-          'success': false,
-          'message': 'Impossible de vérifier le statut du paiement',
-        };
-      }
-
-      if (paymentStatus['status'] != MoneyFusionService.statusPaid) {
-        return {
-          'success': false,
-          'message': 'Le paiement n\'est pas confirmé',
-          'status': paymentStatus['status'],
-        };
-      }
-
-      // Créer l'abonnement
-      final subscription = await createSubscription(
-        userId: userId,
-        type: type,
-        amountPaid: paymentStatus['amount'],
-        transactionId: transactionId,
-        paymentMethod: paymentMethod,
-      );
-
-      return {
-        'success': true,
-        'message': 'Abonnement activé avec succès',
-        'subscription': subscription,
-      };
-    } catch (e) {
-      dev.log('Erreur lors de la confirmation du paiement',
-              name: 'SubscriptionService', error: e);
-      return {
-        'success': false,
-        'message': 'Erreur lors de l\'activation de l\'abonnement',
-        'error': e.toString(),
-      };
-    }
-  }
-
-  /// Obtenir les statistiques d'abonnement (pour les admins)
-  Future<Map<String, int>> getSubscriptionStats() async {
-    try {
-      final subscriptionsSnapshot = await _firestore
-          .collection(_subscriptionsCollection)
-          .get();
-
-      int activeCount = 0;
-      int expiredCount = 0;
-      int totalRevenue = 0;
-
-      for (var doc in subscriptionsSnapshot.docs) {
-        final sub = SubscriptionModel.fromFirestore(doc);
-        if (sub.isActive) {
-          activeCount++;
-        } else {
-          expiredCount++;
-        }
-        totalRevenue += sub.amountPaid;
-      }
-
-      return {
-        'total': subscriptionsSnapshot.size,
-        'active': activeCount,
-        'expired': expiredCount,
-        'revenue': totalRevenue,
-      };
-    } catch (e) {
-      dev.log('Erreur lors de la récupération des statistiques',
-              name: 'SubscriptionService', error: e);
-      return {
-        'total': 0,
-        'active': 0,
-        'expired': 0,
-        'revenue': 0,
-      };
+  // Obtenir le libellé de la durée
+  static String getDurationLabel(String duration) {
+    switch (duration) {
+      case '1_week':
+        return '1 semaine';
+      case '1_month':
+        return '1 mois';
+      case '3_months':
+        return '3 mois';
+      case '6_months':
+        return '6 mois';
+      case '12_months':
+        return '12 mois';
+      default:
+        return duration;
     }
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/home_screen.dart';
+import 'package:myapp/widgets/zone_search_field.dart';
 
 class RegisterScreen extends StatefulWidget {
   final String accountType; // 'teacher_transfer', 'teacher_candidate', 'school'
@@ -27,7 +28,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _matriculeController = TextEditingController();
   final _emailController = TextEditingController();
   final _fonctionController = TextEditingController();
-  final _zoneActuelleController = TextEditingController();
   final _drenController = TextEditingController();
   final _infosZoneController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -35,8 +35,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Contrôleurs pour les numéros de téléphone (max 3)
   final List<TextEditingController> _phoneControllers = [TextEditingController()];
 
-  // Contrôleurs pour les zones souhaitées (max 5)
-  final List<TextEditingController> _zoneControllers = [TextEditingController()];
+  // Zones (stockées comme String, pas TextEditingController)
+  String _zoneActuelle = '';
+  final List<String> _zonesSouhaitees = [];
 
   @override
   void dispose() {
@@ -44,14 +45,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _matriculeController.dispose();
     _emailController.dispose();
     _fonctionController.dispose();
-    _zoneActuelleController.dispose();
     _drenController.dispose();
     _infosZoneController.dispose();
     _passwordController.dispose();
     for (var controller in _phoneControllers) {
-      controller.dispose();
-    }
-    for (var controller in _zoneControllers) {
       controller.dispose();
     }
     super.dispose();
@@ -74,21 +71,95 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _addZoneField() {
-    if (_zoneControllers.length < 5) {
-      setState(() {
-        _zoneControllers.add(TextEditingController());
-      });
+  void _addZoneSouhaitee() {
+    if (_zonesSouhaitees.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vous avez atteint la limite de 5 zones souhaitées'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
     }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        String selectedZone = '';
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.add_location, color: Color(0xFF009E60)),
+                  SizedBox(width: 12),
+                  Text('Ajouter une zone'),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Recherchez et sélectionnez une zone souhaitée',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ZoneSearchField(
+                      labelText: 'Zone souhaitée',
+                      hintText: 'Tapez pour rechercher...',
+                      icon: Icons.location_searching,
+                      onZoneSelected: (zone) {
+                        setDialogState(() {
+                          selectedZone = zone;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: selectedZone.isEmpty ||
+                             selectedZone == _zoneActuelle ||
+                             _zonesSouhaitees.contains(selectedZone)
+                      ? null
+                      : () {
+                          setState(() {
+                            _zonesSouhaitees.add(selectedZone);
+                          });
+                          Navigator.pop(context);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF009E60),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Ajouter'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
-  void _removeZoneField(int index) {
-    if (_zoneControllers.length > 1) {
-      setState(() {
-        _zoneControllers[index].dispose();
-        _zoneControllers.removeAt(index);
-      });
-    }
+  void _removeZoneSouhaitee(int index) {
+    setState(() {
+      _zonesSouhaitees.removeAt(index);
+    });
   }
 
   Future<void> _handleRegister() async {
@@ -107,11 +178,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           .where((phone) => phone.isNotEmpty)
           .toList();
 
-      // Collecter les zones souhaitées (uniquement les champs remplis)
-      List<String> zonesSouhaitees = _zoneControllers
-          .map((controller) => controller.text.trim())
-          .where((zone) => zone.isNotEmpty)
-          .toList();
+      // Vérifier qu'au moins une zone souhaitée a été ajoutée
+      if (_zonesSouhaitees.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Veuillez ajouter au moins une zone souhaitée'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
 
       // Créer le compte
       await _authService.signUpWithEmailAndPassword(
@@ -122,10 +203,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         nom: _nomController.text.trim(),
         telephones: telephones,
         fonction: _fonctionController.text.trim(),
-        zoneActuelle: _zoneActuelleController.text.trim(),
+        zoneActuelle: _zoneActuelle,
         dren: _drenController.text.trim().isEmpty ? null : _drenController.text.trim(),
         infosZoneActuelle: _infosZoneController.text.trim(),
-        zonesSouhaitees: zonesSouhaitees,
+        zonesSouhaitees: _zonesSouhaitees,
       );
 
       // Connexion automatique et redirection vers HomeScreen
@@ -503,19 +584,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       ),
                                       const SizedBox(height: 20),
 
-                                      // Champ Zone actuelle
-                                      TextFormField(
-                                        controller: _zoneActuelleController,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Zone actuelle',
-                                          hintText: 'Votre zone de travail actuelle',
-                                          prefixIcon: Icon(Icons.location_on_outlined, color: Color(0xFFF77F00)),
-                                        ),
-                                        keyboardType: TextInputType.text,
-                                        enabled: !_isLoading,
+                                      // Champ Zone actuelle (avec recherche)
+                                      ZoneSearchField(
+                                        initialValue: _zoneActuelle,
+                                        labelText: 'Zone actuelle',
+                                        hintText: 'Recherchez votre zone de travail actuelle...',
+                                        icon: Icons.location_on_outlined,
+                                        onZoneSelected: (zone) {
+                                          setState(() {
+                                            _zoneActuelle = zone;
+                                          });
+                                        },
                                         validator: (value) {
                                           if (value == null || value.isEmpty) {
-                                            return 'Veuillez entrer votre zone actuelle';
+                                            return 'Veuillez sélectionner votre zone actuelle';
                                           }
                                           return null;
                                         },
@@ -564,70 +646,112 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       const SizedBox(height: 20),
 
                                       // Section Zones souhaitées
-                                      Text(
-                                        'Zones souhaitées',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.grey[800],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Vous pouvez ajouter jusqu\'à 5 zones',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
-                                        ),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Zones souhaitées',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.grey[800],
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                '${_zonesSouhaitees.length}/5 zones',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: _zonesSouhaitees.length >= 5
+                                                      ? Colors.red
+                                                      : const Color(0xFF009E60),
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          TextButton.icon(
+                                            onPressed: _zonesSouhaitees.length >= 5 ? null : _addZoneSouhaitee,
+                                            icon: const Icon(Icons.add, size: 18),
+                                            label: const Text('Ajouter'),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: const Color(0xFF009E60),
+                                              disabledForegroundColor: Colors.grey[400],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 12),
 
-                                      // Liste des champs zones souhaitées
-                                      ..._zoneControllers.asMap().entries.map((entry) {
-                                        int index = entry.key;
-                                        return Padding(
-                                          padding: const EdgeInsets.only(bottom: 12.0),
+                                      // Liste des zones souhaitées
+                                      if (_zonesSouhaitees.isEmpty)
+                                        Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey[100],
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.grey[300]!),
+                                          ),
                                           child: Row(
                                             children: [
+                                              Icon(Icons.info_outline, size: 20, color: Colors.grey[600]),
+                                              const SizedBox(width: 12),
                                               Expanded(
-                                                child: TextFormField(
-                                                  controller: entry.value,
-                                                  decoration: InputDecoration(
-                                                    labelText: 'Zone ${index + 1}',
-                                                    hintText: 'Nom de la zone souhaitée',
-                                                    prefixIcon: const Icon(Icons.place_outlined, color: Color(0xFFF77F00)),
+                                                child: Text(
+                                                  'Aucune zone souhaitée. Ajoutez au moins une zone (maximum 5).',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.grey[600],
                                                   ),
-                                                  keyboardType: TextInputType.text,
-                                                  validator: (value) {
-                                                    if (index == 0 && (value == null || value.isEmpty)) {
-                                                      return 'Au moins une zone est requise';
-                                                    }
-                                                    return null;
-                                                  },
                                                 ),
                                               ),
-                                              if (_zoneControllers.length > 1)
-                                                IconButton(
-                                                  icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                                                  onPressed: () => _removeZoneField(index),
-                                                ),
                                             ],
                                           ),
-                                        );
-                                      }),
-
-                                      if (_zoneControllers.length < 5)
-                                        Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: TextButton.icon(
-                                            onPressed: _addZoneField,
-                                            icon: const Icon(Icons.add_circle_outline),
-                                            label: const Text('Ajouter une zone'),
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: const Color(0xFF009E60),
+                                        )
+                                      else
+                                        ..._zonesSouhaitees.asMap().entries.map((entry) {
+                                          final index = entry.key;
+                                          final zone = entry.value;
+                                          return Container(
+                                            margin: const EdgeInsets.only(bottom: 8),
+                                            padding: const EdgeInsets.all(12),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF009E60).withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: const Color(0xFF009E60).withValues(alpha: 0.3),
+                                              ),
                                             ),
-                                          ),
-                                        ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.location_on,
+                                                  color: Color(0xFF009E60),
+                                                  size: 20,
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Text(
+                                                    zone,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.close, size: 20),
+                                                  color: Colors.red,
+                                                  onPressed: () => _removeZoneSouhaitee(index),
+                                                  tooltip: 'Supprimer',
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }),
                                       const SizedBox(height: 20),
 
                                       // Champ Mot de passe
@@ -699,6 +823,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(12),
                                           ),
+                                          backgroundColor: const Color(0xFFF77F00),
+                                          foregroundColor: Colors.white,
                                         ),
                                         child: _isLoading
                                             ? const SizedBox(

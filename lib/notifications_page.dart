@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/models/notification_model.dart';
 import 'package:myapp/services/notification_service.dart';
+import 'package:myapp/profile_detail_page.dart';
+import 'package:myapp/teacher_candidate/job_offers_list_page.dart';
+import 'package:myapp/school/my_job_offers_page.dart';
+import 'package:myapp/chat_page.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 class NotificationsPage extends StatefulWidget {
@@ -37,6 +41,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
       );
     }
 
+    // Variable locale non-nullable pour éviter les avertissements
+    final currentUser = _currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
@@ -49,25 +56,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
             icon: const Icon(Icons.done_all),
             tooltip: 'Tout marquer comme lu',
             onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
               try {
-                await _notificationService.markAllAsRead(_currentUser!.uid);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Toutes les notifications sont marquées comme lues'),
-                      backgroundColor: Color(0xFF009E60),
-                    ),
-                  );
-                }
+                await _notificationService.markAllAsRead(currentUser.uid);
+                if (!mounted) return;
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Toutes les notifications sont marquées comme lues'),
+                    backgroundColor: Color(0xFF009E60),
+                  ),
+                );
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Erreur: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+                if (!mounted) return;
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Erreur: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
           ),
@@ -76,6 +82,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
             icon: const Icon(Icons.more_vert),
             onSelected: (value) async {
               if (value == 'delete_all') {
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (context) => AlertDialog(
@@ -94,26 +101,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   ),
                 );
 
-                if (confirm == true && mounted) {
+                if (confirm == true) {
                   try {
-                    await _notificationService.deleteAllNotifications(_currentUser!.uid);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Toutes les notifications ont été supprimées'),
-                          backgroundColor: Color(0xFF009E60),
-                        ),
-                      );
-                    }
+                    await _notificationService.deleteAllNotifications(currentUser.uid);
+                    if (!mounted) return;
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Toutes les notifications ont été supprimées'),
+                        backgroundColor: Color(0xFF009E60),
+                      ),
+                    );
                   } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Erreur: $e'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
+                    if (!mounted) return;
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Erreur: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
                   }
                 }
               }
@@ -134,7 +139,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         ],
       ),
       body: StreamBuilder<List<NotificationModel>>(
-        stream: _notificationService.streamUserNotifications(_currentUser!.uid),
+        stream: _notificationService.streamUserNotifications(currentUser.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -206,10 +211,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Widget _buildNotificationCard(NotificationModel notification) {
     final color = Color(NotificationModel.getColorForType(notification.type));
-    final icon = IconData(
-      NotificationModel.getIconForType(notification.type),
-      fontFamily: 'MaterialIcons',
-    );
+    final icon = NotificationModel.getIconDataForType(notification.type);
 
     return Dismissible(
       key: Key(notification.id),
@@ -227,23 +229,21 @@ class _NotificationsPageState extends State<NotificationsPage> {
       onDismissed: (direction) async {
         try {
           await _notificationService.deleteNotification(notification.id);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Notification supprimée'),
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Notification supprimée'),
+              duration: Duration(seconds: 2),
+            ),
+          );
         } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Erreur: $e'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       },
       child: Card(
@@ -261,8 +261,106 @@ class _NotificationsPageState extends State<NotificationsPage> {
             if (!notification.isRead) {
               await _notificationService.markAsRead(notification.id);
             }
-            // TODO: Navigation selon le type de notification
-            // Par exemple: si type == 'message', aller à la conversation
+
+            // Navigation selon le type de notification
+            if (!mounted) return;
+
+            switch (notification.type) {
+              case 'application':
+                // Navigation vers les offres d'emploi pour les écoles
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MyJobOffersPage(),
+                  ),
+                );
+                break;
+
+              case 'offer':
+                // Navigation vers la liste des offres pour les candidats
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const JobOffersListPage(),
+                  ),
+                );
+                break;
+
+              case 'match':
+              case 'favorite':
+                // Navigation vers le profil si toutes les données sont fournies
+                final profileId = notification.data?['profileId'] as String?;
+                final name = notification.data?['name'] as String?;
+                final fonction = notification.data?['fonction'] as String?;
+                final zoneActuelle = notification.data?['zoneActuelle'] as String?;
+                final zoneSouhaitee = notification.data?['zoneSouhaitee'] as String?;
+                final isOnline = notification.data?['isOnline'] as bool?;
+
+                if (profileId != null &&
+                    name != null &&
+                    fonction != null &&
+                    zoneActuelle != null &&
+                    zoneSouhaitee != null &&
+                    isOnline != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProfileDetailPage(
+                        userId: profileId,
+                      ),
+                    ),
+                  );
+                } else {
+                  // Si les données ne sont pas complètes, afficher un message
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Informations du profil incomplètes'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+                break;
+
+              case 'message':
+                // Navigation vers la page de chat si les données du contact sont fournies
+                final contactId = notification.data?['contactId'] as String?;
+                final contactName = notification.data?['contactName'] as String?;
+                final contactFunction = notification.data?['contactFunction'] as String?;
+                final isOnline = notification.data?['isOnline'] as bool? ?? false;
+
+                if (contactId != null && contactName != null && contactFunction != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChatPage(
+                        contactName: contactName,
+                        contactFunction: contactFunction,
+                        isOnline: isOnline,
+                        contactUserId: contactId,
+                      ),
+                    ),
+                  );
+                } else {
+                  // Si les données ne sont pas complètes, naviguer vers la liste des messages
+                  // La MessagesPage est dans home_screen.dart, on ne peut pas y naviguer directement
+                  // On affiche un message pour aller dans l'onglet Messages
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Veuillez consulter l\'onglet Messages pour voir vos conversations'),
+                      backgroundColor: Color(0xFF2196F3),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                }
+                break;
+
+              case 'system':
+                // Les notifications système n'ont généralement pas d'action
+                break;
+
+              default:
+                break;
+            }
           },
           borderRadius: BorderRadius.circular(12),
           child: Container(

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 /// Modèle pour une annonce
 class AnnouncementModel {
@@ -125,18 +126,18 @@ class AnnouncementModel {
   }
 
   /// Obtenir l'icône selon le type
-  static int getIconForType(String type) {
+  static IconData getIconDataForType(String type) {
     switch (type) {
       case 'info':
-        return 0xe88e; // Icons.info
+        return Icons.info;
       case 'warning':
-        return 0xe002; // Icons.warning
+        return Icons.warning;
       case 'success':
-        return 0xe86c; // Icons.check_circle
+        return Icons.check_circle;
       case 'error':
-        return 0xe000; // Icons.error
+        return Icons.error;
       default:
-        return 0xe88e;
+        return Icons.info;
     }
   }
 

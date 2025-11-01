@@ -2,137 +2,290 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Fonction helper pour vérifier si l'utilisateur est authentifié
+    // ========== HELPER FUNCTIONS ==========
+
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Fonction helper pour vérifier si l'utilisateur accède à ses propres données
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Fonction helper pour vérifier si l'utilisateur est admin
     function isAdmin() {
       return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Collection users - Lecture de ses propres données + création lors de l'inscription
+    function getUserAccountType() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType;
+    }
+
+    function isTeacher() {
+      return isSignedIn() && (getUserAccountType() == 'teacher_transfer' || getUserAccountType() == 'teacher_candidate');
+    }
+
+    function isSchool() {
+      return isSignedIn() && getUserAccountType() == 'school';
+    }
+
+    function isValidMatricule(matricule) {
+      return matricule.matches('^[0-9]{6}[A-Z]$');
+    }
+
+    function isParticipant(participants) {
+      return isSignedIn() && request.auth.uid in participants;
+    }
+
+    // ========== COLLECTION USERS ==========
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isSignedIn() && request.auth.uid == userId; // Permettre création lors inscription
-      allow update: if isOwner(userId) || isAdmin(); // Propriétaire ou admin peuvent modifier
-      allow delete: if isAdmin(); // Seuls les admins peuvent supprimer
+      // Lecture : tous les utilisateurs authentifiés
+      allow read: if isSignedIn();
+
+      // Création : uniquement son propre profil avec validations
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.accountType in ['teacher_transfer', 'teacher_candidate', 'school']
+        && (
+          // Pour les enseignants (teacher_transfer): matricule obligatoire et valide
+          (request.resource.data.accountType == 'teacher_transfer' && isValidMatricule(request.resource.data.matricule))
+          // Pour les candidats et écoles: matricule peut être vide
+          || ((request.resource.data.accountType == 'teacher_candidate' || request.resource.data.accountType == 'school')
+              && (!request.resource.data.keys().hasAny(['matricule']) || request.resource.data.matricule == ''))
+        );
+
+      // Mise à jour : propriétaire ou admin
+      // Les champs immuables sont protégés
+      allow update: if isOwner(userId) && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['uid', 'matricule', 'email', 'accountType', 'isAdmin'])
+        )
+        || isAdmin();
+
+      // Suppression : admin uniquement
+      allow delete: if isAdmin();
     }
 
-    // Collection payment_transactions - Les utilisateurs peuvent lire leurs propres transactions
-    // Seules les Cloud Functions peuvent écrire
-    match /payment_transactions/{transactionId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow write: if false; // Seulement via Cloud Functions
-    }
-
-    // Collection subscriptions - Les utilisateurs peuvent lire leur propre abonnement
-    // Seules les Cloud Functions peuvent écrire
-    match /subscriptions/{subscriptionId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow write: if false; // Seulement via Cloud Functions
-    }
-
-    // Collection app_config - Configuration de l'application
-    match /app_config/{configId} {
-      allow read: if isSignedIn(); // Tous les utilisateurs peuvent lire la config
-      allow write: if isAdmin(); // Seuls les admins peuvent modifier
-    }
-
-    // Collection favoris - Les utilisateurs peuvent gérer leurs propres favoris
-    match /favoris/{favoriId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-    }
-
-    // Collection recherches - Les utilisateurs peuvent gérer leurs propres recherches
-    match /recherches/{rechercheId} {
+    // ========== COLLECTION FAVORITES ==========
+    match /favorites/{favoriteId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // Collection job_applications - Candidatures des enseignants
-    match /job_applications/{applicationId} {
-      // Lecture: propriétaire, établissements (si status = active), admins
+    // ========== COLLECTION MESSAGES (conversations) ==========
+    match /messages/{conversationId} {
+      // Lecture : participants ou admin (permettre lecture même si le document n'existe pas encore)
       allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || // Le candidat lui-même
-        (resource.data.status == 'active' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType == 'school') || // Écoles voient candidatures actives
-        isAdmin()
+        !exists(/databases/$(database)/documents/messages/$(conversationId))
+        || isParticipant(resource.data.participants)
+        || isAdmin()
       );
-      // Création: seulement le propriétaire
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      // Mise à jour: propriétaire ou admin
+
+      // Création : participant et exactement 2 participants
+      allow create: if isSignedIn()
+        && isParticipant(request.resource.data.participants)
+        && request.resource.data.participants.size() == 2;
+
+      // Mise à jour : participants (lastMessage, lastMessageTime)
+      allow update: if isSignedIn() && isParticipant(resource.data.participants);
+
+      // Suppression : admin uniquement
+      allow delete: if isAdmin();
+
+      // Sous-collection messages
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (
+          !exists(/databases/$(database)/documents/messages/$(conversationId))
+          || isParticipant(get(/databases/$(database)/documents/messages/$(conversationId)).data.participants)
+        );
+        allow create: if isSignedIn()
+          && exists(/databases/$(database)/documents/messages/$(conversationId))
+          && isParticipant(get(/databases/$(database)/documents/messages/$(conversationId)).data.participants)
+          && request.resource.data.senderId == request.auth.uid;
+        allow update: if isSignedIn()
+          && exists(/databases/$(database)/documents/messages/$(conversationId))
+          && isParticipant(get(/databases/$(database)/documents/messages/$(conversationId)).data.participants);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ========== COLLECTION JOB_APPLICATIONS ==========
+    match /job_applications/{applicationId} {
+      // Lecture : propriétaire, écoles (si active), admin
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || (isSchool() && resource.data.status == 'active')
+        || isAdmin()
+      );
+
+      // Création : enseignants uniquement
+      allow create: if isTeacher()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'active';
+
+      // Mise à jour : propriétaire ou admin
       allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      // Suppression: propriétaire ou admin
+
+      // Suppression : propriétaire ou admin
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // Collection job_offers - Offres d'emploi des établissements
+    // ========== COLLECTION JOB_OFFERS ==========
     match /job_offers/{offerId} {
-      // Lecture: tout le monde authentifié (si status = open/active), propriétaire, admins
+      // Lecture :
+      // - Enseignants : peuvent lire toutes les offres (le filtrage par status se fait dans la requête)
+      // - École propriétaire : peut lire ses propres offres
+      // - Admin : peut tout lire
       allow read: if isSignedIn() && (
-        resource.data.status == 'open' || // Offres ouvertes visibles par tous
-        resource.data.status == 'active' || // Offres actives visibles par tous
-        resource.data.schoolId == request.auth.uid || // L'école propriétaire
-        isAdmin()
+        isTeacher()
+        || resource.data.schoolId == request.auth.uid
+        || isAdmin()
       );
-      // Création: seulement les établissements
-      allow create: if isSignedIn() &&
-        request.resource.data.schoolId == request.auth.uid &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountType == 'school';
-      // Mise à jour: propriétaire (école) ou admin
-      allow update: if isSignedIn() && (resource.data.schoolId == request.auth.uid || isAdmin());
-      // Suppression: propriétaire ou admin
+
+      // Création : écoles uniquement
+      allow create: if isSchool() && request.resource.data.schoolId == request.auth.uid;
+
+      // Mise à jour :
+      // - École propriétaire ou admin : toutes modifications
+      // - Enseignants : uniquement incrémentation des compteurs (viewsCount, applicantsCount)
+      allow update: if isSignedIn() && (
+        resource.data.schoolId == request.auth.uid
+        || isAdmin()
+        || (isTeacher() &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewsCount', 'applicantsCount'])
+           )
+      );
+
+      // Suppression : école propriétaire ou admin
       allow delete: if isSignedIn() && (resource.data.schoolId == request.auth.uid || isAdmin());
     }
 
-    // Collection offer_applications - Candidatures aux offres spécifiques
+    // ========== COLLECTION OFFER_APPLICATIONS ==========
     match /offer_applications/{applicationId} {
-      // Lecture: candidat propriétaire, école de l'offre, admins
+      // Lecture : candidat, école de l'offre, admin
       allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || // Le candidat
-        get(/databases/$(database)/documents/job_offers/$(resource.data.offerId)).data.schoolId == request.auth.uid || // L'école
-        isAdmin()
+        resource.data.userId == request.auth.uid
+        || get(/databases/$(database)/documents/job_offers/$(resource.data.offerId)).data.schoolId == request.auth.uid
+        || isAdmin()
       );
-      // Création: candidat crée sa propre candidature
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      // Mise à jour: candidat, école ou admin
+
+      // Création : enseignants uniquement
+      allow create: if isTeacher() && request.resource.data.userId == request.auth.uid;
+
+      // Mise à jour :
+      // - Candidat : peut modifier sa candidature
+      // - École : peut modifier le statut et incrémenter viewsCount
+      // - Admin : tout
       allow update: if isSignedIn() && (
-        resource.data.userId == request.auth.uid ||
-        get(/databases/$(database)/documents/job_offers/$(resource.data.offerId)).data.schoolId == request.auth.uid ||
-        isAdmin()
+        resource.data.userId == request.auth.uid
+        || (isSchool() &&
+            get(/databases/$(database)/documents/job_offers/$(resource.data.offerId)).data.schoolId == request.auth.uid &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'viewsCount', 'updatedAt'])
+           )
+        || isAdmin()
       );
-      // Suppression: candidat ou admin
+
+      // Suppression : candidat ou admin
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // Collection announcements - Annonces système
+    // ========== COLLECTION ANNOUNCEMENTS ==========
     match /announcements/{announcementId} {
-      // Lecture: tous les utilisateurs authentifiés peuvent lire les annonces
+      // Lecture : tous les utilisateurs authentifiés
       allow read: if isSignedIn();
-      // Écriture: seuls les admins peuvent créer, modifier ou supprimer
+
+      // Écriture : admin uniquement
       allow create, update, delete: if isAdmin();
     }
 
-    // Collection notifications - Notifications utilisateur
+    // ========== COLLECTION NOTIFICATIONS ==========
     match /notifications/{notificationId} {
-      // Lecture: utilisateur propriétaire ou admin
+      // Lecture : propriétaire ou admin
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      // Création: tout utilisateur authentifié ou admin (pour notifier les autres)
+
+      // Création : tous les utilisateurs authentifiés (pour notifier)
       allow create: if isSignedIn();
-      // Mise à jour et suppression: propriétaire ou admin
-      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Mise à jour : propriétaire ou admin (marquer comme lu)
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Suppression : propriétaire ou admin
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // Par défaut, tout est interdit
+    // ========== COLLECTION NOTIFICATION_SETTINGS ==========
+    match /notification_settings/{userId} {
+      // Lecture : propriétaire uniquement
+      allow read: if isSignedIn() && request.auth.uid == userId;
+
+      // Création : propriétaire uniquement
+      allow create: if isSignedIn() && request.auth.uid == userId;
+
+      // Mise à jour : propriétaire uniquement
+      allow update: if isSignedIn() && request.auth.uid == userId;
+
+      // Suppression : propriétaire uniquement
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ========== COLLECTION APP_CONFIG ==========
+    match /app_config/{docId} {
+      // Lecture : tous les utilisateurs authentifiés
+      allow read: if isSignedIn();
+
+      // Écriture : admin uniquement
+      allow write: if isAdmin();
+    }
+
+    // ========== COLLECTION SUBSCRIPTIONS (enseignants) ==========
+    match /subscriptions/{subscriptionId} {
+      // Lecture : propriétaire ou admin
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Écriture : interdite côté client (Cloud Functions uniquement)
+      allow write: if false;
+    }
+
+    // ========== COLLECTION SCHOOL_SUBSCRIPTIONS ==========
+    match /school_subscriptions/{subscriptionId} {
+      // Lecture : école propriétaire ou admin
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Création : écoles uniquement
+      allow create: if isSchool() && request.resource.data.userId == request.auth.uid;
+
+      // Mise à jour et suppression : interdites côté client (Cloud Functions)
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // ========== COLLECTION PAYMENT_TRANSACTIONS ==========
+    match /payment_transactions/{transactionId} {
+      // Lecture : propriétaire ou admin
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Écriture : interdite côté client (Cloud Functions uniquement)
+      allow write: if false;
+    }
+
+    // ========== COLLECTION PROFILE_VIEWS ==========
+    match /profile_views/{viewId} {
+      // Lecture : propriétaire du profil consulté ou admin
+      allow read: if isSignedIn() && (resource.data.profileUserId == request.auth.uid || isAdmin());
+
+      // Création : écoles qui consultent les profils de candidats
+      allow create: if isSchool() && request.resource.data.viewerId == request.auth.uid;
+
+      // Mise à jour : permettre à l'école de mettre à jour la date de dernière vue
+      allow update: if isSchool() && resource.data.viewerId == request.auth.uid;
+
+      // Suppression : admin uniquement
+      allow delete: if isAdmin();
+    }
+
+    // ========== RÈGLE PAR DÉFAUT ==========
+    // Tout ce qui n'est pas explicitement autorisé est interdit
     match /{document=**} {
       allow read, write: if false;
     }

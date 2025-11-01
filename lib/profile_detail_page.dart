@@ -1,25 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/chat_page.dart';
-import 'package:myapp/services/subscription_service.dart';
 import 'package:myapp/services/firestore_service.dart';
+import 'package:myapp/models/user_model.dart';
 
 class ProfileDetailPage extends StatefulWidget {
-  final String userId;          // ID de l'utilisateur dont on consulte le profil
-  final String name;
-  final String fonction;
-  final String zoneActuelle;
-  final String zoneSouhaitee;
-  final bool isOnline;
+  final String userId; // ID de l'utilisateur dont on consulte le profil
 
   const ProfileDetailPage({
     super.key,
     required this.userId,
-    required this.name,
-    required this.fonction,
-    required this.zoneActuelle,
-    required this.zoneSouhaitee,
-    required this.isOnline,
   });
 
   @override
@@ -29,28 +19,50 @@ class ProfileDetailPage extends StatefulWidget {
 class _ProfileDetailPageState extends State<ProfileDetailPage> {
   bool _isFavorite = false;
   bool _isLoadingFavorite = true;
-  final _subscriptionService = SubscriptionService();
   final _firestoreService = FirestoreService();
+  UserModel? _profileUserData;
+  bool _isLoadingProfile = true;
 
   @override
   void initState() {
     super.initState();
-    // Incrémenter le compteur de vues quand le profil est ouvert
-    _incrementProfileView();
-    // Charger le statut favori
     _loadFavoriteStatus();
+    _loadProfileData();
+    _recordProfileView();
   }
 
-  Future<void> _incrementProfileView() async {
+  Future<void> _recordProfileView() async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser != null && currentUser.uid != widget.userId) {
-        // Ne pas compter si c'est le propriétaire qui voit son propre profil
-        await _subscriptionService.incrementProfileViewCount(currentUser.uid);
+      if (currentUser != null) {
+        await _firestoreService.recordProfileView(
+          viewerId: currentUser.uid,
+          profileUserId: widget.userId,
+        );
       }
     } catch (e) {
-      // Erreur silencieuse - ne pas bloquer l'affichage du profil
-      debugPrint('Erreur lors de l\'incrémentation du compteur de vues: $e');
+      debugPrint('Erreur lors de l\'enregistrement de la vue de profil: $e');
+      // Ne pas afficher d'erreur à l'utilisateur car ce n'est pas critique
+    }
+  }
+
+  Future<void> _loadProfileData() async {
+    try {
+      final profileData = await _firestoreService.getUser(widget.userId);
+
+      if (mounted) {
+        setState(() {
+          _profileUserData = profileData;
+          _isLoadingProfile = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur lors du chargement du profil: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingProfile = false;
+        });
+      }
     }
   }
 
@@ -120,6 +132,36 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingProfile) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Profil'),
+          backgroundColor: const Color(0xFFF77F00),
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFFF77F00),
+          ),
+        ),
+      );
+    }
+
+    if (_profileUserData == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Profil'),
+          backgroundColor: const Color(0xFFF77F00),
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Text('Profil introuvable'),
+        ),
+      );
+    }
+
+    final profile = _profileUserData!;
+
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -150,7 +192,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                             radius: 50,
                             backgroundColor: Colors.white,
                             child: Text(
-                              widget.name.substring(0, 2).toUpperCase(),
+                              profile.nom
+                                  .split(' ')
+                                  .map((word) => word.isNotEmpty ? word[0] : '')
+                                  .take(2)
+                                  .join()
+                                  .toUpperCase(),
                               style: const TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
@@ -158,7 +205,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                               ),
                             ),
                           ),
-                          if (widget.isOnline)
+                          if (profile.isOnline)
                             Positioned(
                               right: 4,
                               bottom: 4,
@@ -176,7 +223,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        widget.name,
+                        profile.nom,
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -185,7 +232,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        widget.fonction,
+                        profile.fonction,
                         style: const TextStyle(
                           fontSize: 14,
                           color: Colors.white,
@@ -221,117 +268,93 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Zones
-                  _buildSectionCard(
-                    'Zones de permutation',
-                    [
-                      _buildInfoRow(
-                        Icons.location_on,
-                        'Zone actuelle',
-                        widget.zoneActuelle,
-                        const Color(0xFFF77F00),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInfoRow(
-                        Icons.location_searching,
-                        'Zone souhaitée',
-                        widget.zoneSouhaitee,
-                        const Color(0xFF009E60),
-                      ),
-                    ],
-                  ),
+                  // Affichage différent selon le type de compte
+                  if (profile.accountType == 'teacher_candidate')
+                    ..._buildCandidateProfile(profile)
+                  else
+                    ..._buildTeacherTransferProfile(profile),
                   const SizedBox(height: 16),
 
-                  // Informations professionnelles
-                  _buildSectionCard(
-                    'Informations professionnelles',
-                    [
-                      _buildInfoRow(
-                        Icons.work,
-                        'Fonction',
-                        widget.fonction,
-                        const Color(0xFF2196F3),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInfoRow(
-                        Icons.apartment,
-                        'DREN',
-                        'Abidjan 1',
-                        const Color(0xFF9C27B0),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInfoRow(
-                        Icons.school,
-                        'Établissement',
-                        'Lycée Moderne de Cocody',
-                        Colors.orange[800]!,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Contact
-                  _buildSectionCard(
-                    'Contact',
-                    [
-                      _buildInfoRow(
-                        Icons.email,
-                        'Email',
-                        'enseignant@education.ci',
-                        const Color(0xFFF77F00),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInfoRow(
-                        Icons.phone,
-                        'Téléphone',
-                        '+225 07 XX XX XX XX',
-                        const Color(0xFF009E60),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(8),
+                  // Contact (affichage conditionnel pour les écoles)
+                  if (profile.accountType != 'school' || profile.showContactInfo)
+                    _buildSectionCard(
+                      'Contact',
+                      [
+                        _buildInfoRow(
+                          Icons.email,
+                          'Email',
+                          profile.email,
+                          const Color(0xFFF77F00),
                         ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 18,
-                              color: Colors.blue[700],
+                        if (profile.telephones.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          ...profile.telephones.asMap().entries.map((entry) {
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                top: entry.key > 0 ? 16 : 0,
+                              ),
+                              child: _buildInfoRow(
+                                Icons.phone,
+                                profile.telephones.length > 1
+                                    ? 'Téléphone ${entry.key + 1}'
+                                    : 'Téléphone',
+                                entry.value,
+                                const Color(0xFF009E60),
+                              ),
+                            );
+                          }),
+                        ],
+                      ],
+                    )
+                  else
+                    _buildSectionCard(
+                      'Contact',
+                      [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(0xFFF77F00).withValues(alpha: 0.3),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Le numéro complet sera visible après connexion mutuelle',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue[700],
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.lock_outline,
+                                color: Colors.orange[700],
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Coordonnées privées',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.orange[900],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Cet établissement a choisi de ne pas afficher ses coordonnées publiquement. Utilisez la messagerie pour le contacter.',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.orange[800],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // À propos
-                  _buildSectionCard(
-                    'À propos',
-                    [
-                      Text(
-                        'Enseignant expérimenté recherchant une permutation pour raisons familiales. Ouvert à la discussion et aux échanges constructifs.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[700],
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                   const SizedBox(height: 24),
 
                   // Boutons d'action
@@ -344,9 +367,10 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => ChatPage(
-                                  contactName: widget.name,
-                                  contactFunction: widget.fonction,
-                                  isOnline: widget.isOnline,
+                                  contactName: profile.nom,
+                                  contactFunction: profile.fonction,
+                                  isOnline: profile.isOnline,
+                                  contactUserId: profile.uid,
                                 ),
                               ),
                             );
@@ -371,34 +395,6 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            _showContactDialog(context);
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF009E60),
-                            side: const BorderSide(color: Color(0xFF009E60)),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(Icons.phone),
-                          label: const Text(
-                            'Demander le contact',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -410,38 +406,38 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   }
 
   Widget _buildSectionCard(String title, List<Widget> children) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2C2C2C),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          ...children,
-        ],
+            const Divider(height: 24),
+            ...children,
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value, Color color) {
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value,
+    Color color,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -463,6 +459,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 4),
@@ -471,6 +468,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
+                  color: Color(0xFF2C2C2C),
                 ),
               ),
             ],
@@ -480,57 +478,115 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
-  void _showContactDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF009E60).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.phone,
-                color: Color(0xFF009E60),
-              ),
+  /// Construire le profil pour un candidat enseignant (teacher_candidate)
+  List<Widget> _buildCandidateProfile(UserModel profile) {
+    return [
+      // Zones souhaitées (pour les candidats, c'est le plus important)
+      if (profile.zonesSouhaitees.isNotEmpty)
+        _buildSectionCard(
+          'Zones souhaitées',
+          [
+            _buildInfoRow(
+              Icons.location_searching,
+              profile.zonesSouhaitees.length == 1
+                  ? 'Zone souhaitée'
+                  : 'Zones souhaitées',
+              profile.zonesSouhaitees.join(' • '),
+              const Color(0xFF009E60),
             ),
-            const SizedBox(width: 12),
-            const Text('Demande de contact'),
           ],
         ),
-        content: const Text(
-          'Souhaitez-vous envoyer une demande de contact à cet enseignant ? Votre numéro sera également partagé.',
-          style: TextStyle(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
+      const SizedBox(height: 16),
+
+      // Informations professionnelles
+      _buildSectionCard(
+        'Informations professionnelles',
+        [
+          _buildInfoRow(
+            Icons.subject,
+            'Matières enseignées',
+            profile.fonction,
+            const Color(0xFF2196F3),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Demande de contact envoyée'),
-                  backgroundColor: Color(0xFF009E60),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF009E60),
-              foregroundColor: Colors.white,
+          if (profile.infosZoneActuelle.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildInfoRow(
+              Icons.work_history,
+              'Expérience professionnelle',
+              profile.infosZoneActuelle,
+              Colors.orange[800]!,
             ),
-            child: const Text('Envoyer'),
+          ],
+        ],
+      ),
+    ];
+  }
+
+  /// Construire le profil pour un enseignant en permutation (teacher_transfer)
+  List<Widget> _buildTeacherTransferProfile(UserModel profile) {
+    return [
+      // Zones
+      _buildSectionCard(
+        'Localisation',
+        [
+          _buildInfoRow(
+            Icons.location_on,
+            'Zone actuelle',
+            profile.zoneActuelle,
+            const Color(0xFFF77F00),
+          ),
+          if (profile.zonesSouhaitees.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildInfoRow(
+              Icons.location_searching,
+              profile.zonesSouhaitees.length == 1
+                  ? 'Zone souhaitée'
+                  : 'Zones souhaitées',
+              profile.zonesSouhaitees.join(' • '),
+              const Color(0xFF009E60),
+            ),
+          ],
+        ],
+      ),
+      const SizedBox(height: 16),
+
+      // Informations professionnelles
+      _buildSectionCard(
+        'Informations professionnelles',
+        [
+          _buildInfoRow(
+            Icons.work,
+            'Fonction',
+            profile.fonction,
+            const Color(0xFF2196F3),
+          ),
+          if (profile.dren != null && profile.dren!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildInfoRow(
+              Icons.apartment,
+              'DREN',
+              profile.dren!,
+              const Color(0xFF9C27B0),
+            ),
+          ],
+          if (profile.infosZoneActuelle.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildInfoRow(
+              Icons.school,
+              'Établissement',
+              profile.infosZoneActuelle,
+              Colors.orange[800]!,
+            ),
+          ],
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            Icons.badge,
+            'Matricule',
+            profile.matricule,
+            Colors.grey[700]!,
           ),
         ],
       ),
-    );
+    ];
   }
 }

@@ -37,10 +37,7 @@ class AnnouncementsBanner extends StatelessWidget {
 
   Widget _buildAnnouncementCard(BuildContext context, AnnouncementModel announcement) {
     final color = Color(AnnouncementModel.getColorForType(announcement.type));
-    final iconData = IconData(
-      AnnouncementModel.getIconForType(announcement.type),
-      fontFamily: 'MaterialIcons',
-    );
+    final iconData = AnnouncementModel.getIconDataForType(announcement.type);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -204,10 +201,7 @@ class AnnouncementsCarousel extends StatelessWidget {
             itemBuilder: (context, index) {
               final announcement = announcements[index];
               final color = Color(AnnouncementModel.getColorForType(announcement.type));
-              final iconData = IconData(
-                AnnouncementModel.getIconForType(announcement.type),
-                fontFamily: 'MaterialIcons',
-              );
+              final iconData = AnnouncementModel.getIconDataForType(announcement.type);
 
               return Container(
                 width: 280,

@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Règles pour les messages et fichiers partagés
+    match /messages/{conversationId}/{userId}/{fileName} {
+      // Permettre la lecture et l'écriture pour les utilisateurs authentifiés
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Règles pour les photos de profil
+    match /profile_pictures/{userId}/{fileName} {
+      allow read: if true; // Les photos de profil sont publiques
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Règles pour les CVs et documents candidats
+    match /candidate_documents/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Règles pour les logos d'école
+    match /school_logos/{schoolId}/{fileName} {
+      allow read: if true; // Les logos sont publics
+      allow write: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    // Bloquer tout le reste par défaut
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

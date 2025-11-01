@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/job_application_model.dart';
-import '../services/jobs_service.dart';
-import '../services/subscription_service.dart';
+import '../services/firestore_service.dart';
+import '../models/user_model.dart';
+import '../profile_detail_page.dart';
+import '../chat_page.dart';
+import '../widgets/zone_search_field.dart';
 
-/// Page pour consulter les candidatures d'enseignants
+/// Page pour consulter les candidats enseignants
 class BrowseCandidatesPage extends StatefulWidget {
   const BrowseCandidatesPage({super.key});
 
@@ -14,1004 +15,434 @@ class BrowseCandidatesPage extends StatefulWidget {
 }
 
 class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
-  final JobsService _jobsService = JobsService();
-  final SubscriptionService _subscriptionService = SubscriptionService();
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
+  final FirestoreService _firestoreService = FirestoreService();
+  final TextEditingController _searchController = TextEditingController();
 
-  // Filtres
-  String? _selectedMatiere;
-  List<String> _selectedNiveaux = [];
-
-  // Statut d'abonnement
-  bool _hasActiveSubscription = false;
+  String _searchQuery = '';
+  String _selectedZone = '';
+  String _selectedFonction = '';
 
   @override
-  void initState() {
-    super.initState();
-    _checkSubscriptionStatus();
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  /// Vérifier le statut d'abonnement de l'école
-  Future<void> _checkSubscriptionStatus() async {
-    if (_currentUser == null) return;
+  // Filtrer les candidats selon les critères
+  List<UserModel> _filterCandidates(List<UserModel> candidates) {
+    return candidates.where((candidate) {
+      // Filtre par recherche (nom)
+      final matchesSearch = _searchQuery.isEmpty ||
+          candidate.nom.toLowerCase().contains(_searchQuery.toLowerCase());
 
-    try {
-      final subscription = await _subscriptionService.getActiveSubscription(_currentUser!.uid);
-      if (mounted) {
-        setState(() {
-          _hasActiveSubscription = subscription != null;
-        });
-      }
-    } catch (e) {
-      // En cas d'erreur, considérer comme non abonné
-      if (mounted) {
-        setState(() {
-          _hasActiveSubscription = false;
-        });
-      }
-    }
-  }
+      // Filtre par zone
+      final matchesZone = _selectedZone.isEmpty ||
+          candidate.zoneActuelle.toLowerCase().contains(_selectedZone.toLowerCase()) ||
+          candidate.zonesSouhaitees.any((zone) =>
+            zone.toLowerCase().contains(_selectedZone.toLowerCase()));
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Candidats enseignants'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFiltersDialog,
-          ),
-        ],
-      ),
-      body: StreamBuilder<List<JobApplicationModel>>(
-        stream: _jobsService.streamActiveApplications(limit: 50),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      // Filtre par fonction
+      final matchesFonction = _selectedFonction.isEmpty ||
+          candidate.fonction.toLowerCase().contains(_selectedFonction.toLowerCase());
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text('Erreur: ${snapshot.error}'),
-                ],
-              ),
-            );
-          }
-
-          final applications = snapshot.data ?? [];
-
-          // Appliquer les filtres
-          final filteredApplications = _applyFilters(applications);
-
-          if (filteredApplications.isEmpty) {
-            return _buildEmptyView();
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              setState(() {}); // Force rebuild du stream
-            },
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: filteredApplications.length,
-              itemBuilder: (context, index) {
-                return _buildCandidateCard(filteredApplications[index]);
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  /// Appliquer les filtres
-  List<JobApplicationModel> _applyFilters(List<JobApplicationModel> applications) {
-    return applications.where((app) {
-      // Filtre par matière
-      if (_selectedMatiere != null &&
-          _selectedMatiere!.isNotEmpty &&
-          !app.matieres.contains(_selectedMatiere)) {
-        return false;
-      }
-
-      // Filtre par niveaux
-      if (_selectedNiveaux.isNotEmpty) {
-        bool hasMatchingNiveau = false;
-        for (var niveau in _selectedNiveaux) {
-          if (app.niveaux.contains(niveau)) {
-            hasMatchingNiveau = true;
-            break;
-          }
-        }
-        if (!hasMatchingNiveau) {
-          return false;
-        }
-      }
-
-      return true;
+      return matchesSearch && matchesZone && matchesFonction;
     }).toList();
   }
 
-  /// Vue vide
-  Widget _buildEmptyView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.people_outline,
-              size: 100,
-              color: Colors.grey[300],
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Aucun candidat disponible',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Aucun candidat ne correspond à vos critères de recherche.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            if (_selectedMatiere != null || _selectedNiveaux.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              OutlinedButton.icon(
-                onPressed: _clearFilters,
-                icon: const Icon(Icons.clear),
-                label: const Text('Effacer les filtres'),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Carte d'un candidat
-  Widget _buildCandidateCard(JobApplicationModel application) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () => _showCandidateDetails(application),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header avec nom
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: Text(
-                      application.nom.isNotEmpty
-                          ? application.nom[0].toUpperCase()
-                          : '?',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          application.nom,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          application.experience,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      application.disponibilite,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[900],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Matières
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  ...application.matieres.take(3).map((matiere) => Chip(
-                        label: Text(matiere),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        labelStyle: const TextStyle(fontSize: 12),
-                        visualDensity: VisualDensity.compact,
-                        backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                      )),
-                  if (application.matieres.length > 3)
-                    Chip(
-                      label: Text('+${application.matieres.length - 3}'),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      labelStyle: const TextStyle(fontSize: 12),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Niveaux
-              Text(
-                'Niveaux: ${application.niveauxString}',
-                style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-              ),
-              const SizedBox(height: 12),
-
-              // Zones et diplômes
-              Row(
-                children: [
-                  Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      application.zonesString,
-                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Icon(Icons.school, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      application.diplomes.join(', '),
-                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Afficher les détails d'un candidat
-  void _showCandidateDetails(JobApplicationModel application) {
-    // Incrémenter le compteur de vues
-    _jobsService.incrementApplicationViews(application.id);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Photo/Avatar
-              Center(
-                child: CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  child: Text(
-                    application.nom.isNotEmpty
-                        ? application.nom[0].toUpperCase()
-                        : '?',
-                    style: TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              Center(
-                child: Text(
-                  application.nom,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.green[100],
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    'Disponibilité: ${application.disponibilite}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green[900],
-                    ),
-                  ),
-                ),
-              ),
-              const Divider(height: 32),
-
-              // Coordonnées
-              _buildDetailSection('Contact', ''),
-              if (_hasActiveSubscription) ...[
-                _buildInfoRow(Icons.email, application.email),
-                if (application.telephones.isNotEmpty)
-                  ...application.telephones
-                      .map((phone) => _buildInfoRow(Icons.phone, phone)),
-              ] else ...[
-                _buildLockedContactInfo(),
-              ],
-              const SizedBox(height: 16),
-
-              // Matières
-              _buildDetailSection('Matières enseignées', application.matieresString),
-              const SizedBox(height: 16),
-
-              // Niveaux
-              _buildDetailSection('Niveaux d\'enseignement', application.niveauxString),
-              const SizedBox(height: 16),
-
-              // Diplômes
-              _buildDetailSection('Diplômes', application.diplomes.join(', ')),
-              const SizedBox(height: 16),
-
-              // Expérience
-              _buildDetailSection('Expérience professionnelle', application.experience),
-              const SizedBox(height: 16),
-
-              // Zones souhaitées
-              _buildDetailSection('Zones souhaitées', application.zonesString),
-              const SizedBox(height: 24),
-
-              // Statistiques
-              Card(
-                color: Colors.blue[50],
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Column(
-                        children: [
-                          Icon(Icons.visibility, color: Colors.blue[700]),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${application.viewsCount}',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'Vues',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        width: 1,
-                        height: 50,
-                        color: Colors.grey[300],
-                      ),
-                      Column(
-                        children: [
-                          Icon(Icons.contact_mail, color: Colors.blue[700]),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${application.contactsCount}',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'Contacts',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Bouton Contact
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _contactCandidate(application);
-                  },
-                  icon: const Icon(Icons.mail),
-                  label: const Text('Contacter le candidat'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailSection(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-            color: Colors.grey,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 16),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: Colors.grey[600]),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 15),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Contacter un candidat
-  void _contactCandidate(JobApplicationModel application) {
-    // Vérifier si l'école a un abonnement actif
-    if (!_hasActiveSubscription) {
-      _showSubscriptionRequiredDialog();
-      return;
-    }
-
-    _jobsService.incrementApplicationContacts(application.id);
-
+  // Afficher les options de filtre
+  void _showFilterDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Contacter le candidat'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Coordonnées du candidat:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            InkWell(
-              onTap: () => _launchEmail(application.email),
-              child: Row(
-                children: [
-                  const Icon(Icons.email, size: 20, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      application.email,
-                      style: const TextStyle(
-                        color: Colors.blue,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (application.telephones.isNotEmpty)
-              InkWell(
-                onTap: () => _launchPhone(application.telephones.first),
-                child: Row(
-                  children: [
-                    const Icon(Icons.phone, size: 20, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        application.telephones.join(', '),
-                        style: const TextStyle(
-                          color: Colors.green,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              _launchEmail(application.email);
-            },
-            icon: const Icon(Icons.email),
-            label: const Text('Envoyer un email'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Ouvrir l'application email
-  Future<void> _launchEmail(String email) async {
-    final Uri emailUri = Uri(
-      scheme: 'mailto',
-      path: email,
-      query: 'subject=Candidature CHIASMA',
-    );
-
-    try {
-      if (await canLaunchUrl(emailUri)) {
-        await launchUrl(emailUri);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Impossible d\'ouvrir l\'application email'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  /// Ouvrir l'application téléphone
-  Future<void> _launchPhone(String phone) async {
-    final Uri phoneUri = Uri(scheme: 'tel', path: phone);
-
-    try {
-      if (await canLaunchUrl(phoneUri)) {
-        await launchUrl(phoneUri);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Impossible d\'ouvrir l\'application téléphone'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  /// Afficher le dialogue de filtres
-  void _showFiltersDialog() {
-    String? tempMatiere = _selectedMatiere;
-    List<String> tempNiveaux = List.from(_selectedNiveaux);
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          title: const Text('Filtres de recherche'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Matière',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  initialValue: tempMatiere,
-                  decoration: const InputDecoration(
-                    hintText: 'Ex: Mathématiques',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (value) {
-                    tempMatiere = value.isEmpty ? null : value;
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Niveaux',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    '6ème', '5ème', '4ème', '3ème',
-                    '2nde', '1ère', 'Terminale',
-                    'Primaire', 'Maternelle'
-                  ].map((niveau) {
-                    final isSelected = tempNiveaux.contains(niveau);
-                    return FilterChip(
-                      label: Text(niveau),
-                      selected: isSelected,
-                      onSelected: (selected) {
-                        setStateDialog(() {
-                          if (selected) {
-                            tempNiveaux.add(niveau);
-                          } else {
-                            tempNiveaux.remove(niveau);
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _selectedMatiere = null;
-                  _selectedNiveaux = [];
-                });
-                Navigator.pop(context);
-              },
-              child: const Text('Effacer'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _selectedMatiere = tempMatiere;
-                  _selectedNiveaux = tempNiveaux;
-                });
-                Navigator.pop(context);
-              },
-              child: const Text('Appliquer'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Effacer tous les filtres
-  void _clearFilters() {
-    setState(() {
-      _selectedMatiere = null;
-      _selectedNiveaux = [];
-    });
-  }
-
-  /// Widget pour afficher les informations de contact verrouillées
-  Widget _buildLockedContactInfo() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.orange[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange[300]!),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(Icons.lock, color: Colors.orange[700], size: 32),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Informations de contact masquées',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: Colors.orange[900],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Abonnez-vous pour accéder aux emails et téléphones',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.orange[800],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _showSubscriptionRequiredDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF77F00),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              icon: const Icon(Icons.workspace_premium, size: 20),
-              label: const Text(
-                'Voir les tarifs d\'abonnement',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Afficher le dialogue demandant un abonnement
-  void _showSubscriptionRequiredDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.workspace_premium, color: Colors.orange[700], size: 28),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Abonnement requis',
-                style: TextStyle(fontSize: 20),
-              ),
-            ),
-          ],
-        ),
+        title: const Text('Filtres'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Pour accéder aux coordonnées complètes des candidats (email et téléphone), vous devez souscrire à un abonnement.',
-                style: TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Tarifs pour les écoles:',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildPricingRow(
-                '1 semaine',
-                '5 000 FCFA',
-                Icons.calendar_today,
-                const Color(0xFFF77F00),
+                'Fonction',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              _buildPricingRow(
-                '1 mois',
-                '15 000 FCFA',
-                Icons.calendar_month,
-                const Color(0xFF009E60),
-                isRecommended: true,
+              Wrap(
+                spacing: 8,
+                children: [
+                  FilterChip(
+                    label: const Text('Tous'),
+                    selected: _selectedFonction.isEmpty,
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedFonction = '';
+                      });
+                      Navigator.pop(context);
+                    },
+                  ),
+                  FilterChip(
+                    label: const Text('Enseignant'),
+                    selected: _selectedFonction == 'enseignant',
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedFonction = selected ? 'enseignant' : '';
+                      });
+                      Navigator.pop(context);
+                    },
+                  ),
+                  FilterChip(
+                    label: const Text('Directeur'),
+                    selected: _selectedFonction == 'directeur',
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedFonction = selected ? 'directeur' : '';
+                      });
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Avec l\'abonnement, contactez autant de candidats que vous le souhaitez',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.blue[900],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              const Text(
+                'Zone géographique',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ZoneSearchField(
+                labelText: 'Zone géographique',
+                hintText: 'Rechercher une zone...',
+                icon: Icons.location_on,
+                onZoneSelected: (zone) {
+                  setState(() {
+                    _selectedZone = zone;
+                  });
+                  Navigator.pop(context);
+                },
               ),
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Plus tard'),
-          ),
-          ElevatedButton.icon(
             onPressed: () {
+              setState(() {
+                _selectedZone = '';
+                _selectedFonction = '';
+              });
               Navigator.pop(context);
-              _navigateToSubscription();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF77F00),
-              foregroundColor: Colors.white,
-            ),
-            icon: const Icon(Icons.workspace_premium),
-            label: const Text('S\'abonner'),
+            child: const Text('Réinitialiser'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
           ),
         ],
       ),
     );
   }
 
-  /// Widget pour afficher une ligne de tarif
-  Widget _buildPricingRow(String duration, String price, IconData icon, Color color, {bool isRecommended = false}) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: isRecommended ? Border.all(color: color, width: 2) : null,
+  @override
+  Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Candidats enseignants'),
+          backgroundColor: const Color(0xFFF77F00),
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(child: Text('Veuillez vous connecter')),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Candidats enseignants'),
+        backgroundColor: const Color(0xFFF77F00),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: _showFilterDialog,
+            tooltip: 'Filtres',
+          ),
+        ],
       ),
-      child: Row(
+      body: Column(
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      duration,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
+          // Barre de recherche
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: const Color(0xFFF77F00),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Rechercher un candidat...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+            ),
+          ),
+
+          // Chips de filtres actifs
+          if (_selectedZone.isNotEmpty || _selectedFonction.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  if (_selectedZone.isNotEmpty)
+                    Chip(
+                      label: Text('Zone: $_selectedZone'),
+                      deleteIcon: const Icon(Icons.close, size: 18),
+                      onDeleted: () {
+                        setState(() {
+                          _selectedZone = '';
+                        });
+                      },
                     ),
-                    if (isRecommended) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'RECOMMANDÉ',
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                  if (_selectedFonction.isNotEmpty)
+                    Chip(
+                      label: Text('Fonction: $_selectedFonction'),
+                      deleteIcon: const Icon(Icons.close, size: 18),
+                      onDeleted: () {
+                        setState(() {
+                          _selectedFonction = '';
+                        });
+                      },
+                    ),
+                ],
+              ),
+            ),
+
+          // Liste des candidats
+          Expanded(
+            child: StreamBuilder<List<UserModel>>(
+              stream: _firestoreService.getUsersByAccountType('teacher_candidate'),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Erreur: ${snapshot.error}'),
+                  );
+                }
+
+                final allCandidates = snapshot.data ?? [];
+                final filteredCandidates = _filterCandidates(allCandidates);
+
+                if (filteredCandidates.isEmpty) {
+                  return _buildEmptyView();
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: filteredCandidates.length,
+                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final candidate = filteredCandidates[index];
+                    return _buildCandidateCard(candidate);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.people_outline,
+            size: 80,
+            color: Colors.grey[300],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Aucun candidat trouvé',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _searchQuery.isNotEmpty || _selectedZone.isNotEmpty || _selectedFonction.isNotEmpty
+                ? 'Essayez de modifier vos filtres'
+                : 'Aucun candidat disponible pour le moment',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCandidateCard(UserModel candidate) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      elevation: 2,
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(12),
+        leading: Stack(
+          children: [
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
+              child: Text(
+                candidate.nom
+                    .split(' ')
+                    .map((word) => word.isNotEmpty ? word[0] : '')
+                    .take(2)
+                    .join()
+                    .toUpperCase(),
+                style: const TextStyle(
+                  color: Color(0xFFF77F00),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+            if (candidate.isOnline)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        title: Text(
+          candidate.nom,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.work_outline, size: 14, color: Color(0xFF009E60)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    candidate.fonction,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF009E60),
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
-          Text(
-            price,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: color,
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    candidate.zoneActuelle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Naviguer vers la page d'abonnement
-  void _navigateToSubscription() {
-    // TODO: Créer et naviguer vers SchoolSubscriptionPage
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Page d\'abonnement en cours de développement'),
-        backgroundColor: Color(0xFFF77F00),
+            if (candidate.zonesSouhaitees.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.place_outlined, size: 14, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Souhaite: ${candidate.zonesSouhaitees.take(2).join(', ')}${candidate.zonesSouhaitees.length > 2 ? '...' : ''}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.message_outlined, color: Color(0xFFF77F00)),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatPage(
+                      contactName: candidate.nom,
+                      contactFunction: candidate.fonction,
+                      isOnline: candidate.isOnline,
+                      contactUserId: candidate.uid,
+                    ),
+                  ),
+                );
+              },
+              tooltip: 'Envoyer un message',
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProfileDetailPage(
+                userId: candidate.uid,
+              ),
+            ),
+          );
+        },
       ),
     );
   }

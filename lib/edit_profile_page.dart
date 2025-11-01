@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/models/user_model.dart';
+import 'package:myapp/widgets/zone_search_field.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -42,21 +43,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     'Daloa',
     'Korhogo',
     'Man',
-  ];
-
-  final List<String> _zonesList = [
-    'Abidjan, Cocody',
-    'Abidjan, Plateau',
-    'Abidjan, Yopougon',
-    'Abidjan, Abobo',
-    'Abidjan, Marcory',
-    'Bouaké, Centre',
-    'Yamoussoukro',
-    'San-Pedro',
-    'Daloa, Ouest',
-    'Korhogo, Nord',
-    'Man, Montagnes',
-    'Gagnoa, Centre-Ouest',
   ];
 
   @override
@@ -375,28 +361,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
             // Section Zones de permutation
             _buildSectionTitle('Zones de permutation'),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _zoneActuelle.isNotEmpty && _zonesList.contains(_zoneActuelle) ? _zoneActuelle : null,
-              decoration: InputDecoration(
-                labelText: 'Zone actuelle',
-                prefixIcon: const Icon(Icons.location_on, color: Color(0xFFF77F00)),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFF77F00), width: 2),
-                ),
-              ),
-              items: _zonesList.map((String item) {
-                return DropdownMenuItem<String>(
-                  value: item,
-                  child: Text(item),
-                );
-              }).toList(),
-              onChanged: (value) {
+            ZoneSearchField(
+              initialValue: _zoneActuelle,
+              labelText: 'Zone actuelle',
+              hintText: 'Recherchez votre zone...',
+              icon: Icons.location_on,
+              onZoneSelected: (zone) {
                 setState(() {
-                  _zoneActuelle = value ?? '';
+                  _zoneActuelle = zone;
                 });
               },
               validator: (value) {
@@ -432,8 +404,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 if (value == null || value.isEmpty) {
                   return 'Veuillez décrire votre situation';
                 }
-                if (value.length < 50) {
-                  return 'Minimum 50 caractères requis';
+                if (value.length < 20) {
+                  return 'Minimum 20 caractères requis (${value.length}/20)';
                 }
                 return null;
               },
@@ -697,7 +669,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     showDialog(
       context: context,
       builder: (context) {
-        String? selectedZone;
+        String selectedZone = '';
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -711,45 +683,32 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   Text('Ajouter une zone'),
                 ],
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Sélectionnez une zone souhaitée',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedZone,
-                    hint: const Text('Choisir une zone'),
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(
-                        Icons.location_searching,
-                        color: Color(0xFF009E60),
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Recherchez et sélectionnez une zone souhaitée',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
                       ),
                     ),
-                    items: _zonesList
-                        .where((zone) => zone != _zoneActuelle && !_zonesSouhaitees.contains(zone))
-                        .map((String zone) {
-                      return DropdownMenuItem<String>(
-                        value: zone,
-                        child: Text(zone),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedZone = value;
-                      });
-                    },
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    ZoneSearchField(
+                      labelText: 'Zone souhaitée',
+                      hintText: 'Tapez pour rechercher...',
+                      icon: Icons.location_searching,
+                      onZoneSelected: (zone) {
+                        setDialogState(() {
+                          selectedZone = zone;
+                        });
+                      },
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -757,11 +716,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   child: const Text('Annuler'),
                 ),
                 ElevatedButton(
-                  onPressed: selectedZone == null
+                  onPressed: selectedZone.isEmpty ||
+                             selectedZone == _zoneActuelle ||
+                             _zonesSouhaitees.contains(selectedZone)
                       ? null
                       : () {
                           setState(() {
-                            _zonesSouhaitees.add(selectedZone!);
+                            _zonesSouhaitees.add(selectedZone);
                           });
                           Navigator.pop(context);
                         },
@@ -781,7 +742,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   void _editZoneSouhaitee(int index) {
     final currentZone = _zonesSouhaitees[index];
-    String? selectedZone = currentZone;
+    String selectedZone = currentZone;
 
     showDialog(
       context: context,
@@ -799,34 +760,34 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   Text('Modifier la zone'),
                 ],
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedZone,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.location_searching),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Zone actuelle: $currentZone',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    items: _zonesList
-                        .where((zone) =>
-                            zone == currentZone ||
-                            (zone != _zoneActuelle && !_zonesSouhaitees.contains(zone)))
-                        .map((String zone) {
-                      return DropdownMenuItem<String>(
-                        value: zone,
-                        child: Text(zone),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedZone = value;
-                      });
-                    },
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    ZoneSearchField(
+                      initialValue: currentZone,
+                      labelText: 'Nouvelle zone',
+                      hintText: 'Recherchez une nouvelle zone...',
+                      icon: Icons.location_searching,
+                      onZoneSelected: (zone) {
+                        setDialogState(() {
+                          selectedZone = zone;
+                        });
+                      },
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -835,11 +796,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    if (selectedZone != null) {
-                      setState(() {
-                        _zonesSouhaitees[index] = selectedZone!;
-                      });
-                    }
+                    setState(() {
+                      _zonesSouhaitees[index] = selectedZone;
+                    });
                     Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/jobs_service.dart';
+import '../utils/contact_validator.dart';
 
 /// Page pour modifier le profil d'un candidat enseignant
 class EditCandidateProfilePage extends StatefulWidget {
@@ -344,6 +345,13 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                             prefixIcon: const Icon(Icons.book),
                             border: const OutlineInputBorder(),
                           ),
+                          validator: (value) {
+                            // Vérifier les informations de contact
+                            if (value != null && ContactValidator.containsContactInfo(value)) {
+                              return 'Pas de contact dans ce champ';
+                            }
+                            return null;
+                          },
                         ),
                       ),
                       if (_matiereControllers.length > 1)
@@ -411,6 +419,13 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                             prefixIcon: const Icon(Icons.school),
                             border: const OutlineInputBorder(),
                           ),
+                          validator: (value) {
+                            // Vérifier les informations de contact
+                            if (value != null && ContactValidator.containsContactInfo(value)) {
+                              return 'Pas de contact dans ce champ';
+                            }
+                            return null;
+                          },
                         ),
                       ),
                       if (_diplomeControllers.length > 1)
@@ -441,6 +456,10 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Veuillez décrire votre expérience';
+                  }
+                  // Vérifier les informations de contact
+                  if (ContactValidator.containsContactInfo(value)) {
+                    return ContactValidator.getErrorMessage();
                   }
                   return null;
                 },

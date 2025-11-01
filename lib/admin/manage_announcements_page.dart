@@ -108,10 +108,7 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
             child: Row(
               children: [
                 Icon(
-                  IconData(
-                    AnnouncementModel.getIconForType(announcement.type),
-                    fontFamily: 'MaterialIcons',
-                  ),
+                  AnnouncementModel.getIconDataForType(announcement.type),
                   color: color,
                   size: 24,
                 ),
@@ -502,6 +499,10 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
                   return;
                 }
 
+                // Capturer le contexte avant les opérations async
+                final navigator = Navigator.of(context);
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+
                 try {
                   final currentUser = FirebaseAuth.instance.currentUser;
                   if (currentUser == null) return;
@@ -549,8 +550,8 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
                   }
 
                   if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    navigator.pop();
+                    scaffoldMessenger.showSnackBar(
                       SnackBar(
                         content: Text(
                           isEdit
@@ -563,7 +564,7 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
                   }
                 } catch (e) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    scaffoldMessenger.showSnackBar(
                       SnackBar(
                         content: Text('Erreur: $e'),
                         backgroundColor: Colors.red,
