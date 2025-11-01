@@ -5,6 +5,8 @@ import 'package:myapp/models/offer_application_model.dart';
 import 'package:myapp/models/user_model.dart';
 import 'package:myapp/services/jobs_service.dart';
 import 'package:myapp/services/firestore_service.dart';
+import 'package:myapp/services/subscription_service.dart';
+import 'package:myapp/widgets/subscription_required_dialog.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 /// Page de détail d'une offre d'emploi avec possibilité de candidater
@@ -94,6 +96,39 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
         );
       }
       return;
+    }
+
+    // Consommer un quota pour postuler
+    final result = await SubscriptionService().consumeApplicationQuota(userId);
+
+    if (!mounted) return;
+
+    if (result.needsSubscription) {
+      // Fermer le modal d'abord
+      Navigator.pop(context);
+      // Afficher le dialogue d'abonnement
+      SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_candidate');
+      return;
+    } else if (!result.success) {
+      // Erreur
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Afficher le quota restant si pas illimité
+    if (result.quotaRemaining >= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Candidatures gratuites restantes: ${result.quotaRemaining}'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: const Color(0xFF009E60),
+        ),
+      );
     }
 
     // Récupérer les infos du candidat

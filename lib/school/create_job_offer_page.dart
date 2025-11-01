@@ -3,7 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/job_offer_model.dart';
 import '../services/jobs_service.dart';
 import '../services/firestore_service.dart';
+import '../services/subscription_service.dart';
 import '../widgets/zone_search_field.dart';
+import '../widgets/subscription_required_dialog.dart';
 
 /// Page pour créer ou éditer une offre d'emploi
 class CreateJobOfferPage extends StatefulWidget {
@@ -125,12 +127,45 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
       return;
     }
 
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Utilisateur non connecté');
+
+    // Si c'est une nouvelle offre (pas une mise à jour), vérifier et consommer le quota
+    if (widget.existingOffer == null) {
+      final result = await SubscriptionService().consumeJobOfferQuota(user.uid);
+
+      if (!mounted) return;
+
+      if (result.needsSubscription) {
+        // Afficher le dialogue d'abonnement
+        SubscriptionRequiredDialog.show(context, result.accountType ?? 'school');
+        return;
+      } else if (!result.success) {
+        // Erreur
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Afficher le quota restant si pas illimité
+      if (result.quotaRemaining >= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Offres gratuites restantes: ${result.quotaRemaining}'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: const Color(0xFF009E60),
+          ),
+        );
+      }
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Utilisateur non connecté');
-
       final offer = JobOfferModel(
         id: widget.existingOffer?.id ?? '',
         schoolId: user.uid,

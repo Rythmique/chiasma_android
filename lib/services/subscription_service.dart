@@ -1,6 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:myapp/models/user_model.dart';
 
+/// Résultat d'une consommation de quota
+class QuotaResult {
+  final bool success;
+  final String message;
+  final int quotaRemaining;
+  final bool needsSubscription;
+  final String? accountType;
+
+  QuotaResult({
+    required this.success,
+    required this.message,
+    required this.quotaRemaining,
+    required this.needsSubscription,
+    this.accountType,
+  });
+}
+
 class SubscriptionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -121,6 +138,128 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
     } catch (e) {
       print('Erreur lors de la vérification des permissions: $e');
       return false;
+    }
+  }
+
+  // Consommer un quota pour voir un profil (Permutation)
+  Future<QuotaResult> consumeProfileViewQuota(String userId) async {
+    return await _consumeQuota(userId, 'teacher_transfer');
+  }
+
+  // Consommer un quota pour envoyer un message (Permutation)
+  Future<QuotaResult> consumeMessageQuota(String userId) async {
+    return await _consumeQuota(userId, 'teacher_transfer');
+  }
+
+  // Consommer un quota pour publier une offre (École)
+  Future<QuotaResult> consumeJobOfferQuota(String userId) async {
+    return await _consumeQuota(userId, 'school');
+  }
+
+  // Consommer un quota pour voir un candidat (École)
+  Future<QuotaResult> consumeCandidateViewQuota(String userId) async {
+    return await _consumeQuota(userId, 'school');
+  }
+
+  // Consommer un quota pour postuler (Candidat)
+  Future<QuotaResult> consumeApplicationQuota(String userId) async {
+    return await _consumeQuota(userId, 'teacher_candidate');
+  }
+
+  // Méthode générique pour consommer un quota
+  Future<QuotaResult> _consumeQuota(String userId, String expectedAccountType) async {
+    try {
+      final userDoc = _firestore.collection('users').doc(userId);
+
+      return await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(userDoc);
+        if (!snapshot.exists) {
+          return QuotaResult(
+            success: false,
+            message: 'Utilisateur introuvable',
+            quotaRemaining: 0,
+            needsSubscription: true,
+          );
+        }
+
+        final user = UserModel.fromFirestore(snapshot);
+
+        // Vérifier le type de compte
+        if (user.accountType != expectedAccountType) {
+          return QuotaResult(
+            success: false,
+            message: 'Type de compte incorrect',
+            quotaRemaining: 0,
+            needsSubscription: false,
+          );
+        }
+
+        // Si l'utilisateur a un abonnement actif et valide, autoriser sans déduire le quota
+        if (user.isVerified && !user.isVerificationExpired) {
+          return QuotaResult(
+            success: true,
+            message: 'Abonnement actif',
+            quotaRemaining: -1, // -1 signifie quota illimité
+            needsSubscription: false,
+          );
+        }
+
+        // Vérifier si le quota gratuit est épuisé
+        if (user.isFreeQuotaExhausted) {
+          // Désactiver le compte
+          transaction.update(userDoc, {
+            'isVerified': false,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+          return QuotaResult(
+            success: false,
+            message: getSubscriptionMessage(user.accountType),
+            quotaRemaining: 0,
+            needsSubscription: true,
+            accountType: user.accountType,
+          );
+        }
+
+        // Incrémenter le quota utilisé
+        final newQuotaUsed = user.freeQuotaUsed + 1;
+        final quotaRemaining = user.freeQuotaLimit - newQuotaUsed;
+
+        transaction.update(userDoc, {
+          'freeQuotaUsed': newQuotaUsed,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        // Si c'est le dernier quota, désactiver le compte
+        if (quotaRemaining == 0) {
+          transaction.update(userDoc, {
+            'isVerified': false,
+          });
+
+          return QuotaResult(
+            success: true,
+            message: 'Dernière action gratuite utilisée',
+            quotaRemaining: 0,
+            needsSubscription: true,
+            accountType: user.accountType,
+          );
+        }
+
+        return QuotaResult(
+          success: true,
+          message: 'Quota déduit avec succès',
+          quotaRemaining: quotaRemaining,
+          needsSubscription: false,
+        );
+      });
+    } catch (e) {
+      print('Erreur lors de la consommation du quota: $e');
+      return QuotaResult(
+        success: false,
+        message: 'Erreur: $e',
+        quotaRemaining: 0,
+        needsSubscription: false,
+      );
     }
   }
 

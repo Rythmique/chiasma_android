@@ -16,6 +16,7 @@ import 'package:myapp/widgets/quota_status_widget.dart';
 import 'package:myapp/widgets/welcome_quota_dialog.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
 import 'package:myapp/widgets/verified_badge.dart';
+import 'package:myapp/services/subscription_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -991,15 +992,48 @@ class _SearchPageState extends State<SearchPage> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ProfileDetailPage(
-                          userId: userId,
+                  onPressed: () async {
+                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+                    if (currentUserId == null) return;
+
+                    // Consommer un quota pour voir le profil
+                    final result = await SubscriptionService().consumeProfileViewQuota(currentUserId);
+
+                    if (!context.mounted) return;
+
+                    if (result.needsSubscription) {
+                      // Afficher le dialogue d'abonnement
+                      SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
+                    } else if (result.success) {
+                      // Naviguer vers le profil
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ProfileDetailPage(
+                            userId: userId,
+                          ),
                         ),
-                      ),
-                    );
+                      );
+
+                      // Afficher le quota restant si pas illimité
+                      if (result.quotaRemaining >= 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Consultations restantes: ${result.quotaRemaining}'),
+                            duration: const Duration(seconds: 2),
+                            backgroundColor: const Color(0xFF009E60),
+                          ),
+                        );
+                      }
+                    } else {
+                      // Erreur
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result.message),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF77F00),
@@ -1016,18 +1050,51 @@ class _SearchPageState extends State<SearchPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatPage(
-                          contactName: name,
-                          contactFunction: fonction,
-                          isOnline: isOnline,
-                          contactUserId: userId,
+                  onPressed: () async {
+                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+                    if (currentUserId == null) return;
+
+                    // Consommer un quota pour envoyer un message
+                    final result = await SubscriptionService().consumeMessageQuota(currentUserId);
+
+                    if (!context.mounted) return;
+
+                    if (result.needsSubscription) {
+                      // Afficher le dialogue d'abonnement
+                      SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
+                    } else if (result.success) {
+                      // Naviguer vers la page de chat
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatPage(
+                            contactName: name,
+                            contactFunction: fonction,
+                            isOnline: isOnline,
+                            contactUserId: userId,
+                          ),
                         ),
-                      ),
-                    );
+                      );
+
+                      // Afficher le quota restant si pas illimité
+                      if (result.quotaRemaining >= 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Consultations restantes: ${result.quotaRemaining}'),
+                            duration: const Duration(seconds: 2),
+                            backgroundColor: const Color(0xFF009E60),
+                          ),
+                        );
+                      }
+                    } else {
+                      // Erreur
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result.message),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF009E60),
@@ -1362,15 +1429,48 @@ class _FavoritesPageState extends State<FavoritesPage> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ProfileDetailPage(
-                          userId: user.uid,
+                  onPressed: () async {
+                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+                    if (currentUserId == null) return;
+
+                    // Consommer un quota pour voir le profil
+                    final result = await SubscriptionService().consumeProfileViewQuota(currentUserId);
+
+                    if (!context.mounted) return;
+
+                    if (result.needsSubscription) {
+                      // Afficher le dialogue d'abonnement
+                      SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
+                    } else if (result.success) {
+                      // Naviguer vers le profil
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ProfileDetailPage(
+                            userId: user.uid,
+                          ),
                         ),
-                      ),
-                    );
+                      );
+
+                      // Afficher le quota restant si pas illimité
+                      if (result.quotaRemaining >= 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Consultations restantes: ${result.quotaRemaining}'),
+                            duration: const Duration(seconds: 2),
+                            backgroundColor: const Color(0xFF009E60),
+                          ),
+                        );
+                      }
+                    } else {
+                      // Erreur
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result.message),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF77F00),
@@ -1387,18 +1487,51 @@ class _FavoritesPageState extends State<FavoritesPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatPage(
-                          contactName: user.nom,
-                          contactFunction: user.fonction,
-                          isOnline: user.isOnline,
-                          contactUserId: user.uid,
+                  onPressed: () async {
+                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+                    if (currentUserId == null) return;
+
+                    // Consommer un quota pour envoyer un message
+                    final result = await SubscriptionService().consumeMessageQuota(currentUserId);
+
+                    if (!context.mounted) return;
+
+                    if (result.needsSubscription) {
+                      // Afficher le dialogue d'abonnement
+                      SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
+                    } else if (result.success) {
+                      // Naviguer vers la page de chat
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatPage(
+                            contactName: user.nom,
+                            contactFunction: user.fonction,
+                            isOnline: user.isOnline,
+                            contactUserId: user.uid,
+                          ),
                         ),
-                      ),
-                    );
+                      );
+
+                      // Afficher le quota restant si pas illimité
+                      if (result.quotaRemaining >= 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Consultations restantes: ${result.quotaRemaining}'),
+                            duration: const Duration(seconds: 2),
+                            backgroundColor: const Color(0xFF009E60),
+                          ),
+                        );
+                      }
+                    } else {
+                      // Erreur
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result.message),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF009E60),

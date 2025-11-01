@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service.dart';
+import '../services/subscription_service.dart';
 import '../models/user_model.dart';
 import '../profile_detail_page.dart';
 import '../chat_page.dart';
 import '../widgets/zone_search_field.dart';
+import '../widgets/subscription_required_dialog.dart';
 
 /// Page pour consulter les candidats enseignants
 class BrowseCandidatesPage extends StatefulWidget {
@@ -433,15 +435,48 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
             const Icon(Icons.chevron_right, color: Colors.grey),
           ],
         ),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ProfileDetailPage(
-                userId: candidate.uid,
+        onTap: () async {
+          final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+          if (currentUserId == null) return;
+
+          // Consommer un quota pour voir le profil du candidat
+          final result = await SubscriptionService().consumeCandidateViewQuota(currentUserId);
+
+          if (!context.mounted) return;
+
+          if (result.needsSubscription) {
+            // Afficher le dialogue d'abonnement
+            SubscriptionRequiredDialog.show(context, result.accountType ?? 'school');
+          } else if (result.success) {
+            // Naviguer vers le profil
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProfileDetailPage(
+                  userId: candidate.uid,
+                ),
               ),
-            ),
-          );
+            );
+
+            // Afficher le quota restant si pas illimité
+            if (result.quotaRemaining >= 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Vues de candidats restantes: ${result.quotaRemaining}'),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor: const Color(0xFF009E60),
+                ),
+              );
+            }
+          } else {
+            // Erreur
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result.message),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         },
       ),
     );
