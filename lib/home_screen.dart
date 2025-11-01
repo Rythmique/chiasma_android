@@ -16,6 +16,7 @@ import 'package:myapp/widgets/quota_status_widget.dart';
 import 'package:myapp/widgets/welcome_quota_dialog.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
 import 'package:myapp/widgets/verified_badge.dart';
+import 'package:myapp/widgets/access_control_wrapper.dart';
 import 'package:myapp/services/subscription_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -43,9 +44,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _pages[_currentIndex],
-      bottomNavigationBar: Container(
+    return AccessControlWrapper(
+      child: Scaffold(
+        body: _pages[_currentIndex],
+        bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
@@ -86,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

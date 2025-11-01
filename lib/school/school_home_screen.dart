@@ -12,6 +12,7 @@ import '../models/user_model.dart';
 import '../login_screen.dart';
 import '../change_password_page.dart';
 import '../chat_page.dart';
+import '../widgets/access_control_wrapper.dart';
 
 /// Écran d'accueil pour les établissements (recruteurs)
 class SchoolHomeScreen extends StatefulWidget {
@@ -34,9 +35,10 @@ class _SchoolHomeScreenState extends State<SchoolHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
+    return AccessControlWrapper(
+      child: Scaffold(
+        body: _pages[_currentIndex],
+        bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -68,6 +70,7 @@ class _SchoolHomeScreenState extends State<SchoolHomeScreen> {
             label: 'Paramètres',
           ),
         ],
+      ),
       ),
     );
   }
