@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:myapp/models/user_model.dart';
 
 /// Résultat d'une consommation de quota
@@ -172,6 +173,7 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
       final userDoc = _firestore.collection('users').doc(userId);
 
       return await _firestore.runTransaction((transaction) async {
+        debugPrint('🔄 Transaction quota - userId: $userId, type: $expectedAccountType');
         final snapshot = await transaction.get(userDoc);
         if (!snapshot.exists) {
           return QuotaResult(
@@ -225,17 +227,21 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
         final newQuotaUsed = user.freeQuotaUsed + 1;
         final quotaRemaining = user.freeQuotaLimit - newQuotaUsed;
 
-        transaction.update(userDoc, {
+        // Préparer les données de mise à jour
+        final updateData = <String, dynamic>{
           'freeQuotaUsed': newQuotaUsed,
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        };
 
         // Si c'est le dernier quota, désactiver le compte
         if (quotaRemaining == 0) {
-          transaction.update(userDoc, {
-            'isVerified': false,
-          });
+          updateData['isVerified'] = false;
+        }
 
+        // Faire une seule mise à jour
+        transaction.update(userDoc, updateData);
+
+        if (quotaRemaining == 0) {
           return QuotaResult(
             success: true,
             message: 'Dernière action gratuite utilisée',
