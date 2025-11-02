@@ -214,7 +214,7 @@ class _UserInfoPageState extends State<UserInfoPage> {
                       _buildSectionTitle('Informations de base'),
                       const SizedBox(height: 8),
                       _buildInfoCard([
-                        // Matricule et UID Firebase uniquement pour les admins
+                        // Matricule et identifiant unique uniquement pour les admins
                         if (userData.isAdmin) ...[
                           _buildInfoRow(
                             Icons.badge,
@@ -232,7 +232,7 @@ class _UserInfoPageState extends State<UserInfoPage> {
                         if (userData.isAdmin)
                           _buildInfoRow(
                             Icons.perm_identity,
-                            'UID Firebase',
+                            'Identifiant unique',
                             userData.uid,
                             const Color(0xFFF77F00),
                           ),

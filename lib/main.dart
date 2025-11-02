@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/login_screen.dart';
 import 'package:myapp/services/app_update_service.dart';
+import 'package:myapp/services/update_checker_service.dart';
 import 'firebase_options.dart';
 
 void main() {
@@ -67,14 +68,22 @@ class _AppInitializerState extends State<AppInitializer> {
           // Petit délai pour laisser l'interface s'afficher d'abord
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) {
+              // Vérifier d'abord via le Play Store (si disponible)
               AppUpdateService.checkForUpdate(context);
+
+              // Puis vérifier via le serveur Chiasma (pour installations hors Play Store)
+              Future.delayed(const Duration(seconds: 1), () {
+                if (mounted) {
+                  UpdateCheckerService.checkAndShowUpdate(context);
+                }
+              });
             }
           });
         }
       }
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('Firebase initialization error: $e');
+        debugPrint('Erreur d\'initialisation de la base de données: $e');
       }
       if (mounted) {
         setState(() => _error = true);

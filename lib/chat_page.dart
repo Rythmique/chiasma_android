@@ -194,7 +194,7 @@ class _ChatPageState extends State<ChatPage> {
     });
 
     try {
-      // Upload vers Firebase Storage
+      // Upload vers le stockage cloud
       final fileData = await _storageService.uploadFile(
         file: file,
         userId: currentUser.uid,

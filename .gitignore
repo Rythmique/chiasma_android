@@ -60,3 +60,7 @@ functions/.env.local
 .env
 .env.local
 .env.production
+
+# APK files - too large for git
+*.apk
+*.tar.gz

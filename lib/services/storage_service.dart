@@ -3,11 +3,11 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as path;
 import 'dart:developer' as dev;
 
-/// Service pour gérer l'upload de fichiers vers Firebase Storage
+/// Service pour gérer l'upload de fichiers vers le stockage cloud
 class StorageService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  /// Upload un fichier vers Firebase Storage
+  /// Upload un fichier vers le stockage cloud
   /// Retourne l'URL de téléchargement du fichier
   Future<Map<String, dynamic>> uploadFile({
     required File file,
@@ -80,7 +80,7 @@ class StorageService {
     }
   }
 
-  /// Supprimer un fichier de Firebase Storage
+  /// Supprimer un fichier du stockage cloud
   Future<void> deleteFile(String storagePath) async {
     try {
       final ref = _storage.ref().child(storagePath);

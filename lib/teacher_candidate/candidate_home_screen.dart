@@ -8,6 +8,7 @@ import 'notification_settings_page.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/app_update_service.dart';
+import '../services/update_checker_service.dart';
 import '../models/user_model.dart';
 import '../login_screen.dart';
 import '../change_password_page.dart';
@@ -582,7 +583,14 @@ class CandidateSettingsPage extends StatelessWidget {
             leading: const Icon(Icons.system_update),
             title: const Text('Vérifier les mises à jour'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => AppUpdateService.checkForUpdateManually(context),
+            onTap: () async {
+              // Vérifier via Play Store
+              await AppUpdateService.checkForUpdateManually(context);
+              // Vérifier via serveur Chiasma (pour installations hors Play Store)
+              if (context.mounted) {
+                await UpdateCheckerService.checkManually(context);
+              }
+            },
           ),
           ListTile(
             leading: const Icon(Icons.help),
