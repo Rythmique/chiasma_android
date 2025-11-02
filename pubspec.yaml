@@ -58,6 +58,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -98,3 +100,23 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Configuration pour l'icône de l'application
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/logo.png"
+  adaptive_icon_background: "#F77F00"  # Orange Chiasma
+  adaptive_icon_foreground: "assets/images/logo.png"
+  remove_alpha_ios: true
+
+# Configuration pour le splash screen (écran de démarrage)
+flutter_native_splash:
+  color: "#F77F00"  # Couleur de fond orange
+  image: "assets/images/splash.png"  # Image du splash screen
+  android: true
+  ios: false
+  web: false
+  # Pour un splash screen avec fond blanc et logo :
+  # color: "#FFFFFF"
+  # image: "assets/images/splash.png"
