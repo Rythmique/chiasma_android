@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/login_screen.dart';
+import 'package:myapp/services/app_update_service.dart';
 import 'firebase_options.dart';
 
 void main() {
@@ -60,6 +61,16 @@ class _AppInitializerState extends State<AppInitializer> {
 
       if (mounted) {
         setState(() => _initialized = true);
+
+        // Vérifier les mises à jour (uniquement sur Android, pas sur Web)
+        if (!kIsWeb && mounted) {
+          // Petit délai pour laisser l'interface s'afficher d'abord
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              AppUpdateService.checkForUpdate(context);
+            }
+          });
+        }
       }
     } catch (e) {
       if (kDebugMode) {

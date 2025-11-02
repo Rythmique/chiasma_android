@@ -16,7 +16,6 @@ import 'package:myapp/widgets/quota_status_widget.dart';
 import 'package:myapp/widgets/welcome_quota_dialog.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
 import 'package:myapp/widgets/verified_badge.dart';
-import 'package:myapp/widgets/access_control_wrapper.dart';
 import 'package:myapp/services/subscription_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -44,10 +43,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AccessControlWrapper(
-      child: Scaffold(
-        body: _pages[_currentIndex],
-        bottomNavigationBar: Container(
+    return Scaffold(
+      body: _pages[_currentIndex],
+      bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
@@ -88,7 +86,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-      ),
       ),
     );
   }
@@ -999,6 +996,9 @@ class _SearchPageState extends State<SearchPage> {
                     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
                     if (currentUserId == null) return;
 
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
+
                     // Consommer un quota pour voir le profil
                     final result = await SubscriptionService().consumeProfileViewQuota(currentUserId);
 
@@ -1006,11 +1006,13 @@ class _SearchPageState extends State<SearchPage> {
 
                     if (result.needsSubscription) {
                       // Afficher le dialogue d'abonnement
-                      SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
+                      if (context.mounted) {
+                        // ignore: use_build_context_synchronously
+                        SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
+                      }
                     } else if (result.success) {
                       // Naviguer vers le profil
-                      Navigator.push(
-                        context,
+                      navigator.push(
                         MaterialPageRoute(
                           builder: (context) => ProfileDetailPage(
                             userId: userId,
@@ -1020,7 +1022,7 @@ class _SearchPageState extends State<SearchPage> {
 
                       // Afficher le quota restant si pas illimité
                       if (result.quotaRemaining >= 0) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text('Consultations restantes: ${result.quotaRemaining}'),
                             duration: const Duration(seconds: 2),
@@ -1030,7 +1032,7 @@ class _SearchPageState extends State<SearchPage> {
                       }
                     } else {
                       // Erreur
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(result.message),
                           backgroundColor: Colors.red,
@@ -1057,6 +1059,9 @@ class _SearchPageState extends State<SearchPage> {
                     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
                     if (currentUserId == null) return;
 
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
+
                     // Consommer un quota pour envoyer un message
                     final result = await SubscriptionService().consumeMessageQuota(currentUserId);
 
@@ -1064,11 +1069,13 @@ class _SearchPageState extends State<SearchPage> {
 
                     if (result.needsSubscription) {
                       // Afficher le dialogue d'abonnement
-                      SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
+                      if (context.mounted) {
+                        // ignore: use_build_context_synchronously
+                        SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
+                      }
                     } else if (result.success) {
                       // Naviguer vers la page de chat
-                      Navigator.push(
-                        context,
+                      navigator.push(
                         MaterialPageRoute(
                           builder: (context) => ChatPage(
                             contactName: name,
@@ -1081,7 +1088,7 @@ class _SearchPageState extends State<SearchPage> {
 
                       // Afficher le quota restant si pas illimité
                       if (result.quotaRemaining >= 0) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text('Consultations restantes: ${result.quotaRemaining}'),
                             duration: const Duration(seconds: 2),
@@ -1091,7 +1098,7 @@ class _SearchPageState extends State<SearchPage> {
                       }
                     } else {
                       // Erreur
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(result.message),
                           backgroundColor: Colors.red,
@@ -1436,6 +1443,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
                     if (currentUserId == null) return;
 
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
+
                     // Consommer un quota pour voir le profil
                     final result = await SubscriptionService().consumeProfileViewQuota(currentUserId);
 
@@ -1443,11 +1453,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
                     if (result.needsSubscription) {
                       // Afficher le dialogue d'abonnement
+                      // ignore: use_build_context_synchronously
                       SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
                     } else if (result.success) {
                       // Naviguer vers le profil
-                      Navigator.push(
-                        context,
+                      navigator.push(
                         MaterialPageRoute(
                           builder: (context) => ProfileDetailPage(
                             userId: user.uid,
@@ -1457,7 +1467,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
                       // Afficher le quota restant si pas illimité
                       if (result.quotaRemaining >= 0) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text('Consultations restantes: ${result.quotaRemaining}'),
                             duration: const Duration(seconds: 2),
@@ -1467,7 +1477,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       }
                     } else {
                       // Erreur
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(result.message),
                           backgroundColor: Colors.red,
@@ -1494,6 +1504,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
                     if (currentUserId == null) return;
 
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
+
                     // Consommer un quota pour envoyer un message
                     final result = await SubscriptionService().consumeMessageQuota(currentUserId);
 
@@ -1501,11 +1514,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
                     if (result.needsSubscription) {
                       // Afficher le dialogue d'abonnement
+                      // ignore: use_build_context_synchronously
                       SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
                     } else if (result.success) {
                       // Naviguer vers la page de chat
-                      Navigator.push(
-                        context,
+                      navigator.push(
                         MaterialPageRoute(
                           builder: (context) => ChatPage(
                             contactName: user.nom,
@@ -1518,7 +1531,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
                       // Afficher le quota restant si pas illimité
                       if (result.quotaRemaining >= 0) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text('Consultations restantes: ${result.quotaRemaining}'),
                             duration: const Duration(seconds: 2),
@@ -1528,7 +1541,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       }
                     } else {
                       // Erreur
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(result.message),
                           backgroundColor: Colors.red,

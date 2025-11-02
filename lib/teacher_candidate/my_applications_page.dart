@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../models/offer_application_model.dart';
 import '../services/jobs_service.dart';
+import '../services/firestore_service.dart';
+import '../widgets/subscription_required_dialog.dart';
 import '../chat_page.dart';
 
 /// Page pour voir toutes les candidatures envoyées par le candidat
@@ -15,6 +17,7 @@ class MyApplicationsPage extends StatefulWidget {
 
 class _MyApplicationsPageState extends State<MyApplicationsPage> {
   final JobsService _jobsService = JobsService();
+  final FirestoreService _firestoreService = FirestoreService();
   final String? _userId = FirebaseAuth.instance.currentUser?.uid;
   String _selectedFilter = 'all'; // all, pending, accepted, rejected
 
@@ -371,6 +374,25 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
 
   /// Contacter l'établissement
   Future<void> _contactSchool(OfferApplicationModel application) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    // Récupérer l'utilisateur actuel pour vérifier le quota
+    final user = await _firestoreService.getUser(userId);
+    if (user == null) return;
+
+    // Vérifier si l'utilisateur peut envoyer des messages
+    final bool canSendMessage = user.isVerified || user.freeQuotaUsed < user.freeQuotaLimit;
+
+    if (!mounted) return;
+
+    if (!canSendMessage) {
+      // Afficher le dialogue d'abonnement
+      SubscriptionRequiredDialog.show(context, user.accountType);
+      return;
+    }
+
+    // Naviguer vers la page de chat
     Navigator.push(
       context,
       MaterialPageRoute(

@@ -421,6 +421,10 @@ class FirestoreService {
           'createdAt': Timestamp.now(),
           'lastMessage': '',
           'lastMessageTime': Timestamp.now(),
+          'unreadCount': {
+            userIds[0]: 0,
+            userIds[1]: 0,
+          },
         });
       }
 
@@ -458,6 +462,10 @@ class FirestoreService {
           'createdAt': Timestamp.now(),
           'lastMessage': '',
           'lastMessageTime': Timestamp.now(),
+          'unreadCount': {
+            participantIds[0]: 0,
+            participantIds[1]: 0,
+          },
         });
       }
 
@@ -491,15 +499,59 @@ class FirestoreService {
           ? 'Fichier joint: ${fileName ?? "fichier"}'
           : message;
 
-      // Mettre à jour le document de conversation
-      await _messagesCollection.doc(conversationId).update({
+      // Déterminer l'ID du destinataire (l'autre participant)
+      final conversationData = conversationDoc.data() as Map<String, dynamic>?;
+      final participants = conversationData?['participants'] as List<dynamic>? ?? [];
+      final receiverId = participants.firstWhere(
+        (id) => id != senderId,
+        orElse: () => '',
+      );
+
+      // Mettre à jour le document de conversation et incrémenter le compteur de non-lus pour le destinataire
+      final updates = {
         'lastMessage': lastMessage,
         'lastMessageTime': Timestamp.now(),
-      });
+      };
+
+      // Incrémenter le compteur de messages non lus pour le destinataire
+      if (receiverId.isNotEmpty) {
+        updates['unreadCount.$receiverId'] = FieldValue.increment(1);
+      }
+
+      await _messagesCollection.doc(conversationId).update(updates);
     } catch (e) {
       debugPrint('Erreur lors de l\'envoi du message: $e');
       throw Exception('Erreur lors de l\'envoi du message: $e');
     }
+  }
+
+  // Réinitialiser le compteur de messages non lus pour un utilisateur
+  Future<void> markConversationAsRead(String conversationId, String userId) async {
+    try {
+      await _messagesCollection.doc(conversationId).update({
+        'unreadCount.$userId': 0,
+      });
+    } catch (e) {
+      debugPrint('Erreur lors de la réinitialisation du compteur: $e');
+    }
+  }
+
+  // Obtenir le nombre total de messages non lus pour un utilisateur
+  Stream<int> getTotalUnreadMessagesCount(String userId) {
+    return _messagesCollection
+        .where('participants', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+      int total = 0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final unreadCount = data['unreadCount'] as Map<String, dynamic>?;
+        if (unreadCount != null && unreadCount.containsKey(userId)) {
+          total += (unreadCount[userId] as int?) ?? 0;
+        }
+      }
+      return total;
+    });
   }
 
   // Obtenir les messages d'une conversation

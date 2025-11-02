@@ -9,6 +9,7 @@ import 'package:myapp/widgets/quota_status_widget.dart';
 import 'package:myapp/widgets/welcome_quota_dialog.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
 import 'package:myapp/widgets/announcements_banner.dart';
+import 'package:myapp/widgets/notification_bell_icon.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 /// Page pour consulter les offres d'emploi disponibles
@@ -49,6 +50,9 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
         backgroundColor: const Color(0xFFF77F00),
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: const [
+          NotificationBellIcon(),
+        ],
       ),
       body: Column(
         children: [

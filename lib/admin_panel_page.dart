@@ -469,11 +469,60 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 ],
               ],
             ),
+            if (user.isVerified && user.verificationExpiresAt != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(
+                    Icons.schedule,
+                    size: 12,
+                    color: user.daysUntilExpiration != null && user.daysUntilExpiration! < 7
+                        ? Colors.red
+                        : Colors.grey[600],
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Expire: ${_formatDate(user.verificationExpiresAt!)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: user.daysUntilExpiration != null && user.daysUntilExpiration! < 7
+                          ? Colors.red
+                          : Colors.grey[600],
+                    ),
+                  ),
+                  if (user.daysUntilExpiration != null) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      '(${user.daysUntilExpiration} jours)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: user.daysUntilExpiration! < 7 ? Colors.red : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ],
         ),
         trailing: PopupMenuButton(
           icon: const Icon(Icons.more_vert),
           itemBuilder: (context) => [
+            if (user.isVerified) ...[
+              PopupMenuItem(
+                child: const ListTile(
+                  leading: Icon(
+                    Icons.update,
+                    size: 20,
+                    color: Color(0xFFF77F00),
+                  ),
+                  title: Text('Étendre vérification'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onTap: () => _extendVerification(user),
+              ),
+            ],
             PopupMenuItem(
               child: ListTile(
                 leading: Icon(
@@ -842,6 +891,155 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         );
       }
     }
+  }
+
+  Future<void> _extendVerification(UserModel user) async {
+    // Afficher les informations actuelles de vérification
+    final daysRemaining = user.daysUntilExpiration;
+    final expiresAt = user.verificationExpiresAt;
+
+    // Afficher le dialogue de sélection de durée supplémentaire
+    final additionalDuration = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Étendre la vérification'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Utilisateur: ${user.nom}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            if (expiresAt != null) ...[
+              Text(
+                'Expire le: ${_formatDate(expiresAt)}',
+                style: TextStyle(color: Colors.grey[700]),
+              ),
+              const SizedBox(height: 4),
+            ],
+            if (daysRemaining != null) ...[
+              Text(
+                'Jours restants: $daysRemaining',
+                style: TextStyle(
+                  color: daysRemaining < 7 ? Colors.red : Colors.green,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            const Divider(),
+            const SizedBox(height: 8),
+            const Text(
+              'Sélectionnez la durée à ajouter:',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ..._buildExtensionOptions(user),
+        ],
+      ),
+    );
+
+    if (additionalDuration == null) return;
+
+    try {
+      // Calculer la nouvelle date d'expiration
+      final currentExpiration = user.verificationExpiresAt ?? DateTime.now();
+      final newExpiration = _calculateNewExpiration(currentExpiration, additionalDuration);
+
+      // Mettre à jour la vérification avec la nouvelle date
+      await _subscriptionService.extendSubscription(
+        user.uid,
+        additionalDuration,
+        newExpiration,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Vérification de ${user.nom} étendue de ${SubscriptionService.getDurationLabel(additionalDuration)}\nNouvelle expiration: ${_formatDate(newExpiration)}',
+            ),
+            backgroundColor: const Color(0xFF009E60),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  List<Widget> _buildExtensionOptions(UserModel user) {
+    final durations = [
+      {'key': '1_week', 'label': '+ 1 semaine'},
+      {'key': '1_month', 'label': '+ 1 mois'},
+      {'key': '3_months', 'label': '+ 3 mois'},
+      {'key': '6_months', 'label': '+ 6 mois'},
+      {'key': '12_months', 'label': '+ 12 mois'},
+    ];
+
+    return durations.map((duration) {
+      return TextButton(
+        onPressed: () => Navigator.pop(context, duration['key']),
+        child: Text(duration['label']!),
+      );
+    }).toList();
+  }
+
+  DateTime _calculateNewExpiration(DateTime currentExpiration, String duration) {
+    switch (duration) {
+      case '1_week':
+        return currentExpiration.add(const Duration(days: 7));
+      case '1_month':
+        return DateTime(
+          currentExpiration.year,
+          currentExpiration.month + 1,
+          currentExpiration.day,
+        );
+      case '3_months':
+        return DateTime(
+          currentExpiration.year,
+          currentExpiration.month + 3,
+          currentExpiration.day,
+        );
+      case '6_months':
+        return DateTime(
+          currentExpiration.year,
+          currentExpiration.month + 6,
+          currentExpiration.day,
+        );
+      case '12_months':
+        return DateTime(
+          currentExpiration.year + 1,
+          currentExpiration.month,
+          currentExpiration.day,
+        );
+      default:
+        return currentExpiration.add(const Duration(days: 30));
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
+      'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   Future<void> _toggleAdmin(UserModel user) async {

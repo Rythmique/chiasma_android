@@ -290,6 +290,26 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
     }
   }
 
+  /// Étendre la durée de vérification d'un utilisateur déjà vérifié
+  Future<void> extendSubscription(
+    String userId,
+    String additionalDuration, // Durée à ajouter
+    DateTime newExpirationDate, // Nouvelle date d'expiration calculée
+  ) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'verificationExpiresAt': Timestamp.fromDate(newExpirationDate),
+        'subscriptionDuration': additionalDuration, // Mise à jour de la dernière durée ajoutée
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('Abonnement étendu pour l\'utilisateur $userId jusqu\'au $newExpirationDate');
+    } catch (e) {
+      debugPrint('Erreur lors de l\'extension de l\'abonnement: $e');
+      rethrow;
+    }
+  }
+
   // Calculer la date d'expiration selon la durée
   DateTime _calculateExpirationDate(String duration) {
     final now = DateTime.now();

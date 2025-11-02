@@ -149,16 +149,23 @@ class AnnouncementService {
   Future<int> cleanExpiredAnnouncements() async {
     try {
       final now = Timestamp.fromDate(DateTime.now());
+
+      // Récupérer toutes les annonces actives et filtrer côté client
       final snapshot = await _firestore
           .collection(_collection)
-          .where('expiresAt', isLessThan: now)
           .where('isActive', isEqualTo: true)
           .get();
 
       int count = 0;
       for (var doc in snapshot.docs) {
-        await doc.reference.update({'isActive': false});
-        count++;
+        final data = doc.data();
+        final expiresAt = data['expiresAt'] as Timestamp?;
+
+        // Vérifier si l'annonce est expirée
+        if (expiresAt != null && expiresAt.compareTo(now) < 0) {
+          await doc.reference.update({'isActive': false});
+          count++;
+        }
       }
       return count;
     } catch (e) {

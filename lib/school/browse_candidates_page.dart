@@ -241,33 +241,44 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
 
           // Liste des candidats
           Expanded(
-            child: StreamBuilder<List<UserModel>>(
-              stream: _firestoreService.getUsersByAccountType('teacher_candidate'),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+            child: StreamBuilder<UserModel?>(
+              stream: _firestoreService.getUserStream(currentUser.uid),
+              builder: (context, schoolSnapshot) {
+                if (schoolSnapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Erreur: ${snapshot.error}'),
-                  );
-                }
+                final schoolUser = schoolSnapshot.data;
 
-                final allCandidates = snapshot.data ?? [];
-                final filteredCandidates = _filterCandidates(allCandidates);
+                return StreamBuilder<List<UserModel>>(
+                  stream: _firestoreService.getUsersByAccountType('teacher_candidate'),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                if (filteredCandidates.isEmpty) {
-                  return _buildEmptyView();
-                }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text('Erreur: ${snapshot.error}'),
+                      );
+                    }
 
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: filteredCandidates.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final candidate = filteredCandidates[index];
-                    return _buildCandidateCard(candidate);
+                    final allCandidates = snapshot.data ?? [];
+                    final filteredCandidates = _filterCandidates(allCandidates);
+
+                    if (filteredCandidates.isEmpty) {
+                      return _buildEmptyView();
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: filteredCandidates.length,
+                      separatorBuilder: (context, index) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final candidate = filteredCandidates[index];
+                        return _buildCandidateCard(candidate, schoolUser);
+                      },
+                    );
                   },
                 );
               },
@@ -308,7 +319,11 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
     );
   }
 
-  Widget _buildCandidateCard(UserModel candidate) {
+  Widget _buildCandidateCard(UserModel candidate, UserModel? schoolUser) {
+    // Vérifier si l'école peut envoyer des messages (quota et vérification)
+    final bool canSendMessage = schoolUser != null &&
+        (schoolUser.isVerified || schoolUser.freeQuotaUsed < schoolUser.freeQuotaLimit);
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       elevation: 2,
@@ -416,21 +431,29 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.message_outlined, color: Color(0xFFF77F00)),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChatPage(
-                      contactName: candidate.nom,
-                      contactFunction: candidate.fonction,
-                      isOnline: candidate.isOnline,
-                      contactUserId: candidate.uid,
-                    ),
-                  ),
-                );
-              },
-              tooltip: 'Envoyer un message',
+              icon: Icon(
+                Icons.message_outlined,
+                color: canSendMessage ? const Color(0xFFF77F00) : Colors.grey,
+              ),
+              onPressed: canSendMessage
+                  ? () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatPage(
+                            contactName: candidate.nom,
+                            contactFunction: candidate.fonction,
+                            isOnline: candidate.isOnline,
+                            contactUserId: candidate.uid,
+                          ),
+                        ),
+                      );
+                    }
+                  : () {
+                      // Afficher le dialogue d'abonnement
+                      SubscriptionRequiredDialog.show(context, 'school');
+                    },
+              tooltip: canSendMessage ? 'Envoyer un message' : 'Abonnement requis',
             ),
             const Icon(Icons.chevron_right, color: Colors.grey),
           ],
@@ -439,6 +462,9 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
           final currentUserId = FirebaseAuth.instance.currentUser?.uid;
           if (currentUserId == null) return;
 
+          final navigator = Navigator.of(context);
+          final messenger = ScaffoldMessenger.of(context);
+
           // Consommer un quota pour voir le profil du candidat
           final result = await SubscriptionService().consumeCandidateViewQuota(currentUserId);
 
@@ -446,11 +472,11 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
 
           if (result.needsSubscription) {
             // Afficher le dialogue d'abonnement
+            // ignore: use_build_context_synchronously
             SubscriptionRequiredDialog.show(context, result.accountType ?? 'school');
           } else if (result.success) {
             // Naviguer vers le profil
-            Navigator.push(
-              context,
+            navigator.push(
               MaterialPageRoute(
                 builder: (context) => ProfileDetailPage(
                   userId: candidate.uid,
@@ -460,7 +486,7 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
 
             // Afficher le quota restant si pas illimité
             if (result.quotaRemaining >= 0) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              messenger.showSnackBar(
                 SnackBar(
                   content: Text('Vues de candidats restantes: ${result.quotaRemaining}'),
                   duration: const Duration(seconds: 2),
@@ -470,7 +496,7 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
             }
           } else {
             // Erreur
-            ScaffoldMessenger.of(context).showSnackBar(
+            messenger.showSnackBar(
               SnackBar(
                 content: Text(result.message),
                 backgroundColor: Colors.red,

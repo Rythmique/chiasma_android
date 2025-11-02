@@ -7,11 +7,11 @@ import 'job_offers_list_page.dart';
 import 'notification_settings_page.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/app_update_service.dart';
 import '../models/user_model.dart';
 import '../login_screen.dart';
 import '../change_password_page.dart';
 import '../chat_page.dart';
-import '../widgets/access_control_wrapper.dart';
 import 'edit_candidate_profile_page.dart';
 
 /// Écran d'accueil pour les candidats enseignants
@@ -35,10 +35,9 @@ class _CandidateHomeScreenState extends State<CandidateHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AccessControlWrapper(
-      child: Scaffold(
-        body: _pages[_currentIndex],
-        bottomNavigationBar: BottomNavigationBar(
+    return Scaffold(
+      body: _pages[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -70,7 +69,6 @@ class _CandidateHomeScreenState extends State<CandidateHomeScreen> {
             label: 'Paramètres',
           ),
         ],
-      ),
       ),
     );
   }
@@ -219,6 +217,11 @@ class _CandidateMessagesPageState extends State<CandidateMessagesPage> {
         final lastMessage = conversationData['lastMessage'] as String? ?? '';
         final lastMessageTime = conversationData['lastMessageTime'] as Timestamp?;
 
+        // Récupérer le compteur de messages non lus
+        final unreadCount = conversationData['unreadCount'] as Map<String, dynamic>?;
+        final unreadMessages = (unreadCount?[currentUserId] as int?) ?? 0;
+        final hasUnread = unreadMessages > 0;
+
         return ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           leading: Stack(
@@ -254,12 +257,38 @@ class _CandidateMessagesPageState extends State<CandidateMessagesPage> {
                     ),
                   ),
                 ),
+              // Badge de messages non lus
+              if (hasUnread)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    child: Text(
+                      unreadMessages > 9 ? '9+' : '$unreadMessages',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
             ],
           ),
           title: Text(
             otherUser.nom,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
+            style: TextStyle(
+              fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,
               fontSize: 16,
             ),
             overflow: TextOverflow.ellipsis,
@@ -283,7 +312,8 @@ class _CandidateMessagesPageState extends State<CandidateMessagesPage> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey[600],
+                    color: hasUnread ? Colors.black87 : Colors.grey[600],
+                    fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ],
@@ -548,6 +578,12 @@ class CandidateSettingsPage extends StatelessWidget {
             },
           ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.system_update),
+            title: const Text('Vérifier les mises à jour'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => AppUpdateService.checkForUpdateManually(context),
+          ),
           ListTile(
             leading: const Icon(Icons.help),
             title: const Text('Aide'),

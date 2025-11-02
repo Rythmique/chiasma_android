@@ -45,22 +45,32 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _initializeConversation() async {
     try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
+
       if (widget.conversationId != null) {
         setState(() {
           _conversationId = widget.conversationId;
         });
+        // Marquer la conversation comme lue
+        await _firestoreService.markConversationAsRead(
+          widget.conversationId!,
+          currentUser.uid,
+        );
       } else if (widget.contactUserId != null) {
-        final currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser != null) {
-          final convId = await _firestoreService.createConversation(
+        final convId = await _firestoreService.createConversation(
+          currentUser.uid,
+          widget.contactUserId!,
+        );
+        if (mounted) {
+          setState(() {
+            _conversationId = convId;
+          });
+          // Marquer la conversation comme lue
+          await _firestoreService.markConversationAsRead(
+            convId,
             currentUser.uid,
-            widget.contactUserId!,
           );
-          if (mounted) {
-            setState(() {
-              _conversationId = convId;
-            });
-          }
         }
       }
     } catch (e) {

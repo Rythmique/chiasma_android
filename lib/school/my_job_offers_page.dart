@@ -8,6 +8,7 @@ import '../widgets/quota_status_widget.dart';
 import '../widgets/welcome_quota_dialog.dart';
 import '../widgets/subscription_required_dialog.dart';
 import '../widgets/announcements_banner.dart';
+import '../widgets/notification_bell_icon.dart';
 import 'create_job_offer_page.dart';
 import 'view_applications_page.dart';
 
@@ -24,6 +25,35 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
   final FirestoreService _firestoreService = FirestoreService();
   final String? _schoolId = FirebaseAuth.instance.currentUser?.uid;
 
+  /// Vérifier si l'utilisateur peut créer une offre et naviguer ou afficher le dialogue
+  Future<void> _handleCreateJobOffer(BuildContext context) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    // Récupérer l'utilisateur actuel
+    final user = await _firestoreService.getUser(userId);
+    if (user == null) return;
+
+    // Vérifier si l'utilisateur peut créer une offre
+    final bool canCreateOffer = user.isVerified || user.freeQuotaUsed < user.freeQuotaLimit;
+
+    if (!context.mounted) return;
+
+    if (!canCreateOffer) {
+      // Afficher le dialogue d'abonnement
+      SubscriptionRequiredDialog.show(context, 'school');
+      return;
+    }
+
+    // Naviguer vers la page de création
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const CreateJobOfferPage(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_schoolId == null) {
@@ -38,16 +68,10 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
       appBar: AppBar(
         title: const Text('Mes offres d\'emploi'),
         actions: [
+          const NotificationBellIcon(),
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const CreateJobOfferPage(),
-                ),
-              );
-            },
+            onPressed: () => _handleCreateJobOffer(context),
           ),
         ],
       ),
@@ -126,14 +150,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const CreateJobOfferPage(),
-            ),
-          );
-        },
+        onPressed: () => _handleCreateJobOffer(context),
         icon: const Icon(Icons.add),
         label: const Text('Nouvelle offre'),
       ),
@@ -166,14 +183,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CreateJobOfferPage(),
-                  ),
-                );
-              },
+              onPressed: () => _handleCreateJobOffer(context),
               icon: const Icon(Icons.add),
               label: const Text('Créer une offre'),
             ),
