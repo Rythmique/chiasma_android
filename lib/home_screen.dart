@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:myapp/profile_detail_page.dart';
@@ -9,6 +10,7 @@ import 'package:myapp/user_info_page.dart';
 import 'package:myapp/privacy_settings_page.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/services/notification_service.dart';
+import 'package:myapp/services/fcm_service.dart';
 import 'package:myapp/models/user_model.dart';
 import 'package:myapp/widgets/announcements_banner.dart';
 import 'package:myapp/widgets/subscription_status_banner.dart';
@@ -16,6 +18,7 @@ import 'package:myapp/widgets/quota_status_widget.dart';
 import 'package:myapp/widgets/welcome_quota_dialog.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
 import 'package:myapp/widgets/verified_badge.dart';
+import 'package:myapp/utils/string_utils.dart';
 import 'package:myapp/services/subscription_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -27,6 +30,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  final FirestoreService _firestoreService = FirestoreService();
 
   late final List<Widget> _pages;
 
@@ -39,10 +43,20 @@ class _HomeScreenState extends State<HomeScreen> {
       const MessagesPage(),
       const ProfilePage(),
     ];
+
+    // Initialiser FCM pour les notifications push (uniquement sur mobile)
+    if (!kIsWeb) {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId != null) {
+        FCMService().initialize(userId);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       body: _pages[_currentIndex],
       bottomNavigationBar: Container(
@@ -55,38 +69,112 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFFF77F00),
-          unselectedItemColor: Colors.grey[600],
-          selectedFontSize: 12,
-          unselectedFontSize: 11,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.search),
-              label: 'Recherche',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.favorite),
-              label: 'Favoris',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.message),
-              label: 'Messages',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: 'Profil',
-            ),
-          ],
-        ),
+        child: userId != null
+            ? StreamBuilder<int>(
+                stream: _firestoreService.getTotalUnreadMessagesCount(userId),
+                builder: (context, snapshot) {
+                  final unreadCount = snapshot.data ?? 0;
+
+                  return BottomNavigationBar(
+                    currentIndex: _currentIndex,
+                    onTap: (index) {
+                      setState(() {
+                        _currentIndex = index;
+                      });
+                    },
+                    type: BottomNavigationBarType.fixed,
+                    selectedItemColor: const Color(0xFFF77F00),
+                    unselectedItemColor: Colors.grey[600],
+                    selectedFontSize: 12,
+                    unselectedFontSize: 11,
+                    items: [
+                      const BottomNavigationBarItem(
+                        icon: Icon(Icons.search),
+                        label: 'Recherche',
+                      ),
+                      const BottomNavigationBarItem(
+                        icon: Icon(Icons.favorite),
+                        label: 'Favoris',
+                      ),
+                      BottomNavigationBarItem(
+                        icon: _buildMessageIcon(Icons.message, unreadCount, false),
+                        activeIcon: _buildMessageIcon(Icons.message, unreadCount, true),
+                        label: 'Messages',
+                      ),
+                      const BottomNavigationBarItem(
+                        icon: Icon(Icons.person),
+                        label: 'Profil',
+                      ),
+                    ],
+                  );
+                },
+              )
+            : BottomNavigationBar(
+                currentIndex: _currentIndex,
+                onTap: (index) {
+                  setState(() {
+                    _currentIndex = index;
+                  });
+                },
+                type: BottomNavigationBarType.fixed,
+                selectedItemColor: const Color(0xFFF77F00),
+                unselectedItemColor: Colors.grey[600],
+                selectedFontSize: 12,
+                unselectedFontSize: 11,
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.search),
+                    label: 'Recherche',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.favorite),
+                    label: 'Favoris',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.message),
+                    label: 'Messages',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.person),
+                    label: 'Profil',
+                  ),
+                ],
+              ),
       ),
+    );
+  }
+
+  Widget _buildMessageIcon(IconData icon, int unreadCount, bool isActive) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon),
+        if (unreadCount > 0)
+          Positioned(
+            right: -6,
+            top: -4,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 16,
+                minHeight: 16,
+              ),
+              child: Text(
+                unreadCount > 99 ? '99+' : unreadCount.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -107,6 +195,11 @@ class _SearchPageState extends State<SearchPage> {
   Set<String> _favoriteUserIds = {}; // IDs des profils favoris (vrais userId)
   List<UserModel> _allUsers = []; // Liste de tous les utilisateurs réels depuis Firestore
   bool _isLoadingUsers = true;
+  bool _isLoadingMore = false;
+  bool _hasMoreUsers = true;
+  DocumentSnapshot? _lastDocument;
+  final int _pageSize = 20; // Charger 20 utilisateurs par page
+  final ScrollController _scrollController = ScrollController();
 
   // Données de l'utilisateur connecté (pour le match mutuel)
   Map<String, dynamic> _currentUser = {
@@ -122,12 +215,26 @@ class _SearchPageState extends State<SearchPage> {
     _loadFavorites();
     _loadUsers();
     _loadCurrentUserData();
+
+    // Écouter le scroll pour charger plus d'utilisateurs
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  // Détecter quand on arrive en bas de la liste
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.8) {
+      // Charger plus quand on atteint 80% du scroll
+      if (!_isLoadingMore && _hasMoreUsers) {
+        _loadMoreUsers();
+      }
+    }
   }
 
   // Charger les données de l'utilisateur connecté
@@ -154,27 +261,82 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  // Charger tous les utilisateurs depuis Firestore (filtrés par type de compte)
+  // Charger la première page d'utilisateurs avec pagination
   Future<void> _loadUsers() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
+    setState(() {
+      _isLoadingUsers = true;
+      _allUsers = [];
+      _lastDocument = null;
+      _hasMoreUsers = true;
+    });
+
     try {
-      // Charger uniquement les utilisateurs de type "teacher_transfer" (permutation)
-      _firestoreService.getUsersByAccountType('teacher_transfer').listen((users) {
-        if (mounted) {
-          setState(() {
-            // Exclure l'utilisateur connecté de la liste
-            _allUsers = users.where((user) => user.uid != currentUser.uid).toList();
-            _isLoadingUsers = false;
-          });
-        }
-      });
+      final result = await _firestoreService.getUsersByAccountTypePaginated(
+        'teacher_transfer',
+        limit: _pageSize,
+      );
+
+      if (mounted) {
+        setState(() {
+          // Exclure l'utilisateur connecté
+          _allUsers = result['users'].where((user) => user.uid != currentUser.uid).toList();
+          _lastDocument = result['lastDocument'];
+          _hasMoreUsers = result['users'].length >= _pageSize;
+          _isLoadingUsers = false;
+
+          debugPrint('📊 [SearchPage] Première page chargée: ${_allUsers.length} utilisateurs');
+        });
+      }
     } catch (e) {
       debugPrint('Erreur chargement utilisateurs: $e');
       if (mounted) {
         setState(() {
           _isLoadingUsers = false;
+          _hasMoreUsers = false;
+        });
+      }
+    }
+  }
+
+  // Charger plus d'utilisateurs (pagination)
+  Future<void> _loadMoreUsers() async {
+    if (_isLoadingMore || !_hasMoreUsers || _lastDocument == null) return;
+
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final result = await _firestoreService.getUsersByAccountTypePaginated(
+        'teacher_transfer',
+        limit: _pageSize,
+        startAfterDocument: _lastDocument,
+      );
+
+      if (mounted) {
+        setState(() {
+          // Ajouter les nouveaux utilisateurs (exclure l'utilisateur connecté)
+          final newUsers = result['users'].where((user) => user.uid != currentUser.uid).toList();
+          _allUsers.addAll(newUsers);
+          _lastDocument = result['lastDocument'];
+          _hasMoreUsers = result['users'].length >= _pageSize;
+          _isLoadingMore = false;
+
+          debugPrint('📊 [SearchPage] Page suivante chargée: +${newUsers.length} utilisateurs (Total: ${_allUsers.length})');
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement page suivante: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+          _hasMoreUsers = false;
         });
       }
     }
@@ -303,49 +465,65 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   List<UserModel> get _filteredProfiles {
+    List<UserModel> filtered;
+
     // Mode Match Mutuel : recherche automatique
     if (_selectedSearchMode == 'match_mutuel') {
-      return _allUsers.where((user) {
+      filtered = _allUsers.where((user) {
         // Match mutuel = la zone souhaitée de l'utilisateur correspond à la zone actuelle du profil
         // ET la zone actuelle de l'utilisateur correspond à la zone souhaitée du profil
         final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty ? user.zonesSouhaitees.first : '';
         return user.zoneActuelle == _currentUser['zoneSouhaitee'] &&
                zoneSouhaitee == _currentUser['zoneActuelle'];
       }).toList();
+      debugPrint('📊 [Filtered] Match mutuel: ${filtered.length} sur ${_allUsers.length}');
+      return filtered;
     }
 
     // Si pas de recherche, retourner tous les utilisateurs
     if (_searchQuery.isEmpty) {
+      debugPrint('📊 [Filtered] Aucune recherche: ${_allUsers.length} profils');
       return _allUsers;
     }
 
-    final query = _searchQuery.toLowerCase();
+    // Normaliser la query pour ignorer les accents
+    final query = normalizeString(_searchQuery);
 
     // Filtrer selon le mode de recherche sélectionné
     switch (_selectedSearchMode) {
       case 'zone_actuelle':
-        return _allUsers.where((user) {
-          return user.zoneActuelle.toLowerCase().contains(query);
+        filtered = _allUsers.where((user) {
+          return containsIgnoringAccents(user.zoneActuelle, _searchQuery);
         }).toList();
+        break;
 
       case 'zone_souhaitee':
-        return _allUsers.where((user) {
-          return user.zonesSouhaitees.any((zone) => zone.toLowerCase().contains(query));
+        filtered = _allUsers.where((user) {
+          return user.zonesSouhaitees.any((zone) =>
+            containsIgnoringAccents(zone, _searchQuery)
+          );
         }).toList();
+        break;
 
       case 'fonction':
-        return _allUsers.where((user) {
-          return user.fonction.toLowerCase().contains(query);
+        filtered = _allUsers.where((user) {
+          return containsIgnoringAccents(user.fonction, _searchQuery);
         }).toList();
+        break;
 
       case 'dren':
-        return _allUsers.where((user) {
-          return (user.dren ?? '').toLowerCase().contains(query);
+        filtered = _allUsers.where((user) {
+          final dren = user.dren ?? '';
+          return containsIgnoringAccents(dren, _searchQuery);
         }).toList();
+        break;
 
       default:
-        return _allUsers;
+        filtered = _allUsers;
     }
+
+    debugPrint('📊 [Filtered] Mode: $_selectedSearchMode, Query: "$query", Résultats: ${filtered.length}/${_allUsers.length}');
+    return filtered;
   }
 
   @override
@@ -353,6 +531,7 @@ class _SearchPageState extends State<SearchPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: CustomScrollView(
+        controller: _scrollController,
         slivers: [
           // AppBar avec dégradé
           SliverAppBar(
@@ -712,11 +891,23 @@ class _SearchPageState extends State<SearchPage> {
                       color: Colors.grey[800],
                     ),
                   ),
-                  Text(
-                    '${_filteredProfiles.length} profil${_filteredProfiles.length > 1 ? 's' : ''} trouvé${_filteredProfiles.length > 1 ? 's' : ''}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF77F00).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFFF77F00),
+                        width: 2,
+                      ),
+                    ),
+                    child: Text(
+                      '${_filteredProfiles.length} profil${_filteredProfiles.length > 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFF77F00),
+                      ),
                     ),
                   ),
                 ],
@@ -780,6 +971,36 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 ),
 
+          // Indicateur de chargement pour la pagination
+          if (_isLoadingMore)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFF77F00),
+                  ),
+                ),
+              ),
+            ),
+
+          // Indicateur de fin de liste
+          if (!_isLoadingMore && !_hasMoreUsers && _filteredProfiles.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: Text(
+                    'Tous les profils ont été chargés',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
         ],
       ),
@@ -794,8 +1015,14 @@ class _SearchPageState extends State<SearchPage> {
     final zoneActuelle = user.zoneActuelle;
     final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty ? user.zonesSouhaitees.first : 'Non spécifiée';
 
-    // Get initials from name
-    final initials = name.split(' ').map((word) => word[0]).take(2).join().toUpperCase();
+    // Get initials from name - avec protection contre les chaînes vides
+    final initials = name.split(' ')
+        .where((word) => word.isNotEmpty)
+        .map((word) => word[0])
+        .take(2)
+        .join()
+        .toUpperCase()
+        .padRight(1, '?'); // Si vide, utiliser '?'
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1245,8 +1472,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
   }
 
   Widget _buildFavoriteProfileCard(UserModel user) {
-    // Get initials from name
-    final initials = user.nom.split(' ').map((word) => word[0]).take(2).join().toUpperCase();
+    // Get initials from name - avec protection contre les chaînes vides
+    final initials = user.nom.split(' ')
+        .where((word) => word.isNotEmpty)
+        .map((word) => word[0])
+        .take(2)
+        .join()
+        .toUpperCase()
+        .padRight(1, '?');
     final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty ? user.zonesSouhaitees.first : 'Non spécifiée';
 
     return Container(
@@ -1681,6 +1914,22 @@ class _MessagesPageState extends State<MessagesPage> {
             return data['lastMessageTime'] != null;
           }).toList();
 
+          // Trier les conversations par lastMessageTime (plus récentes en premier)
+          conversations.sort((a, b) {
+            final aData = a.data() as Map<String, dynamic>;
+            final bData = b.data() as Map<String, dynamic>;
+            final aTime = aData['lastMessageTime'] as Timestamp?;
+            final bTime = bData['lastMessageTime'] as Timestamp?;
+
+            // Ne devrait pas arriver car on a filtré, mais par sécurité
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+
+            // Tri décroissant (les plus récentes en premier)
+            return bTime.compareTo(aTime);
+          });
+
           if (conversations.isEmpty) {
             return Center(
               child: Column(
@@ -1764,10 +2013,12 @@ class _MessagesPageState extends State<MessagesPage> {
 
                   final otherUser = usersMap[otherUserId]!;
                   final initials = otherUser.nom.split(' ')
+                      .where((word) => word.isNotEmpty)
                       .map((word) => word[0])
                       .take(2)
                       .join()
-                      .toUpperCase();
+                      .toUpperCase()
+                      .padRight(1, '?');
                   final hasUnread = (unreadCount[currentUser.uid] ?? 0) > 0;
 
                   return ListTile(
@@ -2139,10 +2390,13 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   String _getInitials(String name) {
-    final words = name.split(' ');
+    final words = name.split(' ').where((word) => word.isNotEmpty).toList();
     if (words.isEmpty) return '??';
-    if (words.length == 1) return words[0][0].toUpperCase();
-    return (words[0][0] + words[1][0]).toUpperCase();
+    if (words.length == 1 && words[0].isNotEmpty) return words[0][0].toUpperCase();
+    if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return '??';
   }
 
   Widget _buildInfoCard(String title, List<Widget> children) {

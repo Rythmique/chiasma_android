@@ -1,0 +1,56 @@
+# robots.txt pour chiasma.pro
+# Ce fichier indique aux moteurs de recherche comment explorer votre site
+
+# ========================================
+# Configuration pour TOUS les robots
+# ========================================
+
+User-agent: *
+
+# Autoriser l'exploration de tout le site
+Allow: /
+
+# Bloquer les dossiers privés ou inutiles
+Disallow: /admin/
+Disallow: /private/
+Disallow: /.git/
+Disallow: /node_modules/
+Disallow: /.next/
+Disallow: /api/
+
+# Autoriser explicitement les pages importantes
+Allow: /telecharger.html
+Allow: /downloads/
+
+# Délai entre les requêtes (en secondes) - optionnel
+Crawl-delay: 1
+
+# ========================================
+# Sitemap (très important pour le SEO)
+# ========================================
+
+Sitemap: https://chiasma.pro/sitemap.xml
+
+# ========================================
+# Robots spécifiques (optionnel)
+# ========================================
+
+# Google
+User-agent: Googlebot
+Allow: /
+
+# Bing
+User-agent: Bingbot
+Allow: /
+
+# Facebook (pour les aperçus de partage)
+User-agent: Facebookexternalhit
+Allow: /
+
+# Twitter (pour les Twitter Cards)
+User-agent: Twitterbot
+Allow: /
+
+# WhatsApp (pour les aperçus de liens)
+User-agent: WhatsApp
+Allow: /

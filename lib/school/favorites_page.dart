@@ -4,6 +4,7 @@ import '../services/firestore_service.dart';
 import '../models/user_model.dart';
 import '../profile_detail_page.dart';
 import '../chat_page.dart';
+import '../widgets/subscription_required_dialog.dart';
 
 /// Page des candidats favoris de l'école
 class SchoolFavoritesPage extends StatefulWidget {
@@ -64,11 +65,18 @@ class _SchoolFavoritesPageState extends State<SchoolFavoritesPage> {
             return _buildEmptyView();
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: favorites.length,
-            itemBuilder: (context, index) {
-              return _buildCandidateCard(favorites[index]);
+          return StreamBuilder<UserModel?>(
+            stream: _firestoreService.getUserStream(_currentUserId),
+            builder: (context, schoolSnapshot) {
+              final schoolUser = schoolSnapshot.data;
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: favorites.length,
+                itemBuilder: (context, index) {
+                  return _buildCandidateCard(favorites[index], schoolUser);
+                },
+              );
             },
           );
         },
@@ -107,7 +115,12 @@ class _SchoolFavoritesPageState extends State<SchoolFavoritesPage> {
   }
 
   /// Carte d'un candidat favori
-  Widget _buildCandidateCard(UserModel candidate) {
+  Widget _buildCandidateCard(UserModel candidate, UserModel? schoolUser) {
+    // Vérifier si l'école peut envoyer des messages
+    final canSendMessage = schoolUser != null &&
+        schoolUser.isVerified &&
+        !schoolUser.isVerificationExpired;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -219,11 +232,16 @@ class _SchoolFavoritesPageState extends State<SchoolFavoritesPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _contactCandidate(candidate),
+                    onPressed: canSendMessage
+                        ? () => _contactCandidate(candidate)
+                        : () {
+                            // Afficher le dialogue d'abonnement pour les écoles non vérifiées
+                            SubscriptionRequiredDialog.show(context, 'school');
+                          },
                     icon: const Icon(Icons.message, size: 18),
                     label: const Text('Contacter'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF009E60),
+                      backgroundColor: canSendMessage ? const Color(0xFF009E60) : Colors.grey,
                       visualDensity: VisualDensity.compact,
                     ),
                   ),

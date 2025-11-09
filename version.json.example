@@ -1,0 +1,11 @@
+{
+  "version": "1.0.1",
+  "buildNumber": 2,
+  "message": "Nouvelle version disponible avec des améliorations et corrections de bugs.",
+  "forceUpdate": false,
+  "releaseNotes": [
+    "Système de contrôle d'accès par type de compte",
+    "Amélioration des notifications",
+    "Corrections de bugs et optimisations"
+  ]
+}

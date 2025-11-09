@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:myapp/services/subscription_service.dart';
+import 'package:myapp/services/access_restrictions_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SubscriptionRequiredDialog extends StatelessWidget {
@@ -382,6 +383,18 @@ class SubscriptionRequiredDialog extends StatelessWidget {
   static Future<void> show(BuildContext context, String accountType) async {
     // Éviter d'afficher plusieurs dialogues en même temps
     if (_isShowing) return;
+
+    // Vérifier si les restrictions sont activées pour ce type de compte
+    final restrictionsService = AccessRestrictionsService();
+    final restrictionsEnabled = await restrictionsService.areRestrictionsEnabled(accountType);
+
+    // Si les restrictions sont désactivées, ne pas afficher le dialogue
+    if (!restrictionsEnabled) {
+      return;
+    }
+
+    // Vérifier que le context est toujours monté après l'async gap
+    if (!context.mounted) return;
 
     _isShowing = true;
     await showDialog(

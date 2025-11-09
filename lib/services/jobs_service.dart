@@ -1,11 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/job_application_model.dart';
 import '../models/job_offer_model.dart';
 import '../models/offer_application_model.dart';
+import '../services/notification_service.dart';
 
 /// Service pour gérer les candidatures et offres d'emploi
 class JobsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
 
   // Collections Firestore
   static const String _jobApplicationsCollection = 'job_applications';
@@ -136,9 +139,90 @@ class JobsService {
     try {
       final docRef =
           await _firestore.collection(_jobOffersCollection).add(offer.toMap());
-      return docRef.id;
+      final offerId = docRef.id;
+
+      // Envoyer des notifications aux candidats matchants (en arrière-plan)
+      _notifyMatchingCandidates(offer, offerId);
+
+      return offerId;
     } catch (e) {
       throw Exception('Erreur lors de la création de l\'offre: $e');
+    }
+  }
+
+  /// Notifier les candidats qui correspondent aux critères de l'offre
+  Future<void> _notifyMatchingCandidates(JobOfferModel offer, String offerId) async {
+    try {
+      // Rechercher les candidats enseignants (teacher_candidate) qui correspondent
+      // Note: On ne peut pas faire de filtres complexes avec Firestore (limitations des where multiples)
+      // On récupère tous les candidats autorisés et on filtre en mémoire
+      final snapshot = await _firestore.collection('users')
+          .where('accountType', isEqualTo: 'teacher_candidate')
+          .where('isAuthorized', isEqualTo: true)
+          .limit(100) // Limiter pour éviter surcharge
+          .get();
+
+      int notificationCount = 0;
+
+      // Envoyer une notification à chaque candidat matchant
+      for (var doc in snapshot.docs) {
+        try {
+          final candidateId = doc.id;
+          final candidateData = doc.data() as Map<String, dynamic>?;
+
+          if (candidateData == null) continue;
+
+          // Filtrage côté client pour matcher les critères
+          bool isMatch = true;
+
+          // Vérifier si la matière du candidat correspond à l'une des matières de l'offre
+          if (offer.matieres.isNotEmpty && candidateData['discipline'] != null) {
+            final candidateDiscipline = candidateData['discipline'] as String;
+            // Si le candidat a une discipline et l'offre aussi, vérifier la correspondance
+            if (!offer.matieres.contains(candidateDiscipline) &&
+                !offer.matieres.contains('Toutes matières')) {
+              isMatch = false;
+            }
+          }
+
+          // Vérifier si la zone du candidat correspond à la ville de l'offre
+          if (isMatch && candidateData['zone'] != null && offer.ville.isNotEmpty) {
+            final candidateZone = candidateData['zone'] as String;
+            // Matching simple: si la zone du candidat contient la ville de l'offre ou vice versa
+            if (!candidateZone.toLowerCase().contains(offer.ville.toLowerCase()) &&
+                !offer.ville.toLowerCase().contains(candidateZone.toLowerCase())) {
+              // Pas de match strict, mais on envoie quand même (mieux notifier trop que pas assez)
+            }
+          }
+
+          // Envoyer la notification si le profil correspond
+          if (isMatch) {
+            final matieresText = offer.matieres.isEmpty ? '' : ' (${offer.matieres.join(', ')})';
+
+            await _notificationService.sendNotification(
+              userId: candidateId,
+              type: 'offer',
+              title: 'Nouvelle offre d\'emploi',
+              message: '${offer.nomEtablissement} recrute pour un poste de ${offer.poste}$matieresText',
+              data: {
+                'offerId': offerId,
+                'schoolId': offer.schoolId,
+                'schoolName': offer.nomEtablissement,
+                'jobTitle': offer.poste,
+                'matieres': offer.matieres.join(', '),
+                'ville': offer.ville,
+              },
+            );
+            notificationCount++;
+          }
+        } catch (e) {
+          debugPrint('Erreur lors de l\'envoi de notification au candidat ${doc.id}: $e');
+        }
+      }
+
+      debugPrint('Notifications envoyées à $notificationCount candidats matchants sur ${snapshot.docs.length}');
+    } catch (e) {
+      debugPrint('Erreur lors de la notification des candidats matchants: $e');
     }
   }
 
@@ -321,7 +405,7 @@ class JobsService {
   Stream<List<JobOfferModel>> streamOpenJobOffers({int limit = 50}) {
     return _firestore
         .collection(_jobOffersCollection)
-        .where('status', whereIn: ['open', 'active'])
+        .where('status', isEqualTo: 'open')
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()

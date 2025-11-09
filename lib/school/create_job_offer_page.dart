@@ -130,39 +130,6 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('Utilisateur non connecté');
 
-    // Si c'est une nouvelle offre (pas une mise à jour), vérifier et consommer le quota
-    if (widget.existingOffer == null) {
-      final result = await SubscriptionService().consumeJobOfferQuota(user.uid);
-
-      if (!mounted) return;
-
-      if (result.needsSubscription) {
-        // Afficher le dialogue d'abonnement
-        SubscriptionRequiredDialog.show(context, result.accountType ?? 'school');
-        return;
-      } else if (!result.success) {
-        // Erreur
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.message),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      // Afficher le quota restant si pas illimité
-      if (result.quotaRemaining >= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Offres gratuites restantes: ${result.quotaRemaining}'),
-            duration: const Duration(seconds: 2),
-            backgroundColor: const Color(0xFF009E60),
-          ),
-        );
-      }
-    }
-
     setState(() => _isLoading = true);
 
     try {
@@ -191,23 +158,52 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
       if (widget.existingOffer != null) {
         // Mise à jour
         await _jobsService.updateJobOffer(widget.existingOffer!.id, offer.toMap());
-      } else {
-        // Création
-        await _jobsService.createJobOffer(offer);
-      }
 
-      if (mounted) {
-        Navigator.pop(context, true); // true indique succès
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.existingOffer != null
-                  ? 'Offre mise à jour avec succès'
-                  : 'Offre créée avec succès',
+        if (mounted) {
+          Navigator.pop(context, true); // true indique succès
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Offre mise à jour avec succès'),
+              backgroundColor: Color(0xFF009E60),
             ),
-            backgroundColor: const Color(0xFF009E60),
-          ),
-        );
+          );
+        }
+      } else {
+        // Création d'une nouvelle offre
+        await _jobsService.createJobOffer(offer);
+
+        // Consommer le quota après création réussie
+        final subscriptionService = SubscriptionService();
+        final quotaResult = await subscriptionService.consumeJobOfferQuota(user.uid);
+
+        if (mounted) {
+          Navigator.pop(context, true); // true indique succès
+
+          // Afficher le message approprié
+          if (quotaResult.success) {
+            String message = 'Offre créée avec succès';
+            if (quotaResult.quotaRemaining >= 0 && quotaResult.quotaRemaining < 10) {
+              message += ' - Il vous reste ${quotaResult.quotaRemaining} offre${quotaResult.quotaRemaining > 1 ? "s" : ""} gratuite${quotaResult.quotaRemaining > 1 ? "s" : ""}';
+            }
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: const Color(0xFF009E60),
+                duration: const Duration(seconds: 4),
+              ),
+            );
+
+            // Si quota épuisé, afficher le dialogue d'abonnement
+            if (quotaResult.needsSubscription) {
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted) {
+                  SubscriptionRequiredDialog.show(context, 'school');
+                }
+              });
+            }
+          }
+        }
       }
     } catch (e) {
       if (mounted) {

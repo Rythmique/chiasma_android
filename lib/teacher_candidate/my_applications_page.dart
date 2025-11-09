@@ -48,6 +48,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
         title: const Text('Mes candidatures'),
         backgroundColor: const Color(0xFFF77F00),
         foregroundColor: Colors.white,
+        automaticallyImplyLeading: true,
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.filter_list),

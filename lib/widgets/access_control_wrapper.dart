@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service.dart';
+import '../services/access_restrictions_service.dart';
 import '../models/user_model.dart';
 import 'subscription_required_dialog.dart';
 
 /// Widget qui contrôle l'accès à l'application
 /// Bloque l'utilisation si l'utilisateur n'est ni vérifié ni n'a de quota
+/// Prend en compte les restrictions globales configurées par les admins
 class AccessControlWrapper extends StatelessWidget {
   final Widget child;
   final FirestoreService _firestoreService = FirestoreService();
+  final AccessRestrictionsService _restrictionsService = AccessRestrictionsService();
 
   AccessControlWrapper({super.key, required this.child});
 
@@ -20,11 +23,12 @@ class AccessControlWrapper extends StatelessWidget {
       return child;
     }
 
+    // Double StreamBuilder pour combiner les données utilisateur et les restrictions
     return StreamBuilder<UserModel?>(
       stream: _firestoreService.getUserStream(currentUser.uid),
-      builder: (context, snapshot) {
-        // Afficher un loader pendant le chargement
-        if (snapshot.connectionState == ConnectionState.waiting) {
+      builder: (context, userSnapshot) {
+        // Afficher un loader pendant le chargement de l'utilisateur
+        if (userSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
               child: CircularProgressIndicator(
@@ -34,30 +38,62 @@ class AccessControlWrapper extends StatelessWidget {
           );
         }
 
-        // Si erreur ou pas de données, afficher l'enfant par défaut
-        if (snapshot.hasError || !snapshot.hasData) {
+        // Si erreur ou pas de données utilisateur, afficher l'enfant par défaut
+        if (userSnapshot.hasError || !userSnapshot.hasData) {
           return child;
         }
 
-        final user = snapshot.data!;
+        final user = userSnapshot.data!;
 
-        // Vérifier si l'utilisateur peut accéder à l'application
-        final canAccess = _canAccessApp(user);
+        // Écouter les restrictions en temps réel
+        return StreamBuilder<Map<String, bool>>(
+          stream: _restrictionsService.getRestrictionsStream(),
+          builder: (context, restrictionsSnapshot) {
+            // Pendant le chargement des restrictions, afficher un loader
+            if (restrictionsSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFF77F00),
+                  ),
+                ),
+              );
+            }
 
-        if (!canAccess) {
-          // Bloquer l'accès et afficher l'écran de blocage
-          return _buildBlockedScreen(context, user);
-        }
+            // Récupérer les restrictions (valeurs par défaut si erreur)
+            final restrictions = restrictionsSnapshot.data ?? {
+              'teacher_transfer': true,
+              'teacher_candidate': true,
+              'school': true,
+            };
 
-        // Accès autorisé
-        return child;
+            // Vérifier si l'utilisateur peut accéder à l'application
+            final canAccess = _canAccessApp(user, restrictions);
+
+            if (!canAccess) {
+              // Bloquer l'accès et afficher l'écran de blocage
+              return _buildBlockedScreen(context, user);
+            }
+
+            // Accès autorisé
+            return child;
+          },
+        );
       },
     );
   }
 
   /// Vérifie si l'utilisateur peut accéder à l'application
-  bool _canAccessApp(UserModel user) {
-    // 1. Si l'utilisateur est vérifié et l'abonnement n'est pas expiré → Accès autorisé
+  bool _canAccessApp(UserModel user, Map<String, bool> restrictions) {
+    // 0. PRIORITÉ ABSOLUE : Vérifier si les restrictions sont désactivées pour ce type de compte
+    final restrictionsEnabled = restrictions[user.accountType] ?? true;
+
+    if (!restrictionsEnabled) {
+      // Restrictions désactivées = Accès illimité pour ce type de compte
+      return true;
+    }
+
+    // 1. Si les restrictions sont activées, vérifier si l'utilisateur est vérifié et l'abonnement n'est pas expiré
     if (user.isVerified && !user.isVerificationExpired) {
       return true;
     }

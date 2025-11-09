@@ -387,10 +387,10 @@ class _RegisterSchoolPageState extends State<RegisterSchoolPage> {
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Veuillez saisir votre email';
+                    return 'Veuillez saisir votre adresse email';
                   }
                   if (!value.contains('@')) {
-                    return 'Email invalide';
+                    return 'L\'adresse email n\'est pas valide';
                   }
                   return null;
                 },

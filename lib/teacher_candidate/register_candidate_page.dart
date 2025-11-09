@@ -312,10 +312,10 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
               keyboardType: TextInputType.emailAddress,
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Veuillez entrer votre email';
+                  return 'Veuillez entrer votre adresse email';
                 }
                 if (!value.contains('@')) {
-                  return 'Email invalide';
+                  return 'L\'adresse email n\'est pas valide';
                 }
                 return null;
               },

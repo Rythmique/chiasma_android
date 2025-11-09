@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/privacy_settings_page.dart';
 import 'package:myapp/edit_profile_page.dart';
 import 'package:myapp/admin_panel_page.dart';
+import 'package:myapp/change_password_page.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/models/user_model.dart';
 
@@ -33,19 +34,25 @@ class _SettingsPageState extends State<SettingsPage> {
     if (currentUser != null) {
       try {
         final userData = await _firestoreService.getUser(currentUser.uid);
-        setState(() {
-          _currentUserData = userData;
-          _isLoadingUserData = false;
-        });
+        if (mounted) {
+          setState(() {
+            _currentUserData = userData;
+            _isLoadingUserData = false;
+          });
+        }
       } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoadingUserData = false;
+          });
+        }
+      }
+    } else {
+      if (mounted) {
         setState(() {
           _isLoadingUserData = false;
         });
       }
-    } else {
-      setState(() {
-        _isLoadingUserData = false;
-      });
     }
   }
 
@@ -122,7 +129,12 @@ class _SettingsPageState extends State<SettingsPage> {
             title: 'Changer le mot de passe',
             subtitle: 'Modifier votre mot de passe',
             onTap: () {
-              _showChangePasswordDialog(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ChangePasswordPage(),
+                ),
+              );
             },
           ),
           _buildSettingsTile(
@@ -402,71 +414,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showChangePasswordDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Changer le mot de passe'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Mot de passe actuel',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Nouveau mot de passe',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Confirmer le mot de passe',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Mot de passe modifié avec succès'),
-                  backgroundColor: Color(0xFF009E60),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF77F00),
-            ),
-            child: const Text('Modifier'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showLanguageDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -559,12 +506,15 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showReportDialog(BuildContext context) {
+    final problemController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Signaler un problème'),
         content: TextField(
+          controller: problemController,
           maxLines: 5,
           decoration: InputDecoration(
             hintText: 'Décrivez le problème rencontré...',
@@ -575,18 +525,60 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              problemController.dispose();
+              Navigator.pop(context);
+            },
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Merci pour votre retour !'),
-                  backgroundColor: Color(0xFF009E60),
-                ),
-              );
+            onPressed: () async {
+              final problemText = problemController.text.trim();
+
+              if (problemText.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Veuillez décrire le problème'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+
+              try {
+                final user = FirebaseAuth.instance.currentUser;
+                if (user != null && _currentUserData != null) {
+                  await _firestoreService.submitProblemReport(
+                    userId: user.uid,
+                    userName: _currentUserData!.nom,
+                    userEmail: user.email ?? '',
+                    accountType: _currentUserData!.accountType,
+                    problemDescription: problemText,
+                  );
+
+                  problemController.dispose();
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Merci pour votre retour ! Nous examinerons votre signalement.'),
+                        backgroundColor: Color(0xFF009E60),
+                      ),
+                    );
+                  }
+                }
+              } catch (e) {
+                problemController.dispose();
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Erreur lors de l\'envoi: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF77F00),
@@ -698,7 +690,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   Icon(Icons.copyright, size: 14, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
-                    '2024 CHIASMA - Tous droits réservés',
+                    '2025 CHIASMA - Tous droits réservés',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                 ],
@@ -739,9 +731,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 16),
 
-              // Technologies
+              // Développeur
               Text(
-                'Développé avec Flutter',
+                'Développé par N\'da',
                 style: TextStyle(fontSize: 11, color: Colors.grey[500], fontStyle: FontStyle.italic),
                 textAlign: TextAlign.center,
               ),

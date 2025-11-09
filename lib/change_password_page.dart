@@ -29,9 +29,20 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   }
 
   Future<void> _handleChangePassword() async {
-    if (!_formKey.currentState!.validate()) {
+    // Vérifications de sécurité
+    if (!mounted) return;
+
+    final formState = _formKey.currentState;
+    if (formState == null) {
+      debugPrint('❌ Form state is null');
       return;
     }
+
+    if (!formState.validate()) {
+      return;
+    }
+
+    if (!mounted) return;
 
     setState(() {
       _isLoading = true;
@@ -39,65 +50,100 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null || user.email == null) {
+      if (user == null) {
         throw Exception('Utilisateur non connecté');
       }
 
+      final email = user.email;
+      if (email == null || email.isEmpty) {
+        throw Exception('Email utilisateur non disponible');
+      }
+
+      final currentPassword = _currentPasswordController.text.trim();
+      final newPassword = _newPasswordController.text.trim();
+
+      if (currentPassword.isEmpty || newPassword.isEmpty) {
+        throw Exception('Les mots de passe ne peuvent pas être vides');
+      }
+
+      debugPrint('🔐 Tentative de changement de mot de passe pour: $email');
+
       // Ré-authentifier l'utilisateur avec le mot de passe actuel
       final credential = EmailAuthProvider.credential(
-        email: user.email!,
-        password: _currentPasswordController.text,
+        email: email,
+        password: currentPassword,
       );
 
       await user.reauthenticateWithCredential(credential);
+      debugPrint('✅ Ré-authentification réussie');
 
       // Changer le mot de passe
-      await user.updatePassword(_newPasswordController.text);
+      await user.updatePassword(newPassword);
+      debugPrint('✅ Mot de passe mis à jour');
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mot de passe modifié avec succès!'),
-            backgroundColor: Color(0xFF009E60),
-          ),
-        );
+      if (!mounted) return;
 
-        // Retourner à la page précédente
-        Navigator.pop(context);
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mot de passe modifié avec succès!'),
+          backgroundColor: Color(0xFF009E60),
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+      // Attendre un peu avant de retourner
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted) return;
+
+      // Retourner à la page précédente
+      Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
+      debugPrint('❌ FirebaseAuthException: ${e.code} - ${e.message}');
+
       String errorMessage;
       switch (e.code) {
         case 'wrong-password':
+        case 'invalid-credential':
           errorMessage = 'Le mot de passe actuel est incorrect';
           break;
         case 'weak-password':
-          errorMessage = 'Le nouveau mot de passe est trop faible';
+          errorMessage = 'Le nouveau mot de passe est trop faible (min. 6 caractères)';
           break;
         case 'requires-recent-login':
           errorMessage = 'Veuillez vous reconnecter pour changer votre mot de passe';
           break;
+        case 'too-many-requests':
+          errorMessage = 'Trop de tentatives. Veuillez réessayer plus tard';
+          break;
+        case 'network-request-failed':
+          errorMessage = 'Erreur de connexion. Vérifiez votre réseau';
+          break;
         default:
-          errorMessage = 'Erreur: ${e.message}';
+          errorMessage = 'Erreur: ${e.message ?? "inconnue"}';
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      debugPrint('❌ Error changing password: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {

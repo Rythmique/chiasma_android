@@ -1,25 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/models/user_model.dart';
+import 'package:myapp/services/access_restrictions_service.dart';
 
 class QuotaStatusWidget extends StatelessWidget {
   final UserModel user;
+  final AccessRestrictionsService _restrictionsService = AccessRestrictionsService();
 
-  const QuotaStatusWidget({
+  QuotaStatusWidget({
     super.key,
     required this.user,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Ne pas afficher si l'utilisateur a un abonnement actif
-    if (user.isVerified && !user.isVerificationExpired) {
-      return const SizedBox.shrink();
-    }
+    // Écouter les restrictions en temps réel
+    return StreamBuilder<Map<String, bool>>(
+      stream: _restrictionsService.getRestrictionsStream(),
+      builder: (context, restrictionsSnapshot) {
+        // Récupérer les restrictions (valeurs par défaut si erreur)
+        final restrictions = restrictionsSnapshot.data ?? {
+          'teacher_transfer': true,
+          'teacher_candidate': true,
+          'school': true,
+        };
 
+        // Si les restrictions sont désactivées pour ce type de compte, ne rien afficher
+        final restrictionsEnabled = restrictions[user.accountType] ?? true;
+        if (!restrictionsEnabled) {
+          return const SizedBox.shrink();
+        }
+
+        // Sinon, afficher le widget normalement
+        return _buildQuotaWidget();
+      },
+    );
+  }
+
+  Widget _buildQuotaWidget() {
     final quotaUsed = user.freeQuotaUsed;
     final quotaLimit = user.freeQuotaLimit;
     final quotaRemaining = quotaLimit - quotaUsed;
     final percentage = quotaLimit > 0 ? quotaUsed / quotaLimit : 0.0;
+
+    // Ne pas afficher si l'utilisateur a un abonnement actif ET n'a pas épuisé son quota
+    if (user.isVerified && !user.isVerificationExpired && !user.isFreeQuotaExhausted) {
+      return const SizedBox.shrink();
+    }
 
     // Déterminer la couleur selon le quota restant
     Color color;

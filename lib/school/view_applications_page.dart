@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/offer_application_model.dart';
 import '../models/job_offer_model.dart';
+import '../models/user_model.dart';
 import '../services/jobs_service.dart';
 import '../services/firestore_service.dart';
 import '../services/notification_service.dart';
 import '../profile_detail_page.dart';
 import '../chat_page.dart';
+import '../utils/string_utils.dart';
+import '../widgets/subscription_required_dialog.dart';
 
 /// Page pour visualiser les candidatures à une offre d'emploi
 class ViewApplicationsPage extends StatefulWidget {
@@ -140,11 +144,23 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
                   return _buildEmptyView();
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: filteredApplications.length,
-                  itemBuilder: (context, index) {
-                    return _buildApplicationCard(filteredApplications[index]);
+                return StreamBuilder<UserModel?>(
+                  stream: FirebaseAuth.instance.currentUser != null
+                      ? _firestoreService.getUserStream(FirebaseAuth.instance.currentUser!.uid)
+                      : Stream.value(null),
+                  builder: (context, schoolSnapshot) {
+                    final schoolUser = schoolSnapshot.data;
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: filteredApplications.length,
+                      itemBuilder: (context, index) {
+                        return _buildApplicationCard(
+                          filteredApplications[index],
+                          schoolUser,
+                        );
+                      },
+                    );
                   },
                 );
               },
@@ -203,7 +219,12 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
   }
 
   /// Carte d'une candidature
-  Widget _buildApplicationCard(OfferApplicationModel application) {
+  Widget _buildApplicationCard(OfferApplicationModel application, UserModel? schoolUser) {
+    // Déterminer si on doit masquer les informations de contact
+    final shouldMask = schoolUser != null &&
+        schoolUser.accountType == 'school' &&
+        (!schoolUser.isVerified || schoolUser.isVerificationExpired);
+
     Color statusColor;
     IconData statusIcon;
 
@@ -260,7 +281,7 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
                         ),
                       ),
                       Text(
-                        application.candidateEmail,
+                        shouldMask ? maskEmail(application.candidateEmail) : application.candidateEmail,
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey[600],
@@ -307,7 +328,7 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
                       Icon(Icons.phone, size: 14, color: Colors.grey[600]),
                       const SizedBox(width: 4),
                       Text(
-                        phone,
+                        shouldMask ? maskPhoneNumber(phone) : phone,
                         style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                       ),
                     ],
@@ -365,11 +386,18 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _contactCandidate(application),
+                    onPressed: (schoolUser != null && schoolUser.isVerified && !schoolUser.isVerificationExpired)
+                        ? () => _contactCandidate(application)
+                        : () {
+                            // Afficher le dialogue d'abonnement pour les écoles non vérifiées
+                            SubscriptionRequiredDialog.show(context, 'school');
+                          },
                     icon: const Icon(Icons.message, size: 18),
                     label: const Text('Contacter'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF009E60),
+                      backgroundColor: (schoolUser != null && schoolUser.isVerified && !schoolUser.isVerificationExpired)
+                          ? const Color(0xFF009E60)
+                          : Colors.grey,
                       visualDensity: VisualDensity.compact,
                     ),
                   ),

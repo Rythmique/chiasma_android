@@ -6,6 +6,7 @@ import 'package:myapp/models/user_model.dart';
 import 'package:myapp/services/jobs_service.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/services/subscription_service.dart';
+import 'package:myapp/services/notification_service.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
@@ -22,6 +23,7 @@ class JobOfferDetailPage extends StatefulWidget {
 class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
   final JobsService _jobsService = JobsService();
   final FirestoreService _firestoreService = FirestoreService();
+  final NotificationService _notificationService = NotificationService();
   final TextEditingController _coverLetterController = TextEditingController();
 
   bool _isLoading = false;
@@ -167,6 +169,24 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
       );
 
       await _jobsService.createOfferApplication(application);
+
+      // Envoyer une notification à l'école
+      try {
+        await _notificationService.sendNotification(
+          userId: widget.offer.schoolId,
+          type: 'application',
+          title: 'Nouvelle candidature reçue',
+          message: '${user.nom} a postulé pour le poste de ${widget.offer.poste}',
+          data: {
+            'offerId': widget.offer.id,
+            'candidateId': userId,
+            'candidateName': user.nom,
+            'jobTitle': widget.offer.poste,
+          },
+        );
+      } catch (e) {
+        debugPrint('Erreur lors de l\'envoi de la notification: $e');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

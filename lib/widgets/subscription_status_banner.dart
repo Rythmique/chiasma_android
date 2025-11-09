@@ -1,18 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:myapp/models/user_model.dart';
+import 'package:myapp/services/access_restrictions_service.dart';
 
 class SubscriptionStatusBanner extends StatelessWidget {
   final UserModel user;
+  final AccessRestrictionsService _restrictionsService = AccessRestrictionsService();
 
-  const SubscriptionStatusBanner({
+  SubscriptionStatusBanner({
     super.key,
     required this.user,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Si l'utilisateur n'a pas de date d'expiration, ne rien afficher
-    if (user.verificationExpiresAt == null) {
+    // Écouter les restrictions en temps réel
+    return StreamBuilder<Map<String, bool>>(
+      stream: _restrictionsService.getRestrictionsStream(),
+      builder: (context, restrictionsSnapshot) {
+        // Récupérer les restrictions (valeurs par défaut si erreur)
+        final restrictions = restrictionsSnapshot.data ?? {
+          'teacher_transfer': true,
+          'teacher_candidate': true,
+          'school': true,
+        };
+
+        // Si les restrictions sont désactivées pour ce type de compte, ne rien afficher
+        final restrictionsEnabled = restrictions[user.accountType] ?? true;
+        if (!restrictionsEnabled) {
+          return const SizedBox.shrink();
+        }
+
+        // Sinon, afficher le widget normalement
+        return _buildBanner();
+      },
+    );
+  }
+
+  Widget _buildBanner() {
+    // Ne pas afficher si l'utilisateur n'est pas vérifié OU n'a pas de date d'expiration
+    if (!user.isVerified || user.verificationExpiresAt == null) {
       return const SizedBox.shrink();
     }
 

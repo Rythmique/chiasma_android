@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'my_job_offers_page.dart';
@@ -8,12 +9,14 @@ import 'favorites_page.dart';
 import 'notification_settings_page.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/fcm_service.dart';
 import '../services/app_update_service.dart';
 import '../services/update_checker_service.dart';
 import '../models/user_model.dart';
 import '../login_screen.dart';
 import '../change_password_page.dart';
 import '../chat_page.dart';
+import '../widgets/subscription_required_dialog.dart';
 
 /// Écran d'accueil pour les établissements (recruteurs)
 class SchoolHomeScreen extends StatefulWidget {
@@ -25,6 +28,7 @@ class SchoolHomeScreen extends StatefulWidget {
 
 class _SchoolHomeScreenState extends State<SchoolHomeScreen> {
   int _currentIndex = 0;
+  final FirestoreService _firestoreService = FirestoreService();
 
   // Les pages de navigation
   final List<Widget> _pages = [
@@ -35,42 +39,149 @@ class _SchoolHomeScreenState extends State<SchoolHomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+
+    // Initialiser FCM pour les notifications push (uniquement sur mobile)
+    if (!kIsWeb) {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId != null) {
+        FCMService().initialize(userId);
+      }
+    }
+  }
+
+  Future<void> _handleTabChange(int index) async {
+    // Si l'utilisateur clique sur l'onglet "Candidats" (index 1)
+    if (index == 1) {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId != null) {
+        final schoolUser = await _firestoreService.getUser(userId);
+
+        // Bloquer si quota épuisé ET non vérifié
+        if (schoolUser != null &&
+            schoolUser.freeQuotaUsed >= schoolUser.freeQuotaLimit &&
+            (!schoolUser.isVerified || schoolUser.isVerificationExpired)) {
+          if (mounted) {
+            SubscriptionRequiredDialog.show(context, 'school');
+          }
+          return; // Ne pas changer d'onglet
+        }
+      }
+    }
+
+    // Autoriser le changement d'onglet
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       body: _pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        selectedItemColor: Theme.of(context).colorScheme.primary,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.work_outline),
-            activeIcon: Icon(Icons.work),
-            label: 'Mes offres',
+      bottomNavigationBar: userId != null
+          ? StreamBuilder<int>(
+              stream: _firestoreService.getTotalUnreadMessagesCount(userId),
+              builder: (context, snapshot) {
+                final unreadCount = snapshot.data ?? 0;
+
+                return BottomNavigationBar(
+                  type: BottomNavigationBarType.fixed,
+                  currentIndex: _currentIndex,
+                  onTap: _handleTabChange,
+                  selectedItemColor: Theme.of(context).colorScheme.primary,
+                  unselectedItemColor: Colors.grey,
+                  items: [
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.work_outline),
+                      activeIcon: Icon(Icons.work),
+                      label: 'Mes offres',
+                    ),
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.people_outline),
+                      activeIcon: Icon(Icons.people),
+                      label: 'Candidats',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: _buildMessageIcon(Icons.message_outlined, unreadCount, false),
+                      activeIcon: _buildMessageIcon(Icons.message, unreadCount, true),
+                      label: 'Messages',
+                    ),
+                    const BottomNavigationBarItem(
+                      icon: Icon(Icons.settings_outlined),
+                      activeIcon: Icon(Icons.settings),
+                      label: 'Paramètres',
+                    ),
+                  ],
+                );
+              },
+            )
+          : BottomNavigationBar(
+              type: BottomNavigationBarType.fixed,
+              currentIndex: _currentIndex,
+              onTap: _handleTabChange,
+              selectedItemColor: Theme.of(context).colorScheme.primary,
+              unselectedItemColor: Colors.grey,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.work_outline),
+                  activeIcon: Icon(Icons.work),
+                  label: 'Mes offres',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.people_outline),
+                  activeIcon: Icon(Icons.people),
+                  label: 'Candidats',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.message_outlined),
+                  activeIcon: Icon(Icons.message),
+                  label: 'Messages',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.settings_outlined),
+                  activeIcon: Icon(Icons.settings),
+                  label: 'Paramètres',
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildMessageIcon(IconData icon, int unreadCount, bool isActive) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon),
+        if (unreadCount > 0)
+          Positioned(
+            right: -6,
+            top: -4,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 16,
+                minHeight: 16,
+              ),
+              child: Text(
+                unreadCount > 99 ? '99+' : unreadCount.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            activeIcon: Icon(Icons.people),
-            label: 'Candidats',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.message_outlined),
-            activeIcon: Icon(Icons.message),
-            label: 'Messages',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: 'Paramètres',
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -139,7 +250,22 @@ class _SchoolMessagesPageState extends State<SchoolMessagesPage> {
             );
           }
 
-          final conversations = snapshot.data?.docs ?? [];
+          final allConversations = snapshot.data?.docs ?? [];
+
+          // Filtrer et trier les conversations
+          final conversations = allConversations.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return data['lastMessageTime'] != null;
+          }).toList();
+
+          // Trier par lastMessageTime (plus récentes en premier)
+          conversations.sort((a, b) {
+            final aData = a.data() as Map<String, dynamic>;
+            final bData = b.data() as Map<String, dynamic>;
+            final aTime = aData['lastMessageTime'] as Timestamp;
+            final bTime = bData['lastMessageTime'] as Timestamp;
+            return bTime.compareTo(aTime);
+          });
 
           if (conversations.isEmpty) {
             return _buildEmptyView();
@@ -350,8 +476,38 @@ class _SchoolMessagesPageState extends State<SchoolMessagesPage> {
 }
 
 /// Page des paramètres pour établissements
-class SchoolSettingsPage extends StatelessWidget {
+class SchoolSettingsPage extends StatefulWidget {
   const SchoolSettingsPage({super.key});
+
+  @override
+  State<SchoolSettingsPage> createState() => _SchoolSettingsPageState();
+}
+
+class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
+  final FirestoreService _firestoreService = FirestoreService();
+  UserModel? _currentUserData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUserData();
+  }
+
+  Future<void> _loadCurrentUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final userData = await _firestoreService.getUser(user.uid);
+        if (mounted) {
+          setState(() {
+            _currentUserData = userData;
+          });
+        }
+      } catch (e) {
+        debugPrint('Erreur lors du chargement des données utilisateur: $e');
+      }
+    }
+  }
 
   Future<void> _handleLogout(BuildContext context) async {
     // Afficher une confirmation
@@ -446,7 +602,7 @@ class SchoolSettingsPage extends StatelessWidget {
               Text('Vous pouvez modifier, dupliquer, suspendre ou supprimer vos offres via le menu "⋮".'),
               SizedBox(height: 16),
               Text(
-                'Pour plus d\'assistance, contactez-nous à support@chiasma.com',
+                'Pour plus d\'assistance, contactez-nous à support@chiasma.pro',
                 style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
               ),
             ],
@@ -498,7 +654,7 @@ class SchoolSettingsPage extends StatelessWidget {
                 '📧 Contact',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              Text('support@chiasma.com'),
+              Text('support@chiasma.pro'),
               SizedBox(height: 12),
               Text(
                 '🌐 Site web',
@@ -510,6 +666,11 @@ class SchoolSettingsPage extends StatelessWidget {
                 '© 2025 CHIASMA. Tous droits réservés.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
+              SizedBox(height: 8),
+              Text(
+                'Développé par N\'da',
+                style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+              ),
             ],
           ),
         ),
@@ -517,6 +678,144 @@ class SchoolSettingsPage extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Afficher le dialogue de signalement de problème
+  void _showReportDialog(BuildContext context) {
+    final problemController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Signaler un problème'),
+        content: TextField(
+          controller: problemController,
+          maxLines: 5,
+          decoration: InputDecoration(
+            hintText: 'Décrivez le problème rencontré...',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              problemController.dispose();
+              Navigator.pop(context);
+            },
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final problemText = problemController.text.trim();
+
+              if (problemText.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Veuillez décrire le problème'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+
+              try {
+                final user = FirebaseAuth.instance.currentUser;
+                if (user != null && _currentUserData != null) {
+                  await _firestoreService.submitProblemReport(
+                    userId: user.uid,
+                    userName: _currentUserData!.nom,
+                    userEmail: user.email ?? '',
+                    accountType: _currentUserData!.accountType,
+                    problemDescription: problemText,
+                  );
+
+                  problemController.dispose();
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Merci pour votre retour ! Nous examinerons votre signalement.'),
+                        backgroundColor: Color(0xFF009E60),
+                      ),
+                    );
+                  }
+                }
+              } catch (e) {
+                problemController.dispose();
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Erreur lors de l\'envoi: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF77F00),
+            ),
+            child: const Text('Envoyer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Afficher le dialogue de gestion du stockage
+  void _showStorageDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Données et stockage'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Cache: 24 MB',
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Données: 156 MB',
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Effacer le cache libérera de l\'espace de stockage.',
+              style: TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Cache effacé'),
+                  backgroundColor: Color(0xFF009E60),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF77F00),
+            ),
+            child: const Text('Effacer le cache'),
           ),
         ],
       ),
@@ -606,6 +905,22 @@ class SchoolSettingsPage extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               _showAboutDialog(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.bug_report),
+            title: const Text('Signaler un problème'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              _showReportDialog(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.storage),
+            title: const Text('Données et stockage'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              _showStorageDialog(context);
             },
           ),
           const Divider(),

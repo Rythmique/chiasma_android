@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/services/jobs_service.dart';
 import 'package:myapp/services/subscription_service.dart';
+import 'package:myapp/services/access_restrictions_service.dart';
 import 'package:myapp/models/user_model.dart';
 import 'package:myapp/models/job_application_model.dart';
 import 'package:myapp/models/job_offer_model.dart';
@@ -18,7 +20,112 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   final FirestoreService _firestoreService = FirestoreService();
   final JobsService _jobsService = JobsService();
   final SubscriptionService _subscriptionService = SubscriptionService();
+  final AccessRestrictionsService _restrictionsService = AccessRestrictionsService();
   int _selectedTab = 0;
+
+  // Variables pour la pagination des utilisateurs
+  List<UserModel> _allUsers = [];
+  bool _isLoadingUsers = false;
+  bool _isLoadingMore = false;
+  bool _hasMoreUsers = true;
+  DocumentSnapshot? _lastUserDocument;
+  final int _userPageSize = 20;
+  final ScrollController _userScrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _userScrollController.addListener(_onUserScroll);
+  }
+
+  @override
+  void dispose() {
+    _userScrollController.dispose();
+    super.dispose();
+  }
+
+  // Détecter le scroll pour charger plus d'utilisateurs
+  void _onUserScroll() {
+    if (_selectedTab != 1) return; // Uniquement pour l'onglet Utilisateurs
+
+    if (_userScrollController.position.pixels >= _userScrollController.position.maxScrollExtent * 0.8) {
+      if (!_isLoadingMore && _hasMoreUsers) {
+        _loadMoreUsers();
+      }
+    }
+  }
+
+  // Charger la première page d'utilisateurs
+  Future<void> _loadUsers() async {
+    if (_isLoadingUsers) return;
+
+    setState(() {
+      _isLoadingUsers = true;
+      _allUsers = [];
+      _lastUserDocument = null;
+      _hasMoreUsers = true;
+    });
+
+    try {
+      final result = await _firestoreService.getAllUsersPaginated(
+        limit: _userPageSize,
+      );
+
+      if (mounted) {
+        setState(() {
+          _allUsers = result['users'];
+          _lastUserDocument = result['lastDocument'];
+          _hasMoreUsers = result['users'].length >= _userPageSize;
+          _isLoadingUsers = false;
+
+          debugPrint('📊 [Admin] Première page chargée: ${_allUsers.length} utilisateurs');
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement utilisateurs admin: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingUsers = false;
+          _hasMoreUsers = false;
+        });
+      }
+    }
+  }
+
+  // Charger plus d'utilisateurs
+  Future<void> _loadMoreUsers() async {
+    if (_isLoadingMore || !_hasMoreUsers || _lastUserDocument == null) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final result = await _firestoreService.getAllUsersPaginated(
+        limit: _userPageSize,
+        startAfterDocument: _lastUserDocument,
+      );
+
+      if (mounted) {
+        setState(() {
+          _allUsers.addAll(result['users']);
+          _lastUserDocument = result['lastDocument'];
+          _hasMoreUsers = result['users'].length >= _userPageSize;
+          _isLoadingMore = false;
+
+          debugPrint('📊 [Admin] Page suivante chargée: +${result['users'].length} (Total: ${_allUsers.length})');
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement page suivante admin: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+          _hasMoreUsers = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,9 +173,16 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 ),
                 Expanded(
                   child: _buildTabButton(
+                    'Signalements',
+                    Icons.bug_report,
+                    4,
+                  ),
+                ),
+                Expanded(
+                  child: _buildTabButton(
                     'Paramètres',
                     Icons.settings,
-                    4,
+                    5,
                   ),
                 ),
               ],
@@ -136,6 +250,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       case 3:
         return const ManageAnnouncementsPage();
       case 4:
+        return _buildProblemReportsTab();
+      case 5:
         return _buildSettingsTab();
       default:
         return const Center(child: Text('Contenu non disponible'));
@@ -368,36 +484,96 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
-  // Onglet Utilisateurs
+  // Onglet Utilisateurs avec pagination
   Widget _buildUsersTab() {
-    return StreamBuilder<List<UserModel>>(
-      stream: _firestoreService.getAllUsersStream(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: Color(0xFFF77F00),
+    // Charger la première page si pas encore chargée
+    if (_allUsers.isEmpty && !_isLoadingUsers && _hasMoreUsers) {
+      Future.microtask(() => _loadUsers());
+    }
+
+    if (_isLoadingUsers && _allUsers.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFFF77F00),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // Bannière de comptage
+        Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF77F00).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFFF77F00),
+              width: 2,
             ),
-          );
-        }
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.people, color: Color(0xFFF77F00), size: 24),
+              const SizedBox(width: 12),
+              Text(
+                'Chargés: ${_allUsers.length} utilisateur${_allUsers.length > 1 ? 's' : ''}${!_hasMoreUsers ? '' : '+'}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFF77F00),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Liste des utilisateurs
+        Expanded(
+          child: ListView.builder(
+            controller: _userScrollController,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _allUsers.length + (_isLoadingMore ? 1 : 0) + (!_isLoadingMore && !_hasMoreUsers ? 1 : 0),
+            itemBuilder: (context, index) {
+              // Afficher les utilisateurs
+              if (index < _allUsers.length) {
+                final user = _allUsers[index];
+                return _buildUserCard(user);
+              }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Text('Erreur: ${snapshot.error}'),
-          );
-        }
+              // Indicateur de chargement
+              if (_isLoadingMore) {
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFF77F00),
+                    ),
+                  ),
+                );
+              }
 
-        final users = snapshot.data ?? [];
+              // Indicateur de fin de liste
+              if (!_hasMoreUsers) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    child: Text(
+                      'Tous les utilisateurs ont été chargés',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                );
+              }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: users.length,
-          itemBuilder: (context, index) {
-            final user = users[index];
-            return _buildUserCard(user);
-          },
-        );
-      },
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -740,10 +916,13 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   }
 
   String _getInitials(String name) {
-    final words = name.split(' ');
+    final words = name.split(' ').where((word) => word.isNotEmpty).toList();
     if (words.isEmpty) return '??';
-    if (words.length == 1) return words[0][0].toUpperCase();
-    return (words[0][0] + words[1][0]).toUpperCase();
+    if (words.length == 1 && words[0].isNotEmpty) return words[0][0].toUpperCase();
+    if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return '??';
   }
 
   Future<void> _approveVerification(UserModel user) async {
@@ -1069,32 +1248,125 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     }
   }
 
-  // Onglet Paramètres
-  Widget _buildSettingsTab() {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.settings,
-              size: 64,
-              color: Color(0xFFF77F00),
+  // Onglet Signalements de problèmes
+  Widget _buildProblemReportsTab() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _firestoreService.getProblemReports(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Erreur: ${snapshot.error}'),
+              ],
             ),
-            SizedBox(height: 16),
+          );
+        }
+
+        final reports = snapshot.data ?? [];
+
+        if (reports.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.check_circle, size: 80, color: Colors.green),
+                SizedBox(height: 16),
+                Text(
+                  'Aucun signalement',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Tous les problèmes ont été résolus !',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Compter les signalements par statut
+        final newCount = reports.where((r) => r['status'] == 'new').length;
+        final readCount = reports.where((r) => r['status'] == 'read').length;
+        final resolvedCount = reports.where((r) => r['status'] == 'resolved').length;
+
+        return Column(
+          children: [
+            // Statistiques en haut
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.grey[100],
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildReportStatCard(
+                    'Nouveaux',
+                    newCount,
+                    Colors.red,
+                    Icons.fiber_new,
+                  ),
+                  _buildReportStatCard(
+                    'Lus',
+                    readCount,
+                    Colors.orange,
+                    Icons.visibility,
+                  ),
+                  _buildReportStatCard(
+                    'Résolus',
+                    resolvedCount,
+                    Colors.green,
+                    Icons.check_circle,
+                  ),
+                ],
+              ),
+            ),
+
+            // Liste des signalements
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: reports.length,
+                itemBuilder: (context, index) {
+                  final report = reports[index];
+                  return _buildProblemReportCard(report);
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildReportStatCard(String label, int count, Color color, IconData icon) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Column(
+          children: [
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 8),
             Text(
-              'Paramètres',
+              count.toString(),
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
+                color: color,
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
-              'Aucun paramètre disponible pour le moment',
-              style: TextStyle(
-                fontSize: 14,
+              label,
+              style: const TextStyle(
+                fontSize: 12,
                 color: Colors.grey,
               ),
             ),
@@ -1102,5 +1374,669 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildProblemReportCard(Map<String, dynamic> report) {
+    final status = report['status'] as String;
+    final userId = report['userId'] as String?;
+    final userName = report['userName'] as String? ?? 'Utilisateur inconnu';
+    final userEmail = report['userEmail'] as String? ?? '';
+    final accountType = report['accountType'] as String? ?? '';
+    final problemDescription = report['problemDescription'] as String? ?? '';
+    final createdAt = report['createdAt'] as Timestamp?;
+    final reportId = report['id'] as String;
+
+    Color statusColor;
+    String statusLabel;
+    IconData statusIcon;
+
+    switch (status) {
+      case 'new':
+        statusColor = Colors.red;
+        statusLabel = 'Nouveau';
+        statusIcon = Icons.fiber_new;
+        break;
+      case 'read':
+        statusColor = Colors.orange;
+        statusLabel = 'Lu';
+        statusIcon = Icons.visibility;
+        break;
+      case 'resolved':
+        statusColor = Colors.green;
+        statusLabel = 'Résolu';
+        statusIcon = Icons.check_circle;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusLabel = status;
+        statusIcon = Icons.help;
+    }
+
+    String accountTypeLabel;
+    switch (accountType) {
+      case 'school':
+        accountTypeLabel = 'École';
+        break;
+      case 'teacher_candidate':
+        accountTypeLabel = 'Candidat';
+        break;
+      case 'teacher_transfer':
+        accountTypeLabel = 'Permutation';
+        break;
+      default:
+        accountTypeLabel = accountType;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      child: ExpansionTile(
+        leading: CircleAvatar(
+          backgroundColor: statusColor.withValues(alpha: 0.2),
+          child: Icon(statusIcon, color: statusColor, size: 24),
+        ),
+        title: Text(
+          userName,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              accountTypeLabel,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            if (createdAt != null)
+              Text(
+                _formatTimestamp(createdAt),
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+          ],
+        ),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: statusColor, width: 1),
+          ),
+          child: Text(
+            statusLabel,
+            style: TextStyle(
+              color: statusColor,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Description du problème:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    problemDescription,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.email, size: 16, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        userEmail,
+                        style: const TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
+                if (userId != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.person, size: 16, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'ID: $userId',
+                          style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'monospace'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (status == 'new') ...[
+                      OutlinedButton.icon(
+                        onPressed: () => _updateReportStatus(reportId, 'read'),
+                        icon: const Icon(Icons.visibility, size: 18),
+                        label: const Text('Marquer comme lu'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (status != 'resolved') ...[
+                      ElevatedButton.icon(
+                        onPressed: () => _updateReportStatus(reportId, 'resolved'),
+                        icon: const Icon(Icons.check_circle, size: 18),
+                        label: const Text('Marquer comme résolu'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    IconButton(
+                      onPressed: () => _deleteProblemReport(reportId),
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      tooltip: 'Supprimer',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTimestamp(Timestamp timestamp) {
+    final date = timestamp.toDate();
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inMinutes < 1) {
+      return 'À l\'instant';
+    } else if (difference.inHours < 1) {
+      return 'Il y a ${difference.inMinutes} min';
+    } else if (difference.inDays < 1) {
+      return 'Il y a ${difference.inHours} h';
+    } else if (difference.inDays < 7) {
+      return 'Il y a ${difference.inDays} j';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  Future<void> _updateReportStatus(String reportId, String status) async {
+    try {
+      await _firestoreService.updateProblemReportStatus(
+        reportId: reportId,
+        status: status,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Statut mis à jour: ${status == 'read' ? 'Lu' : 'Résolu'}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteProblemReport(String reportId) async {
+    // Confirmation
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer le signalement'),
+        content: const Text('Êtes-vous sûr de vouloir supprimer ce signalement ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _firestoreService.deleteProblemReport(reportId);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Signalement supprimé'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // Onglet Paramètres
+  Widget _buildSettingsTab() {
+    return StreamBuilder<Map<String, bool>>(
+      stream: _restrictionsService.getRestrictionsStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFFF77F00)),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  'Erreur: ${snapshot.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final restrictions = snapshot.data ?? {
+          'teacher_transfer': true,
+          'teacher_candidate': true,
+          'school': true,
+        };
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // En-tête
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF77F00).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.security,
+                      color: Color(0xFFF77F00),
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Contrôle d\'accès global',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Gérer les restrictions par type de compte',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+
+              // Bannière d'information
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[700], size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Les restrictions contrôlent l\'accès à l\'application par type de compte. '
+                        'Désactiver les restrictions donne un accès illimité sans vérification ni quota.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.blue[900],
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Toggle pour Enseignants (Permutation)
+              _buildRestrictionCard(
+                title: 'Enseignants (Permutation)',
+                subtitle: 'Contrôle d\'accès pour les enseignants cherchant à permuter',
+                icon: Icons.swap_horiz,
+                iconColor: const Color(0xFFF77F00),
+                enabled: restrictions['teacher_transfer'] ?? true,
+                accountType: 'teacher_transfer',
+                quotaLimit: 5,
+                description: 'consultation de profils',
+              ),
+              const SizedBox(height: 16),
+
+              // Toggle pour Candidats Enseignants
+              _buildRestrictionCard(
+                title: 'Candidats Enseignants',
+                subtitle: 'Contrôle d\'accès pour les candidats cherchant un emploi',
+                icon: Icons.person_add,
+                iconColor: const Color(0xFF009E60),
+                enabled: restrictions['teacher_candidate'] ?? true,
+                accountType: 'teacher_candidate',
+                quotaLimit: 2,
+                description: 'candidatures',
+              ),
+              const SizedBox(height: 16),
+
+              // Toggle pour Écoles
+              _buildRestrictionCard(
+                title: 'Établissements',
+                subtitle: 'Contrôle d\'accès pour les écoles recrutant',
+                icon: Icons.business,
+                iconColor: const Color(0xFF2196F3),
+                enabled: restrictions['school'] ?? true,
+                accountType: 'school',
+                quotaLimit: 1,
+                description: 'offre d\'emploi',
+              ),
+              const SizedBox(height: 32),
+
+              // Légende
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Légende',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildLegendItem(
+                      Icons.check_circle,
+                      Colors.green,
+                      'Restrictions activées',
+                      'Quota + vérification admin requis',
+                    ),
+                    const SizedBox(height: 8),
+                    _buildLegendItem(
+                      Icons.cancel,
+                      Colors.red,
+                      'Restrictions désactivées',
+                      'Accès illimité pour tous',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Widget pour une carte de restriction
+  Widget _buildRestrictionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required bool enabled,
+    required String accountType,
+    required int quotaLimit,
+    required String description,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(
+          color: enabled ? Colors.green[200]! : Colors.red[200]!,
+          width: 2,
+        ),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Icône
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 28),
+              ),
+              const SizedBox(width: 16),
+
+              // Titre et sous-titre
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Toggle Switch
+              Transform.scale(
+                scale: 1.2,
+                child: Switch(
+                  value: enabled,
+                  activeTrackColor: Colors.green[200],
+                  activeThumbColor: Colors.green,
+                  inactiveThumbColor: Colors.red,
+                  inactiveTrackColor: Colors.red[100],
+                  onChanged: (value) => _updateRestriction(accountType, value),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Statut actuel
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: enabled ? Colors.green[50] : Colors.red[50],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  enabled ? Icons.check_circle : Icons.cancel,
+                  color: enabled ? Colors.green : Colors.red,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    enabled
+                        ? 'Restrictions activées • Quota: $quotaLimit $description gratuit${quotaLimit > 1 ? 's' : ''}'
+                        : 'Restrictions désactivées • Accès illimité',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: enabled ? Colors.green[900] : Colors.red[900],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Widget pour un élément de légende
+  Widget _buildLegendItem(IconData icon, Color color, String title, String description) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Mettre à jour une restriction
+  Future<void> _updateRestriction(String accountType, bool enabled) async {
+    try {
+      await _restrictionsService.updateRestrictions(accountType, enabled);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              enabled
+                  ? 'Restrictions activées pour ${_getAccountTypeName(accountType)}'
+                  : 'Restrictions désactivées pour ${_getAccountTypeName(accountType)}',
+            ),
+            backgroundColor: enabled ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Obtenir le nom lisible du type de compte
+  String _getAccountTypeName(String accountType) {
+    switch (accountType) {
+      case 'teacher_transfer':
+        return 'les enseignants';
+      case 'teacher_candidate':
+        return 'les candidats';
+      case 'school':
+        return 'les établissements';
+      default:
+        return accountType;
+    }
   }
 }

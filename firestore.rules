@@ -41,12 +41,14 @@ service cloud.firestore {
       // Lecture : tous les utilisateurs authentifiés
       allow read: if isSignedIn();
 
-      // Création : uniquement son propre profil avec validations
-      allow create: if isSignedIn()
-        && request.auth.uid == userId
+      // Création : Permettre la création AVANT authentification pour les nouveaux comptes
+      // ou après authentification pour son propre profil
+      allow create: if request.auth.uid == userId
         && request.resource.data.uid == userId
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.accountType in ['teacher_transfer', 'teacher_candidate', 'school']
+        // S'assurer que isVerified est false pour les nouveaux comptes
+        && (!request.resource.data.keys().hasAny(['isVerified']) || request.resource.data.isVerified == false)
         && (
           // Pour les enseignants (teacher_transfer): matricule obligatoire et valide
           (request.resource.data.accountType == 'teacher_transfer' && isValidMatricule(request.resource.data.matricule))
@@ -236,6 +238,13 @@ service cloud.firestore {
 
       // Écriture : admin uniquement
       allow write: if isAdmin();
+
+      // Document access_restrictions : lecture pour tous (pour AccessControlWrapper)
+      // mais écriture uniquement pour les admins
+      match /access_restrictions {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+      }
     }
 
     // ========== COLLECTION SUBSCRIPTIONS (enseignants) ==========
@@ -279,6 +288,21 @@ service cloud.firestore {
 
       // Mise à jour : permettre à l'école de mettre à jour la date de dernière vue
       allow update: if isSchool() && resource.data.viewerId == request.auth.uid;
+
+      // Suppression : admin uniquement
+      allow delete: if isAdmin();
+    }
+
+    // ========== COLLECTION PROBLEM_REPORTS ==========
+    match /problem_reports/{reportId} {
+      // Lecture : admin uniquement
+      allow read: if isAdmin();
+
+      // Création : tous les utilisateurs authentifiés peuvent signaler un problème
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+
+      // Mise à jour : admin uniquement (pour changer le statut)
+      allow update: if isAdmin();
 
       // Suppression : admin uniquement
       allow delete: if isAdmin();

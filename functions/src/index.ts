@@ -13,3 +13,11 @@ const db = admin.firestore();
 export const helloWorld = functions.https.onRequest((request, response) => {
   response.send("Hello from Firebase!");
 });
+
+// Exporter les fonctions de synchronisation Algolia
+export {
+  syncUserToAlgolia,
+  syncJobOfferToAlgolia,
+  reindexAllUsers,
+  reindexAllJobOffers,
+} from "./algoliaSync";

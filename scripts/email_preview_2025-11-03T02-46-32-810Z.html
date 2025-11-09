@@ -1,0 +1,181 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #FF9800;
+            padding-bottom: 20px;
+        }
+        .header h1 {
+            color: #FF9800;
+            margin: 0;
+            font-size: 28px;
+        }
+        .content {
+            margin-bottom: 25px;
+        }
+        .content p {
+            margin: 15px 0;
+        }
+        .highlight-box {
+            background-color: #FFF3E0;
+            border-left: 4px solid #FF9800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #FF9800;
+            color: white !important;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .button:hover {
+            background-color: #F57C00;
+        }
+        .download-section {
+            background-color: #E8F5E9;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .download-link {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 18px;
+            text-decoration: none;
+        }
+        .steps {
+            background-color: #F5F5F5;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .steps ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .steps li {
+            margin: 10px 0;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+        .warning {
+            background-color: #FFF9C4;
+            border-left: 4px solid #FBC02D;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 Chiasma</h1>
+            <p style="color: #666; margin: 10px 0 0 0;">Votre plateforme de permutation enseignante</p>
+        </div>
+
+        <div class="content">
+            <p>Bonjour <strong>GNOHOU</strong>,</p>
+
+            <p>Nous sommes ravis de vous annoncer que la <strong>nouvelle version de l'application Chiasma</strong> est maintenant disponible !</p>
+
+            <div class="download-section">
+                <h3 style="margin-top: 0; color: #4CAF50;">📱 Téléchargez l'application</h3>
+                <p>L'application est désormais disponible en téléchargement sur :</p>
+                <p style="text-align: center; margin: 20px 0;">
+                    <a href="https://www.chiasma.pro" class="download-link">👉 www.chiasma.pro 👈</a>
+                </p>
+            </div>
+
+            <div class="highlight-box">
+                <h3 style="margin-top: 0; color: #FF9800;">🔐 Action requise : Définir votre mot de passe</h3>
+                <p><strong>Pourquoi réinitialiser votre mot de passe ?</strong></p>
+                <p>Votre compte a été migré vers notre nouvelle infrastructure pour vous offrir une meilleure expérience. Pour des raisons de sécurité, nous ne pouvons pas transférer les anciens mots de passe. Vous devez donc en créer un nouveau.</p>
+            </div>
+
+            <div class="steps">
+                <h3 style="margin-top: 0; color: #333;">📝 Comment activer votre compte :</h3>
+                <ol>
+                    <li><strong>Cliquez sur le bouton ci-dessous</strong> pour définir votre nouveau mot de passe</li>
+                    <li><strong>Créez un mot de passe sécurisé</strong> (minimum 6 caractères)</li>
+                    <li><strong>Téléchargez l'application</strong> sur <a href="https://www.chiasma.pro">www.chiasma.pro</a></li>
+                    <li><strong>Connectez-vous</strong> avec votre email et votre nouveau mot de passe</li>
+                </ol>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="https://chiasma-android.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=zD7rQQA5QFSjg26_ejUs5lIQh86fNg7x0ZeBh-PsnEoAAAGaR5uS_w&apiKey=AIzaSyD6pNeJa7d0KqSCsbvCwEnzxIkCBjp4AqY&lang=en" class="button">
+                    🔑 Définir mon mot de passe
+                </a>
+            </div>
+
+            <div class="warning">
+                <p style="margin: 0;"><strong>⏰ Important :</strong> Ce lien est valide pendant <strong>1 heure</strong>. Si le lien expire, vous pourrez demander un nouveau lien depuis l'application en utilisant "Mot de passe oublié".</p>
+            </div>
+
+            <div class="highlight-box">
+                <h3 style="margin-top: 0; color: #FF9800;">✨ Nouveautés de l'application</h3>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>Interface améliorée et plus intuitive</li>
+                    <li>Recherche de permutation plus rapide</li>
+                    <li>Système de notifications en temps réel</li>
+                    <li>Messagerie intégrée sécurisée</li>
+                    <li>Gestion optimisée de vos favoris</li>
+                </ul>
+            </div>
+
+            <p style="margin-top: 30px;">Si vous rencontrez des difficultés, n'hésitez pas à nous contacter.</p>
+
+            <p>Bienvenue dans la nouvelle ère de Chiasma ! 🚀</p>
+
+            <p style="margin-top: 30px;">
+                Cordialement,<br>
+                <strong>L'équipe Chiasma</strong>
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>Cet email a été envoyé à GNOHOU</p>
+            <p>© 2025 Chiasma - Plateforme de permutation enseignante</p>
+            <p style="margin-top: 10px;">
+                <a href="https://www.chiasma.pro" style="color: #FF9800; text-decoration: none;">www.chiasma.pro</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+    

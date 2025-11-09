@@ -59,7 +59,7 @@ class AuthService {
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           isOnline: true,
-          isVerified: true, // Vérifié automatiquement à l'inscription
+          isVerified: false, // Les nouveaux comptes doivent être vérifiés par un admin
           freeQuotaUsed: 0, // Commence à 0
           // freeQuotaLimit est calculé automatiquement selon accountType
         );
@@ -72,17 +72,24 @@ class AuthService {
 
       return userCredential;
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'weak-password') {
-        throw Exception('Le mot de passe est trop faible');
-      } else if (e.code == 'email-already-in-use') {
-        throw Exception('Cet email est déjà utilisé');
-      } else if (e.code == 'invalid-email') {
-        throw Exception('Email invalide');
-      } else {
-        throw Exception('Erreur d\'inscription: ${e.message}');
+      switch (e.code) {
+        case 'weak-password':
+          throw Exception('Le mot de passe est trop faible (minimum 6 caractères)');
+        case 'email-already-in-use':
+          throw Exception('Un compte existe déjà avec cette adresse email');
+        case 'invalid-email':
+          throw Exception('L\'adresse email est invalide');
+        case 'operation-not-allowed':
+          throw Exception('L\'inscription est temporairement désactivée');
+        case 'network-request-failed':
+          throw Exception('Erreur de connexion. Vérifiez votre internet');
+        default:
+          throw Exception('Impossible de créer le compte');
       }
     } catch (e) {
-      throw Exception('Erreur: $e');
+      // Si c'est déjà une Exception avec un message propre, la relancer
+      if (e is Exception) rethrow;
+      throw Exception('Une erreur est survenue lors de l\'inscription');
     }
   }
 
@@ -107,17 +114,28 @@ class AuthService {
 
       return userCredential;
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        throw Exception('Aucun utilisateur trouvé avec cet email');
-      } else if (e.code == 'wrong-password') {
-        throw Exception('Mot de passe incorrect');
-      } else if (e.code == 'invalid-email') {
-        throw Exception('Email invalide');
-      } else {
-        throw Exception('Erreur de connexion: ${e.message}');
+      switch (e.code) {
+        case 'user-not-found':
+          throw Exception('Aucun compte n\'existe avec cette adresse email');
+        case 'wrong-password':
+          throw Exception('Mot de passe incorrect');
+        case 'invalid-email':
+          throw Exception('L\'adresse email est invalide');
+        case 'user-disabled':
+          throw Exception('Ce compte a été désactivé');
+        case 'too-many-requests':
+          throw Exception('Trop de tentatives. Veuillez réessayer plus tard');
+        case 'invalid-credential':
+          throw Exception('Email ou mot de passe incorrect');
+        case 'network-request-failed':
+          throw Exception('Erreur de connexion. Vérifiez votre internet');
+        default:
+          throw Exception('Impossible de se connecter. Vérifiez vos identifiants');
       }
     } catch (e) {
-      throw Exception('Erreur: $e');
+      // Si c'est déjà une Exception avec un message propre, la relancer
+      if (e is Exception) rethrow;
+      throw Exception('Une erreur est survenue lors de la connexion');
     }
   }
 
@@ -145,7 +163,7 @@ class AuthService {
 
         if (user.matricule.toUpperCase() != matricule.toUpperCase()) {
           await _auth.signOut();
-          throw Exception('Le numéro de matricule ne correspond pas');
+          throw Exception('Le numéro de matricule ne correspond pas à ce compte');
         }
 
         // Mettre à jour le statut en ligne
@@ -157,17 +175,28 @@ class AuthService {
 
       return userCredential;
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        throw Exception('Aucun utilisateur trouvé avec cet email');
-      } else if (e.code == 'wrong-password') {
-        throw Exception('Mot de passe incorrect');
-      } else if (e.code == 'invalid-email') {
-        throw Exception('Email invalide');
-      } else {
-        throw Exception('Erreur de connexion: ${e.message}');
+      switch (e.code) {
+        case 'user-not-found':
+          throw Exception('Aucun compte n\'existe avec cette adresse email');
+        case 'wrong-password':
+          throw Exception('Mot de passe incorrect');
+        case 'invalid-email':
+          throw Exception('L\'adresse email est invalide');
+        case 'user-disabled':
+          throw Exception('Ce compte a été désactivé');
+        case 'too-many-requests':
+          throw Exception('Trop de tentatives. Veuillez réessayer plus tard');
+        case 'invalid-credential':
+          throw Exception('Email ou mot de passe incorrect');
+        case 'network-request-failed':
+          throw Exception('Erreur de connexion. Vérifiez votre internet');
+        default:
+          throw Exception('Impossible de se connecter. Vérifiez vos identifiants');
       }
     } catch (e) {
-      throw Exception('Erreur: $e');
+      // Si c'est déjà une Exception avec un message propre, la relancer
+      if (e is Exception) rethrow;
+      throw Exception('Une erreur est survenue lors de la connexion');
     }
   }
 
@@ -176,13 +205,21 @@ class AuthService {
     try {
       await _auth.sendPasswordResetEmail(email: email);
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        throw Exception('Aucun utilisateur trouvé avec cet email');
-      } else if (e.code == 'invalid-email') {
-        throw Exception('Email invalide');
-      } else {
-        throw Exception('Erreur: ${e.message}');
+      switch (e.code) {
+        case 'user-not-found':
+          throw Exception('Aucun compte n\'existe avec cette adresse email');
+        case 'invalid-email':
+          throw Exception('L\'adresse email est invalide');
+        case 'too-many-requests':
+          throw Exception('Trop de demandes. Veuillez réessayer plus tard');
+        case 'network-request-failed':
+          throw Exception('Erreur de connexion. Vérifiez votre internet');
+        default:
+          throw Exception('Impossible d\'envoyer l\'email de réinitialisation');
       }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Une erreur est survenue');
     }
   }
 

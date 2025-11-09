@@ -7,6 +7,7 @@ import 'dart:io';
 import 'services/firestore_service.dart';
 import 'services/storage_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'widgets/subscription_required_dialog.dart';
 
 class ChatPage extends StatefulWidget {
   final String contactName;
@@ -132,7 +133,24 @@ class _ChatPageState extends State<ChatPage> {
   // Vérifier si l'utilisateur peut envoyer des messages
   Future<bool> _checkCanSendMessage() async {
     final currentUser = FirebaseAuth.instance.currentUser;
-    return currentUser != null;
+    if (currentUser == null) return false;
+
+    // Récupérer les données de l'utilisateur
+    final userData = await _firestoreService.getUser(currentUser.uid);
+    if (userData == null) return false;
+
+    // Si c'est une école, vérifier qu'elle est vérifiée
+    if (userData.accountType == 'school') {
+      if (!userData.isVerified || userData.isVerificationExpired) {
+        // École non vérifiée : afficher le dialogue d'abonnement
+        if (mounted) {
+          SubscriptionRequiredDialog.show(context, 'school');
+        }
+        return false;
+      }
+    }
+
+    return true;
   }
 
   // Choisir et envoyer une image

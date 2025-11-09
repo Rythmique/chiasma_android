@@ -205,7 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 8),
 
                         Text(
-                          'Faciliter la permutation des fonctionnaires',
+                          'Connecter enseignants et établissements scolaires',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -305,7 +305,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       // Validation: 6 chiffres + 1 lettre (ex: 123456A)
                                       final matriculeRegex = RegExp(r'^\d{6}[A-Z]$');
                                       if (!matriculeRegex.hasMatch(value.toUpperCase())) {
-                                        return 'Format invalide (ex: 123456A)';
+                                        return 'Format du matricule incorrect (exemple: 123456A)';
                                       }
                                     }
                                     return null;
@@ -351,10 +351,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   enabled: !_isLoading,
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
-                                      return 'Veuillez entrer votre email';
+                                      return 'Veuillez entrer votre adresse email';
                                     }
                                     if (!value.contains('@')) {
-                                      return 'Email invalide';
+                                      return 'L\'adresse email n\'est pas valide';
                                     }
                                     return null;
                                   },
@@ -497,10 +497,20 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '© 2024 CHIASMA - République de Côte d\'Ivoire',
+                              '© 2025 CHIASMA - République de Côte d\'Ivoire',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Développé par N\'da',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[500],
+                                fontStyle: FontStyle.italic,
                               ),
                               textAlign: TextAlign.center,
                             ),

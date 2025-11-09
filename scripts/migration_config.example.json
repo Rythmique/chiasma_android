@@ -1,0 +1,26 @@
+{
+  "_comment": "Configuration pour la migration des utilisateurs Firebase",
+  "_instructions": [
+    "1. Copiez ce fichier vers migration_config.json",
+    "2. Remplissez les chemins des service accounts",
+    "3. NE COMMITEZ PAS migration_config.json (il contient des secrets)"
+  ],
+
+  "sourceProjectId": "VOTRE_PROJET_SOURCE_ID",
+  "sourceServiceAccountPath": "./service-accounts/source-project-service-account.json",
+
+  "destProjectId": "chiasma-android",
+  "destServiceAccountPath": "./service-accounts/chiasma-android-service-account.json",
+
+  "skipDuplicates": true,
+  "defaultPassword": "Chiasma2025!",
+
+  "_notes": {
+    "sourceProjectId": "ID du projet Firebase source (ancien projet)",
+    "sourceServiceAccountPath": "Chemin vers le fichier JSON du service account source",
+    "destProjectId": "ID du projet Firebase destination (chiasma-android)",
+    "destServiceAccountPath": "Chemin vers le fichier JSON du service account destination",
+    "skipDuplicates": "Si true, ignore les utilisateurs déjà existants",
+    "defaultPassword": "Mot de passe temporaire pour tous les utilisateurs migrés"
+  }
+}

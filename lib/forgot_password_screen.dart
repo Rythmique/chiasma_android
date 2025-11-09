@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -10,7 +11,10 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  final _auth = FirebaseAuth.instance;
   bool _isEmailSent = false;
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -18,10 +22,73 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  void _sendResetLink() {
-    if (_formKey.currentState!.validate()) {
+  Future<void> _sendResetLink() async {
+    // Vérifications de sécurité
+    if (!mounted) return;
+
+    final formState = _formKey.currentState;
+    if (formState == null) {
+      debugPrint('❌ Form state is null');
+      return;
+    }
+
+    if (!formState.validate()) return;
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final email = _emailController.text.trim();
+
+      if (email.isEmpty) {
+        throw Exception('Email vide');
+      }
+
+      // Envoyer l'email de réinitialisation via Firebase
+      await _auth.sendPasswordResetEmail(email: email);
+
+      if (!mounted) return;
+
       setState(() {
         _isEmailSent = true;
+        _isLoading = false;
+      });
+    } on FirebaseAuthException catch (e) {
+      debugPrint('❌ FirebaseAuthException: ${e.code} - ${e.message}');
+
+      String errorMessage;
+      switch (e.code) {
+        case 'user-not-found':
+          errorMessage = 'Aucun compte associé à cet email';
+          break;
+        case 'invalid-email':
+          errorMessage = 'Adresse email invalide';
+          break;
+        case 'too-many-requests':
+          errorMessage = 'Trop de tentatives. Veuillez réessayer plus tard';
+          break;
+        default:
+          errorMessage = 'Erreur: ${e.message ?? "inconnue"}';
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = errorMessage;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('❌ Error sending password reset: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = 'Une erreur est survenue. Veuillez réessayer.';
+        _isLoading = false;
       });
     }
   }
@@ -227,6 +294,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           // Champ Email
           TextFormField(
             controller: _emailController,
+            enabled: !_isLoading,
             decoration: const InputDecoration(
               labelText: 'Adresse email',
               hintText: 'exemple@email.ci',
@@ -235,33 +303,70 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             keyboardType: TextInputType.emailAddress,
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Veuillez entrer votre email';
+                return 'Veuillez entrer votre adresse email';
               }
               if (!value.contains('@')) {
-                return 'Email invalide';
+                return 'L\'adresse email n\'est pas valide';
               }
               return null;
             },
           ),
+
+          // Message d'erreur
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _errorMessage!,
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 32),
 
           // Bouton d'envoi
           ElevatedButton(
-            onPressed: _sendResetLink,
+            onPressed: _isLoading ? null : _sendResetLink,
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 18),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text(
-              'Envoyer le lien',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
-            ),
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text(
+                    'Envoyer le lien',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
           ),
           const SizedBox(height: 20),
 
@@ -380,18 +485,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
         // Bouton renvoyer
         TextButton(
-          onPressed: () {
-            setState(() {
-              _isEmailSent = false;
-            });
-          },
-          child: const Text(
-            'Renvoyer l\'email',
-            style: TextStyle(
-              color: Color(0xFF009E60),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          onPressed: _isLoading
+              ? null
+              : () async {
+                  setState(() {
+                    _isEmailSent = false;
+                  });
+                  // Renvoyer automatiquement l'email
+                  await _sendResetLink();
+                },
+          child: _isLoading
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF009E60)),
+                  ),
+                )
+              : const Text(
+                  'Renvoyer l\'email',
+                  style: TextStyle(
+                    color: Color(0xFF009E60),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
         ),
       ],
     );

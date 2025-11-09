@@ -49,6 +49,15 @@ functions/node_modules/
 functions/lib/
 functions/.env
 
+# Algolia API Keys (NE JAMAIS COMMITER)
+lib/config/algolia_config.dart.secret
+.env
+.env.local
+
+# Hive database (local cache)
+*.hive
+*.lock
+
 # CinetPay Configuration (CONTIENT L'API KEY - NE PAS COMMIT!)
 assets/config/cinetpay_config.json
 functions/.env.local
@@ -64,3 +73,19 @@ functions/.env.local
 # APK files - too large for git
 *.apk
 *.tar.gz
+
+# Migration scripts - Service accounts et configuration sensible
+scripts/service-accounts/
+scripts/migration_config.json
+scripts/migration_report_*.json
+scripts/node_modules/
+
+# Documentation temporaire
+docs/
+*.xlsx
+*.sh
+
+# Test files
+/tmp/
+test_*.sh
+test_*.js

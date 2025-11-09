@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:myapp/models/notification_model.dart';
+import 'package:myapp/services/notification_settings_service.dart';
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _collection = 'notifications';
+  final NotificationSettingsService _settingsService = NotificationSettingsService();
 
   // Créer une notification
   Future<String> createNotification(NotificationModel notification) async {
@@ -15,7 +17,7 @@ class NotificationService {
     }
   }
 
-  // Créer une notification simple
+  // Créer une notification simple avec vérification des paramètres utilisateur
   Future<String> sendNotification({
     required String userId,
     required String type,
@@ -23,17 +25,71 @@ class NotificationService {
     required String message,
     Map<String, dynamic>? data,
   }) async {
-    final notification = NotificationModel(
-      id: '',
-      userId: userId,
-      type: type,
-      title: title,
-      message: message,
-      createdAt: DateTime.now(),
-      isRead: false,
-      data: data,
-    );
-    return await createNotification(notification);
+    try {
+      // Récupérer les paramètres de notification de l'utilisateur
+      final settings = await _settingsService.getUserSettings(userId);
+
+      // Vérifier si l'utilisateur a activé ce type de notification
+      bool shouldSend = true;
+
+      switch (type) {
+        case 'message':
+          shouldSend = settings.messages;
+          break;
+        case 'application':
+          shouldSend = settings.newApplications;
+          break;
+        case 'application_status':
+          shouldSend = settings.applicationStatus;
+          break;
+        case 'offer':
+          shouldSend = settings.newJobOffers;
+          break;
+        case 'match':
+        case 'favorite':
+          shouldSend = settings.jobRecommendations;
+          break;
+        case 'system':
+          // Les notifications système sont toujours envoyées
+          shouldSend = true;
+          break;
+        default:
+          // Par défaut, envoyer la notification
+          shouldSend = true;
+      }
+
+      // Ne pas envoyer si l'utilisateur a désactivé ce type
+      if (!shouldSend) {
+        return ''; // Retourner un ID vide si la notification n'est pas envoyée
+      }
+
+      // Créer et envoyer la notification
+      final notification = NotificationModel(
+        id: '',
+        userId: userId,
+        type: type,
+        title: title,
+        message: message,
+        createdAt: DateTime.now(),
+        isRead: false,
+        data: data,
+      );
+      return await createNotification(notification);
+    } catch (e) {
+      // En cas d'erreur lors de la vérification des paramètres, envoyer quand même la notification
+      // pour ne pas perdre d'informations importantes
+      final notification = NotificationModel(
+        id: '',
+        userId: userId,
+        type: type,
+        title: title,
+        message: message,
+        createdAt: DateTime.now(),
+        isRead: false,
+        data: data,
+      );
+      return await createNotification(notification);
+    }
   }
 
   // Récupérer toutes les notifications d'un utilisateur (stream)

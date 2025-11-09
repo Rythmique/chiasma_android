@@ -77,7 +77,11 @@ class UserModel {
   }
 
   // Vérifier si l'utilisateur peut accéder à l'application
-  bool get hasAccess => isVerified && !isVerificationExpired;
+  // L'utilisateur a accès si :
+  // - Il a un abonnement actif ET non expiré OU
+  // - Il a encore du quota gratuit disponible
+  bool get hasAccess =>
+    (isVerified && !isVerificationExpired) || !isFreeQuotaExhausted;
 
   // Calculer le nombre de jours restants avant expiration
   int? get daysUntilExpiration {

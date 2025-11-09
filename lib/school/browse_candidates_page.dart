@@ -320,9 +320,10 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
   }
 
   Widget _buildCandidateCard(UserModel candidate, UserModel? schoolUser) {
-    // Vérifier si l'école peut envoyer des messages (quota et vérification)
+    // Les écoles NON vérifiées ne peuvent PAS envoyer de messages (peu importe le quota)
     final bool canSendMessage = schoolUser != null &&
-        (schoolUser.isVerified || schoolUser.freeQuotaUsed < schoolUser.freeQuotaLimit);
+        schoolUser.isVerified &&
+        !schoolUser.isVerificationExpired;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

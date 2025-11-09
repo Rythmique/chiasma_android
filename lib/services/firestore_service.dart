@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:myapp/models/user_model.dart';
+import 'package:myapp/services/notification_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
 
   // Collection references
   CollectionReference get _usersCollection => _firestore.collection('users');
@@ -186,18 +188,119 @@ class FirestoreService {
     }
   }
 
+  // Obtenir les utilisateurs par type de compte avec pagination
+  Future<Map<String, dynamic>> getUsersByAccountTypePaginated(
+    String accountType, {
+    required int limit,
+    DocumentSnapshot? startAfterDocument,
+  }) async {
+    try {
+      Query query = _usersCollection.where('accountType', isEqualTo: accountType);
+
+      // Si on a un document de départ (pagination), commencer après
+      if (startAfterDocument != null) {
+        query = query.startAfterDocument(startAfterDocument);
+      }
+
+      // Limiter le nombre de résultats
+      final snapshot = await query.limit(limit).get();
+
+      // Convertir en UserModel
+      final users = snapshot.docs
+          .map((doc) => UserModel.fromFirestore(doc))
+          .toList();
+
+      // Trier en mémoire par date de création
+      users.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      // Retourner les utilisateurs et le dernier document pour la pagination
+      return {
+        'users': users,
+        'lastDocument': snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+      };
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération paginée: $e');
+      return {
+        'users': <UserModel>[],
+        'lastDocument': null,
+      };
+    }
+  }
+
   // Obtenir tous les utilisateurs en stream (pour panneau admin)
   Stream<List<UserModel>> getAllUsersStream() {
     return getAllUsers();
   }
 
+  // Obtenir tous les utilisateurs avec pagination
+  Future<Map<String, dynamic>> getAllUsersPaginated({
+    required int limit,
+    DocumentSnapshot? startAfterDocument,
+  }) async {
+    try {
+      Query query = _usersCollection;
+
+      if (startAfterDocument != null) {
+        query = query.startAfterDocument(startAfterDocument);
+      }
+
+      final snapshot = await query.limit(limit).get();
+
+      final users = snapshot.docs
+          .map((doc) => UserModel.fromFirestore(doc))
+          .toList();
+
+      users.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      return {
+        'users': users,
+        'lastDocument': snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+      };
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération paginée de tous les utilisateurs: $e');
+      return {
+        'users': <UserModel>[],
+        'lastDocument': null,
+      };
+    }
+  }
+
   // Mettre à jour le statut de vérification
   Future<void> updateUserVerificationStatus(String uid, bool isVerified) async {
     try {
-      await _usersCollection.doc(uid).update({
+      final updateData = <String, dynamic>{
         'isVerified': isVerified,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      // Si on retire la vérification, réinitialiser le quota au niveau initial
+      if (!isVerified) {
+        // Récupérer l'utilisateur pour connaître son type de compte
+        final userDoc = await _usersCollection.doc(uid).get();
+        if (userDoc.exists) {
+          final data = userDoc.data() as Map<String, dynamic>;
+          final accountType = data['accountType'] as String?;
+
+          // Réinitialiser le quota selon le type de compte
+          int initialQuota = 0;
+          switch (accountType) {
+            case 'school':
+              initialQuota = 1; // 1 offre gratuite
+              break;
+            case 'teacher_transfer':
+              initialQuota = 3; // 3 consultations gratuites
+              break;
+            case 'teacher_candidate':
+              initialQuota = 2; // 2 candidatures gratuites
+              break;
+          }
+
+          updateData['freeQuotaUsed'] = 0;
+          updateData['freeQuotaLimit'] = initialQuota;
+        }
+      }
+
+      await _usersCollection.doc(uid).update(updateData);
     } catch (e) {
       throw Exception('Erreur lors de la mise à jour du statut de vérification: $e');
     }
@@ -251,6 +354,36 @@ class FirestoreService {
         'favoriteUserId': favoriteUserId,
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Envoyer une notification au profil ajouté aux favoris
+      try {
+        // Récupérer le nom de l'utilisateur qui ajoute aux favoris
+        final userDoc = await _usersCollection.doc(userId).get();
+        final userData = userDoc.data() as Map<String, dynamic>?;
+        final userName = userData?['nom'] ?? 'Un utilisateur';
+        final userType = userData?['accountType'] ?? '';
+
+        String notificationMessage;
+        if (userType == 'school') {
+          notificationMessage = 'Un établissement scolaire a ajouté votre profil à ses favoris';
+        } else {
+          notificationMessage = '$userName a ajouté votre profil à ses favoris';
+        }
+
+        await _notificationService.sendNotification(
+          userId: favoriteUserId,
+          type: 'favorite',
+          title: 'Nouveau favori',
+          message: notificationMessage,
+          data: {
+            'userId': userId,
+            'userName': userName,
+            'userType': userType,
+          },
+        );
+      } catch (e) {
+        debugPrint('Erreur lors de l\'envoi de la notification de favori: $e');
+      }
     } catch (e) {
       throw Exception('Erreur lors de l\'ajout aux favoris: $e');
     }
@@ -519,6 +652,41 @@ class FirestoreService {
       }
 
       await _messagesCollection.doc(conversationId).update(updates);
+
+      // Envoyer une notification au destinataire
+      if (receiverId.isNotEmpty) {
+        try {
+          // Récupérer le nom de l'expéditeur
+          final senderDoc = await _usersCollection.doc(senderId).get();
+          final senderData = senderDoc.data() as Map<String, dynamic>?;
+          final senderName = senderData?['nom'] ?? 'Un utilisateur';
+
+          // Préparer le message de notification
+          String notificationMessage;
+          if (fileUrl != null) {
+            notificationMessage = 'Vous a envoyé un fichier: ${fileName ?? "fichier"}';
+          } else {
+            // Limiter le message à 100 caractères pour la notification
+            notificationMessage = message.length > 100
+                ? '${message.substring(0, 100)}...'
+                : message;
+          }
+
+          await _notificationService.sendNotification(
+            userId: receiverId,
+            type: 'message',
+            title: 'Nouveau message de $senderName',
+            message: notificationMessage,
+            data: {
+              'conversationId': conversationId,
+              'senderId': senderId,
+              'senderName': senderName,
+            },
+          );
+        } catch (e) {
+          debugPrint('Erreur lors de l\'envoi de la notification de message: $e');
+        }
+      }
     } catch (e) {
       debugPrint('Erreur lors de l\'envoi du message: $e');
       throw Exception('Erreur lors de l\'envoi du message: $e');
@@ -528,11 +696,14 @@ class FirestoreService {
   // Réinitialiser le compteur de messages non lus pour un utilisateur
   Future<void> markConversationAsRead(String conversationId, String userId) async {
     try {
+      debugPrint('[CHAT] Marquage de la conversation $conversationId comme lue pour l\'utilisateur $userId');
       await _messagesCollection.doc(conversationId).update({
         'unreadCount.$userId': 0,
       });
+      debugPrint('[CHAT] Conversation marquée comme lue avec succès');
     } catch (e) {
-      debugPrint('Erreur lors de la réinitialisation du compteur: $e');
+      debugPrint('[CHAT] ERREUR lors de la réinitialisation du compteur: $e');
+      rethrow;
     }
   }
 
@@ -543,13 +714,18 @@ class FirestoreService {
         .snapshots()
         .map((snapshot) {
       int total = 0;
+      debugPrint('[CHAT] Calcul des messages non lus pour userId: $userId');
+      debugPrint('[CHAT] Nombre de conversations: ${snapshot.docs.length}');
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final unreadCount = data['unreadCount'] as Map<String, dynamic>?;
         if (unreadCount != null && unreadCount.containsKey(userId)) {
-          total += (unreadCount[userId] as int?) ?? 0;
+          final count = (unreadCount[userId] as int?) ?? 0;
+          debugPrint('[CHAT] Conversation ${doc.id}: $count message(s) non lu(s)');
+          total += count;
         }
       }
+      debugPrint('[CHAT] Total messages non lus: $total');
       return total;
     });
   }
@@ -570,54 +746,138 @@ class FirestoreService {
   // Obtenir toutes les conversations d'un utilisateur
   Stream<QuerySnapshot> getConversations(String userId) {
     try {
-      // Requête sans orderBy pour éviter l'erreur INTERNAL ASSERTION FAILED
-      // Le tri sera fait côté client dans le widget
+      // Utiliser distinctUnique pour éviter les duplications et les erreurs de state
+      // Ne pas manipuler le QuerySnapshot - le tri sera fait dans le widget
       return _messagesCollection
           .where('participants', arrayContains: userId)
           .snapshots()
-          .map((snapshot) {
-            // Trier les conversations côté client par lastMessageTime
-            final docs = snapshot.docs.toList();
-            docs.sort((a, b) {
-              final aData = a.data() as Map<String, dynamic>;
-              final bData = b.data() as Map<String, dynamic>;
-              final aTime = aData['lastMessageTime'] as Timestamp?;
-              final bTime = bData['lastMessageTime'] as Timestamp?;
+          .distinct((prev, next) {
+            // Vérifier si les deux snapshots sont vraiment différents
+            if (prev.docs.length != next.docs.length) return false;
 
-              // Les conversations sans messages vont à la fin
-              if (aTime == null && bTime == null) return 0;
-              if (aTime == null) return 1;
-              if (bTime == null) return -1;
+            // Comparer les IDs des documents
+            for (int i = 0; i < prev.docs.length; i++) {
+              if (prev.docs[i].id != next.docs[i].id) return false;
 
-              // Tri décroissant (les plus récentes en premier)
-              return bTime.compareTo(aTime);
-            });
+              // Comparer lastMessageTime pour détecter les changements
+              final prevData = prev.docs[i].data() as Map<String, dynamic>;
+              final nextData = next.docs[i].data() as Map<String, dynamic>;
+              final prevTime = prevData['lastMessageTime'] as Timestamp?;
+              final nextTime = nextData['lastMessageTime'] as Timestamp?;
 
-            // Retourner un QuerySnapshot modifié avec les docs triés
-            return _SortedQuerySnapshot(snapshot, docs);
+              if (prevTime != nextTime) return false;
+            }
+
+            return true;
           });
     } catch (e) {
-      throw Exception('Erreur lors de la récupération des conversations: $e');
+      debugPrint('Erreur lors de la récupération des conversations: $e');
+      // Retourner un stream vide en cas d'erreur plutôt que de lever une exception
+      return Stream.value(_EmptyQuerySnapshot());
+    }
+  }
+
+  // ==================== PROBLEM REPORTS ====================
+
+  /// Soumettre un signalement de problème
+  Future<void> submitProblemReport({
+    required String userId,
+    required String userName,
+    required String userEmail,
+    required String accountType,
+    required String problemDescription,
+  }) async {
+    try {
+      await _firestore.collection('problem_reports').add({
+        'userId': userId,
+        'userName': userName,
+        'userEmail': userEmail,
+        'accountType': accountType,
+        'problemDescription': problemDescription,
+        'status': 'new', // new, read, resolved
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('Signalement de problème soumis avec succès');
+    } catch (e) {
+      debugPrint('Erreur lors de la soumission du signalement: $e');
+      rethrow;
+    }
+  }
+
+  /// Obtenir tous les signalements de problèmes pour l'admin
+  Stream<List<Map<String, dynamic>>> getProblemReports() {
+    try {
+      return _firestore
+          .collection('problem_reports')
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs.map((doc) {
+          final data = doc.data();
+          data['id'] = doc.id;
+          return data;
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération des signalements: $e');
+      return Stream.value([]);
+    }
+  }
+
+  /// Mettre à jour le statut d'un signalement
+  Future<void> updateProblemReportStatus({
+    required String reportId,
+    required String status,
+  }) async {
+    try {
+      await _firestore.collection('problem_reports').doc(reportId).update({
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('Statut du signalement mis à jour: $status');
+    } catch (e) {
+      debugPrint('Erreur lors de la mise à jour du signalement: $e');
+      rethrow;
+    }
+  }
+
+  /// Supprimer un signalement
+  Future<void> deleteProblemReport(String reportId) async {
+    try {
+      await _firestore.collection('problem_reports').doc(reportId).delete();
+      debugPrint('Signalement supprimé avec succès');
+    } catch (e) {
+      debugPrint('Erreur lors de la suppression du signalement: $e');
+      rethrow;
     }
   }
 }
 
-// Classe helper pour retourner un QuerySnapshot avec des docs triés
-class _SortedQuerySnapshot implements QuerySnapshot {
-  final QuerySnapshot _original;
-  final List<QueryDocumentSnapshot> _sortedDocs;
-
-  _SortedQuerySnapshot(this._original, this._sortedDocs);
+// Classe helper pour retourner un QuerySnapshot vide en cas d'erreur
+class _EmptyQuerySnapshot implements QuerySnapshot {
+  @override
+  List<QueryDocumentSnapshot> get docs => [];
 
   @override
-  List<QueryDocumentSnapshot> get docs => _sortedDocs;
+  List<DocumentChange> get docChanges => [];
 
   @override
-  List<DocumentChange> get docChanges => _original.docChanges;
+  SnapshotMetadata get metadata => const _EmptySnapshotMetadata();
 
   @override
-  SnapshotMetadata get metadata => _original.metadata;
+  int get size => 0;
+}
+
+// Classe helper pour SnapshotMetadata vide
+class _EmptySnapshotMetadata implements SnapshotMetadata {
+  const _EmptySnapshotMetadata();
 
   @override
-  int get size => _sortedDocs.length;
+  bool get hasPendingWrites => false;
+
+  @override
+  bool get isFromCache => false;
 }

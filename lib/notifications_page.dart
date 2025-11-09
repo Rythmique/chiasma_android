@@ -18,12 +18,47 @@ class NotificationsPage extends StatefulWidget {
 class _NotificationsPageState extends State<NotificationsPage> {
   final NotificationService _notificationService = NotificationService();
   final User? _currentUser = FirebaseAuth.instance.currentUser;
+  final TextEditingController _searchController = TextEditingController();
+
+  String _selectedFilter = 'all'; // all, unread, message, application, offer, favorite, system
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     // Configurer timeago en français
     timeago.setLocaleMessages('fr', timeago.FrMessages());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Filtrer les notifications selon le filtre sélectionné et la recherche
+  List<NotificationModel> _filterNotifications(List<NotificationModel> notifications) {
+    var filtered = notifications;
+
+    // Filtrer par type
+    if (_selectedFilter != 'all') {
+      if (_selectedFilter == 'unread') {
+        filtered = filtered.where((n) => !n.isRead).toList();
+      } else {
+        filtered = filtered.where((n) => n.type == _selectedFilter).toList();
+      }
+    }
+
+    // Filtrer par recherche
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase();
+      filtered = filtered.where((n) {
+        return n.title.toLowerCase().contains(query) ||
+            n.message.toLowerCase().contains(query);
+      }).toList();
+    }
+
+    return filtered;
   }
 
   @override
@@ -138,73 +173,214 @@ class _NotificationsPageState extends State<NotificationsPage> {
           ),
         ],
       ),
-      body: StreamBuilder<List<NotificationModel>>(
-        stream: _notificationService.streamUserNotifications(currentUser.uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFFF77F00),
-              ),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text('Erreur: ${snapshot.error}'),
-                ],
-              ),
-            );
-          }
-
-          final notifications = snapshot.data ?? [];
-
-          if (notifications.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.notifications_none,
-                    size: 80,
-                    color: Colors.grey[300],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Aucune notification',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Vous serez notifié ici des nouvelles activités',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
+      body: Column(
+        children: [
+          // Barre de recherche
+          Container(
             padding: const EdgeInsets.all(16),
-            itemCount: notifications.length,
-            itemBuilder: (context, index) {
-              final notification = notifications[index];
-              return _buildNotificationCard(notification);
-            },
-          );
+            color: Colors.grey[100],
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Rechercher dans les notifications...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+            ),
+          ),
+
+          // Filtres par onglets
+          Container(
+            height: 50,
+            color: Colors.white,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              children: [
+                _buildFilterChip('Tout', 'all', Icons.inbox),
+                _buildFilterChip('Non lus', 'unread', Icons.circle_notifications),
+                _buildFilterChip('Messages', 'message', Icons.message),
+                _buildFilterChip('Candidatures', 'application', Icons.work),
+                _buildFilterChip('Offres', 'offer', Icons.business_center),
+                _buildFilterChip('Favoris', 'favorite', Icons.favorite),
+                _buildFilterChip('Système', 'system', Icons.info),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1),
+
+          // Liste des notifications
+          Expanded(
+            child: StreamBuilder<List<NotificationModel>>(
+              stream: _notificationService.streamUserNotifications(currentUser.uid),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFF77F00),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                        const SizedBox(height: 16),
+                        Text('Erreur: ${snapshot.error}'),
+                      ],
+                    ),
+                  );
+                }
+
+                final allNotifications = snapshot.data ?? [];
+
+                // Appliquer les filtres
+                final notifications = _filterNotifications(allNotifications);
+
+                if (allNotifications.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.notifications_none,
+                          size: 80,
+                          color: Colors.grey[300],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Aucune notification',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Vous serez notifié ici des nouvelles activités',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (notifications.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.filter_list_off,
+                          size: 80,
+                          color: Colors.grey[300],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Aucun résultat',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Aucune notification ne correspond à vos critères',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: notifications.length,
+                  itemBuilder: (context, index) {
+                    final notification = notifications[index];
+                    return _buildNotificationCard(notification);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Construire un chip de filtre
+  Widget _buildFilterChip(String label, String value, IconData icon) {
+    final isSelected = _selectedFilter == value;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: FilterChip(
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.white : const Color(0xFFF77F00),
+            ),
+            const SizedBox(width: 4),
+            Text(label),
+          ],
+        ),
+        selected: isSelected,
+        onSelected: (selected) {
+          setState(() {
+            _selectedFilter = value;
+          });
         },
+        selectedColor: const Color(0xFFF77F00),
+        checkmarkColor: Colors.white,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.black87,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        ),
+        backgroundColor: Colors.grey[200],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isSelected ? const Color(0xFFF77F00) : Colors.transparent,
+            width: 1,
+          ),
+        ),
       ),
     );
   }

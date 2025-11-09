@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/chat_page.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/models/user_model.dart';
+import 'package:myapp/utils/string_utils.dart';
+import 'package:myapp/widgets/subscription_required_dialog.dart';
 
 class ProfileDetailPage extends StatefulWidget {
   final String userId; // ID de l'utilisateur dont on consulte le profil
@@ -21,6 +23,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   bool _isLoadingFavorite = true;
   final _firestoreService = FirestoreService();
   UserModel? _profileUserData;
+  UserModel? _currentUserData; // Données de l'utilisateur connecté
   bool _isLoadingProfile = true;
 
   @override
@@ -28,7 +31,24 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     super.initState();
     _loadFavoriteStatus();
     _loadProfileData();
+    _loadCurrentUserData();
     _recordProfileView();
+  }
+
+  Future<void> _loadCurrentUserData() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        final userData = await _firestoreService.getUser(currentUser.uid);
+        if (mounted) {
+          setState(() {
+            _currentUserData = userData;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Erreur lors du chargement des données utilisateur: $e');
+    }
   }
 
   Future<void> _recordProfileView() async {
@@ -94,6 +114,20 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   Future<void> _toggleFavorite() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
+
+    // Vérifier si c'est une école qui veut ajouter aux favoris
+    final userData = await _firestoreService.getUser(currentUser.uid);
+    if (userData != null && userData.accountType == 'school') {
+      // Bloquer si quota épuisé ET non vérifié (sauf pour retirer des favoris)
+      if (!_isFavorite &&
+          userData.freeQuotaUsed >= userData.freeQuotaLimit &&
+          (!userData.isVerified || userData.isVerificationExpired)) {
+        if (mounted) {
+          SubscriptionRequiredDialog.show(context, 'school');
+        }
+        return;
+      }
+    }
 
     try {
       if (_isFavorite) {
@@ -280,26 +314,81 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                     _buildSectionCard(
                       'Contact',
                       [
-                        _buildInfoRow(
-                          Icons.email,
-                          'Email',
-                          profile.email,
-                          const Color(0xFFF77F00),
-                        ),
+                        // Email avec masquage pour écoles non vérifiées
+                        () {
+                          // Masquer si l'utilisateur actuel est une école non vérifiée
+                          final shouldMask = _currentUserData?.accountType == 'school' &&
+                              !(_currentUserData?.isVerified ?? false);
+                          final displayEmail = shouldMask
+                              ? maskEmail(profile.email)
+                              : profile.email;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildInfoRow(
+                                Icons.email,
+                                'Email',
+                                displayEmail,
+                                const Color(0xFFF77F00),
+                              ),
+                              if (shouldMask) ...[
+                                const SizedBox(height: 4),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 48),
+                                  child: Text(
+                                    'Email masqué - Vérification requise',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.orange[700],
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          );
+                        }(),
                         if (profile.telephones.isNotEmpty) ...[
                           const SizedBox(height: 16),
                           ...profile.telephones.asMap().entries.map((entry) {
+                            // Masquer le téléphone si l'utilisateur actuel est une école non vérifiée
+                            final shouldMask = _currentUserData?.accountType == 'school' &&
+                                !(_currentUserData?.isVerified ?? false);
+                            final displayPhone = shouldMask
+                                ? maskPhoneNumber(entry.value)
+                                : entry.value;
+
                             return Padding(
                               padding: EdgeInsets.only(
                                 top: entry.key > 0 ? 16 : 0,
                               ),
-                              child: _buildInfoRow(
-                                Icons.phone,
-                                profile.telephones.length > 1
-                                    ? 'Téléphone ${entry.key + 1}'
-                                    : 'Téléphone',
-                                entry.value,
-                                const Color(0xFF009E60),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildInfoRow(
+                                    Icons.phone,
+                                    profile.telephones.length > 1
+                                        ? 'Téléphone ${entry.key + 1}'
+                                        : 'Téléphone',
+                                    displayPhone,
+                                    const Color(0xFF009E60),
+                                  ),
+                                  if (shouldMask) ...[
+                                    const SizedBox(height: 4),
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 48),
+                                      child: Text(
+                                        'Numéro masqué - Vérification requise',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.orange[700],
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             );
                           }),
