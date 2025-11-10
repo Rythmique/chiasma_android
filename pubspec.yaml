@@ -41,6 +41,7 @@ dependencies:
   # Utilities
   url_launcher: ^6.3.2
   timeago: ^3.7.1
+  flutter_local_notifications: ^17.2.3
 
   # Search & Cache
   algolia_helper_flutter: ^1.0.0

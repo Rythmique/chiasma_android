@@ -1,16 +1,35 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:myapp/services/firestore_service.dart';
 
 /// Service pour gérer les notifications push Firebase Cloud Messaging
 class FCMService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FirestoreService _firestoreService = FirestoreService();
+  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+
+  // Canal de notification pour Android
+  static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
+    'high_importance_channel',
+    'Notifications importantes',
+    description: 'Ce canal est utilisé pour les notifications importantes de Chiasma',
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+    showBadge: true,
+  );
 
   /// Initialiser FCM et demander les permissions
   Future<void> initialize(String userId) async {
     try {
-      // Demander la permission pour les notifications (iOS)
+      // Initialiser les notifications locales
+      await _initializeLocalNotifications();
+
+      // Créer le canal de notification pour Android 8+
+      await _createNotificationChannel();
+
+      // Demander la permission pour les notifications (iOS et Android 13+)
       NotificationSettings settings = await _messaging.requestPermission(
         alert: true,
         announcement: false,
@@ -31,6 +50,9 @@ class FCMService {
         debugPrint('Utilisateur a refusé les notifications');
         return;
       }
+
+      // Demander la permission POST_NOTIFICATIONS pour Android 13+
+      await _requestAndroidNotificationPermission();
 
       // Obtenir le token FCM
       String? token = await _messaging.getToken();
@@ -53,6 +75,93 @@ class FCMService {
     }
   }
 
+  /// Initialiser les notifications locales
+  Future<void> _initializeLocalNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+    );
+
+    await _localNotifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        debugPrint('Notification cliquée: ${response.payload}');
+        // Gérer la navigation ici si nécessaire
+      },
+    );
+
+    debugPrint('✅ Notifications locales initialisées');
+  }
+
+  /// Créer le canal de notification pour Android 8+
+  Future<void> _createNotificationChannel() async {
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+        _localNotifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    await androidImplementation?.createNotificationChannel(_channel);
+    debugPrint('✅ Canal de notification créé: ${_channel.id}');
+  }
+
+  /// Demander la permission POST_NOTIFICATIONS pour Android 13+
+  Future<void> _requestAndroidNotificationPermission() async {
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+        _localNotifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    final bool? granted = await androidImplementation?.requestNotificationsPermission();
+
+    if (granted == true) {
+      debugPrint('✅ Permission POST_NOTIFICATIONS accordée (Android 13+)');
+    } else if (granted == false) {
+      debugPrint('❌ Permission POST_NOTIFICATIONS refusée (Android 13+)');
+    } else {
+      debugPrint('⚠️ Permission POST_NOTIFICATIONS non applicable (Android < 13)');
+    }
+  }
+
+  /// Afficher une notification locale avec son et vibration
+  Future<void> _showLocalNotification({
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    try {
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'high_importance_channel',
+        'Notifications importantes',
+        channelDescription: 'Ce canal est utilisé pour les notifications importantes de Chiasma',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+        enableLights: true,
+        showWhen: true,
+        icon: '@mipmap/ic_launcher',
+        color: Color(0xFFF77F00), // Couleur orange Chiasma
+        largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+      );
+
+      const NotificationDetails platformDetails = NotificationDetails(
+        android: androidDetails,
+      );
+
+      await _localNotifications.show(
+        DateTime.now().millisecondsSinceEpoch ~/ 1000, // ID unique basé sur le timestamp
+        title,
+        body,
+        platformDetails,
+        payload: payload,
+      );
+
+      debugPrint('🔔 Notification locale affichée: $title');
+    } catch (e) {
+      debugPrint('❌ Erreur lors de l\'affichage de la notification locale: $e');
+    }
+  }
+
   /// Sauvegarder le token FCM dans Firestore
   Future<void> _saveFCMToken(String userId, String token) async {
     try {
@@ -67,15 +176,19 @@ class FCMService {
   void _setupMessageHandlers() {
     // Handler pour les notifications quand l'app est au premier plan
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Message reçu au premier plan: ${message.notification?.title}');
+      debugPrint('📬 Message reçu au premier plan: ${message.notification?.title}');
 
       if (message.notification != null) {
         debugPrint('Titre: ${message.notification!.title}');
         debugPrint('Corps: ${message.notification!.body}');
-      }
 
-      // Vous pouvez afficher une notification locale ici si nécessaire
-      // ou un snackbar/toast
+        // Afficher une notification locale VISIBLE avec SON et VIBRATION ✅
+        _showLocalNotification(
+          title: message.notification!.title ?? 'Chiasma',
+          body: message.notification!.body ?? '',
+          payload: message.data.toString(),
+        );
+      }
     });
 
     // Handler pour les notifications quand l'app est en arrière-plan et qu'on clique dessus

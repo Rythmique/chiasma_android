@@ -1,0 +1,12 @@
+# ads.txt pour chiasma.pro
+# Ce fichier liste les vendeurs autorisés à afficher des publicités sur ce site
+
+# Format : domaine, ID éditeur, type de compte, ID certification
+# Exemple pour Google AdSense (à personnaliser avec VOTRE ID) :
+# google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
+
+# Instructions :
+# 1. Obtenez votre ID éditeur depuis Google AdSense
+# 2. Remplacez pub-0000000000000000 par votre vrai ID
+# 3. Uploadez ce fichier à la racine de votre site
+# 4. Vérifiez : https://chiasma.pro/ads.txt

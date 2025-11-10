@@ -1,13 +1,15 @@
 {
-  "version": "1.0.1",
-  "buildNumber": 2,
-  "message": "Une nouvelle version de Chiasma est disponible avec des améliorations et corrections de bugs.",
-  "forceUpdate": false,
+  "version": "1.0.2",
+  "buildNumber": 3,
+  "message": "Nouvelle mise à jour disponible ! Notifications corrigées et quota enseignants augmenté à 5 consultations gratuites.",
+  "forceUpdate": true,
   "releaseNotes": [
-    "Système de détection de mises à jour pour installations hors Play Store",
-    "Suppression des références Firebase de l'interface utilisateur",
-    "Amélioration de la stabilité et des performances"
+    "✅ Notifications avec son et vibration maintenant fonctionnelles",
+    "✅ Quota enseignants augmenté : 5 consultations gratuites (au lieu de 3)",
+    "✅ Permissions notifications pour Android 13+",
+    "✅ Amélioration des liens de paiement Wave et WhatsApp",
+    "✅ Corrections de bugs et améliorations de stabilité"
   ],
-  "downloadUrl": "https://chiasma.pro/downloads/chiasma-v1.0.1.apk",
-  "releaseDate": "2025-11-02"
+  "downloadUrl": "https://chiasma.pro/downloads/chiasma-v1.0.1-apk-a-jours.apk",
+  "releaseDate": "2025-11-10"
 }

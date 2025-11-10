@@ -5,6 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comment ça marche - Chiasma</title>
     <meta name="description" content="Découvrez comment fonctionne Chiasma selon votre profil : enseignant, candidat ou établissement scolaire.">
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://chiasma.pro/comment-ca-marche.html">
+    <meta property="og:title" content="Comment ça marche - Chiasma">
+    <meta property="og:description" content="Guide complet d'utilisation de Chiasma : enseignants, candidats et établissements scolaires">
+    <meta property="og:image" content="https://chiasma.pro/assets/images/logo.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://chiasma.pro/comment-ca-marche.html">
+    <meta property="twitter:title" content="Comment ça marche - Chiasma">
+    <meta property="twitter:description" content="Guide complet d'utilisation de Chiasma">
+    <meta property="twitter:image" content="https://chiasma.pro/assets/images/logo.png">
 
     <style>
         * {
@@ -35,6 +51,7 @@
             padding: 4rem 2rem;
             text-align: center;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
         }
 
         header h1 {
@@ -48,6 +65,32 @@
             opacity: 0.95;
             max-width: 800px;
             margin: 0 auto;
+        }
+
+        /* Bouton retour */
+        .back-button {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .back-button:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateX(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
         /* Navigation rapide */
@@ -440,6 +483,13 @@
                 font-size: 1rem;
             }
 
+            .back-button {
+                top: 1rem;
+                left: 1rem;
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+            }
+
             .step-content {
                 grid-template-columns: 1fr;
             }
@@ -477,6 +527,10 @@
 <body>
     <!-- Header -->
     <header>
+        <a href="/" class="back-button">
+            <span>←</span>
+            <span>Retour</span>
+        </a>
         <h1>Comment fonctionne Chiasma ?</h1>
         <p>Découvrez comment utiliser l'application selon votre profil professionnel</p>
     </header>
@@ -536,15 +590,8 @@
                                 Votre compte est créé et vous pouvez commencer à utiliser l'application immédiatement.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/enseignants/01-ecran-accueil.jpg" alt="Écran d'accueil enseignant"> -->
-                            <div>
-                                <div class="placeholder-icon">📱</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Écran d'accueil après inscription<br>
-                                Nom du fichier : <code>01-ecran-accueil.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/enseignants/01-ecran-accueil.jpg" alt="Écran d'accueil enseignant">
                         </div>
                     </div>
                 </div>
@@ -570,15 +617,8 @@
                                 Une barre de progression vous indique combien de consultations il vous reste.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/enseignants/02-barre-quota.jpg" alt="Barre de quota enseignant"> -->
-                            <div>
-                                <div class="placeholder-icon">📊</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Barre de quota affichée (ex: "3/5 consultations restantes")<br>
-                                Nom du fichier : <code>02-barre-quota.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/enseignants/02-barre-quota.jpg" alt="Barre de quota enseignant">
                         </div>
                     </div>
                 </div>
@@ -601,15 +641,8 @@
                             </ul>
                             <p><strong>Chaque consultation de profil utilise 1 crédit de votre quota.</strong></p>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/enseignants/03-recherche-profil.jpg" alt="Recherche de profils"> -->
-                            <div>
-                                <div class="placeholder-icon">🔍</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Écran de recherche avec liste de profils<br>
-                                Nom du fichier : <code>03-recherche-profil.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/enseignants/03-recherche-profil.jpg" alt="Recherche de profils">
                         </div>
                     </div>
                 </div>
@@ -648,15 +681,8 @@
                                 Payez via Mobile Money (Wave, Orange Money, etc.) puis contactez-nous sur WhatsApp pour activer votre compte.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/enseignants/04-choix-abonnement.jpg" alt="Écran de choix d'abonnement"> -->
-                            <div>
-                                <div class="placeholder-icon">💳</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Dialogue d'abonnement avec les 3 options de prix<br>
-                                Nom du fichier : <code>04-choix-abonnement.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/enseignants/04-choix-abonnement.jpg" alt="Écran de choix d'abonnement">
                         </div>
                     </div>
                 </div>
@@ -698,15 +724,8 @@
                                 Plus votre profil est complet, plus vous avez de chances d'être contacté par les écoles.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/candidats/01-ecran-accueil.jpg" alt="Écran d'accueil candidat"> -->
-                            <div>
-                                <div class="placeholder-icon">📱</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Écran d'accueil candidat avec profil<br>
-                                Nom du fichier : <code>01-ecran-accueil.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/candidats/01-ecran-accueil.jpg" alt="Écran d'accueil candidat">
                         </div>
                     </div>
                 </div>
@@ -732,15 +751,8 @@
                                 Vous voyez en temps réel combien de candidatures gratuites il vous reste.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/candidats/02-barre-quota.jpg" alt="Barre de quota candidat"> -->
-                            <div>
-                                <div class="placeholder-icon">📊</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Barre de quota (ex: "1/2 candidatures restantes")<br>
-                                Nom du fichier : <code>02-barre-quota.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/candidats/02-barre-quota.jpg" alt="Barre de quota candidat">
                         </div>
                     </div>
                 </div>
@@ -767,15 +779,8 @@
                                 Recevez une notification dès qu'une école répond à votre candidature.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/candidats/03-postuler-offre.jpg" alt="Postuler à une offre"> -->
-                            <div>
-                                <div class="placeholder-icon">📝</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Écran d'une offre d'emploi avec bouton "Postuler"<br>
-                                Nom du fichier : <code>03-postuler-offre.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/candidats/03-postuler-offre.jpg" alt="Postuler à une offre">
                         </div>
                     </div>
                 </div>
@@ -814,15 +819,8 @@
                                 Avec un abonnement, postulez à autant d'offres que vous voulez et trouvez l'emploi idéal plus rapidement.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/candidats/04-choix-abonnement.jpg" alt="Choix d'abonnement candidat"> -->
-                            <div>
-                                <div class="placeholder-icon">💳</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Dialogue d'abonnement avec les options de prix<br>
-                                Nom du fichier : <code>04-choix-abonnement.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/candidats/04-choix-abonnement.jpg" alt="Choix d'abonnement candidat">
                         </div>
                     </div>
                 </div>
@@ -864,15 +862,8 @@
                                 Un profil complet attire plus de candidats qualifiés vers vos offres d'emploi.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/ecoles/01-ecran-accueil.jpg" alt="Écran d'accueil école"> -->
-                            <div>
-                                <div class="placeholder-icon">📱</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Écran d'accueil établissement<br>
-                                Nom du fichier : <code>01-ecran-accueil.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/ecoles/01-ecran-accueil.jpg" alt="Écran d'accueil école">
                         </div>
                     </div>
                 </div>
@@ -898,15 +889,8 @@
                                 Voyez combien d'offres gratuites il vous reste à publier.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/ecoles/02-barre-quota.jpg" alt="Barre de quota école"> -->
-                            <div>
-                                <div class="placeholder-icon">📊</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Barre de quota (ex: "0/1 offre restante")<br>
-                                Nom du fichier : <code>02-barre-quota.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/ecoles/02-barre-quota.jpg" alt="Barre de quota école">
                         </div>
                     </div>
                 </div>
@@ -933,15 +917,8 @@
                                 Seuls les candidats ayant les compétences requises peuvent postuler à vos offres.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/ecoles/03-publier-offre.jpg" alt="Publier une offre d'emploi"> -->
-                            <div>
-                                <div class="placeholder-icon">📝</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Écran de création d'une offre d'emploi<br>
-                                Nom du fichier : <code>03-publier-offre.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/ecoles/03-publier-offre.jpg" alt="Publier une offre d'emploi">
                         </div>
                     </div>
                 </div>
@@ -980,15 +957,8 @@
                                 Avec un abonnement, publiez autant d'offres que nécessaire et trouvez rapidement les enseignants dont vous avez besoin.
                             </div>
                         </div>
-                        <div class="step-image placeholder">
-                            <!-- INSTRUCTION: Remplacez ce div par: -->
-                            <!-- <img src="images/ecoles/04-choix-abonnement.jpg" alt="Choix d'abonnement école"> -->
-                            <div>
-                                <div class="placeholder-icon">💳</div>
-                                <p><strong>Screenshot à ajouter ici :</strong><br>
-                                Dialogue d'abonnement avec les options de prix<br>
-                                Nom du fichier : <code>04-choix-abonnement.jpg</code></p>
-                            </div>
+                        <div class="step-image">
+                            <img src="images/ecoles/04-choix-abonnement.jpg" alt="Choix d'abonnement école">
                         </div>
                     </div>
                 </div>

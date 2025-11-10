@@ -20,10 +20,8 @@ Disallow: /api/
 
 # Autoriser explicitement les pages importantes
 Allow: /telecharger.html
+Allow: /comment-ca-marche.html
 Allow: /downloads/
-
-# Délai entre les requêtes (en secondes) - optionnel
-Crawl-delay: 1
 
 # ========================================
 # Sitemap (très important pour le SEO)
