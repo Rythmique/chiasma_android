@@ -231,6 +231,22 @@ service cloud.firestore {
       allow delete: if isSignedIn() && request.auth.uid == userId;
     }
 
+    // ========== COLLECTION PRIVACY_SETTINGS ==========
+    match /privacy_settings/{userId} {
+      // Lecture : propriétaire ou admin
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+
+      // Création : propriétaire uniquement
+      allow create: if isSignedIn() && request.auth.uid == userId
+        && request.resource.data.userId == userId;
+
+      // Mise à jour : propriétaire ou admin
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+
+      // Suppression : propriétaire ou admin
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
     // ========== COLLECTION APP_CONFIG ==========
     match /app_config/{docId} {
       // Lecture : tous les utilisateurs authentifiés

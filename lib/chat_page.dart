@@ -139,10 +139,10 @@ class _ChatPageState extends State<ChatPage> {
     final userData = await _firestoreService.getUser(currentUser.uid);
     if (userData == null) return false;
 
-    // Si c'est une école, vérifier qu'elle est vérifiée
+    // Si c'est une école, vérifier qu'elle a accès (vérifiée OU quota gratuit)
     if (userData.accountType == 'school') {
-      if (!userData.isVerified || userData.isVerificationExpired) {
-        // École non vérifiée : afficher le dialogue d'abonnement
+      if (!userData.hasAccess) {
+        // École sans accès : afficher le dialogue d'abonnement
         if (mounted) {
           SubscriptionRequiredDialog.show(context, 'school');
         }

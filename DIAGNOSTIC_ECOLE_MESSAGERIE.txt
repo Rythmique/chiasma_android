@@ -1,0 +1,308 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║           🔍 DIAGNOSTIC: ÉCOLE NE PEUT PAS ENVOYER MESSAGES      ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+Date: 11 Novembre 2025
+
+═══════════════════════════════════════════════════════════════════
+
+🎯 PROBLÈME SIGNALÉ
+===================
+
+"coté ecole impossible d'envoyer des message"
+
+ERREUR CONSOLE:
+[2025-11-11T21:58:30.242Z] @firebase/firestore:
+Firestore (11.9.1): WebChannelConnection RPC 'Listen' stream
+0x39af1bf3 transport errored.
+
+═══════════════════════════════════════════════════════════════════
+
+🔍 ANALYSE DU CODE
+==================
+
+Fichier: lib/chat_page.dart
+Méthode: _sendMessage() (ligne 103)
+
+FLUX D'ENVOI MESSAGE:
+  1. Ligne 110: await _checkCanSendMessage()
+  2. Si false → return (pas d'envoi)
+  3. Si true → Envoi message (ligne 119)
+
+VÉRIFICATION ÉCOLE (lignes 134-154):
+
+Future<bool> _checkCanSendMessage() async {
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser == null) return false;
+
+  // Récupérer les données de l'utilisateur
+  final userData = await _firestoreService.getUser(currentUser.uid);
+  if (userData == null) return false;
+
+  // Si c'est une école, vérifier qu'elle est vérifiée
+  if (userData.accountType == 'school') {
+    if (!userData.isVerified || userData.isVerificationExpired) {
+      // École non vérifiée : afficher le dialogue d'abonnement
+      if (mounted) {
+        SubscriptionRequiredDialog.show(context, 'school');
+      }
+      return false;  ← BLOQUE ICI SI NON VÉRIFIÉE
+    }
+  }
+
+  return true;
+}
+
+═══════════════════════════════════════════════════════════════════
+
+🎯 CAUSES POSSIBLES
+===================
+
+CAUSE 1: École non vérifiée
+  Condition: !userData.isVerified
+  Résultat: Dialogue abonnement affiché, envoi bloqué
+  Fichier: UserModel (lib/models/user_model.dart:18)
+
+CAUSE 2: Vérification expirée
+  Condition: userData.isVerificationExpired
+  Calcul: DateTime.now().isAfter(verificationExpiresAt!)
+  Fichier: UserModel (lib/models/user_model.dart:76-79)
+
+CAUSE 3: Erreur WebChannel (erreur console)
+  Possibilités:
+    - Problème connexion internet
+    - Règles Firestore bloquent
+    - Index Firestore manquant
+    - Quota Firebase dépassé
+
+═══════════════════════════════════════════════════════════════════
+
+🔍 VÉRIFICATION USERMODEL
+==========================
+
+Fichier: lib/models/user_model.dart
+
+Champ isVerified (ligne 18):
+  final bool isVerified;
+
+Champ verificationExpiresAt:
+  final DateTime? verificationExpiresAt;
+
+Getter isVerificationExpired (lignes 76-79):
+  bool get isVerificationExpired {
+    if (verificationExpiresAt == null) return false;
+    return DateTime.now().isAfter(verificationExpiresAt!);
+  }
+
+Getter hasAccess (lignes 85-86):
+  bool get hasAccess =>
+    (isVerified && !isVerificationExpired) || !isFreeQuotaExhausted;
+
+═══════════════════════════════════════════════════════════════════
+
+🔍 VÉRIFICATION RÈGLES FIRESTORE
+=================================
+
+Collection: messages/{conversationId}/messages
+
+Règle CRÉATION (firestore.rules:104-107):
+
+allow create: if isSignedIn()
+  && exists(/databases/$(database)/documents/messages/$(conversationId))
+  && isParticipant(get(...).data.participants)
+  && request.resource.data.senderId == request.auth.uid;
+
+CONDITIONS:
+  1. ✅ isSignedIn() - Utilisateur authentifié
+  2. ✅ exists(conversationId) - Conversation existe
+  3. ✅ isParticipant() - Utilisateur dans participants
+  4. ✅ senderId == auth.uid - Pas d'usurpation
+
+⚠️ PAS DE VÉRIFICATION isVerified dans les règles!
+   → Le blocage vient du CODE, pas de Firestore
+
+═══════════════════════════════════════════════════════════════════
+
+🎯 DIAGNOSTIC: ÉCOLE BLOQUÉE
+=============================
+
+SCÉNARIO 1: École pas vérifiée (isVerified = false)
+  userData.isVerified = false
+  → Ligne 144: condition vraie
+  → Ligne 147: SubscriptionRequiredDialog affiché
+  → Ligne 149: return false
+  → Message pas envoyé
+
+SCÉNARIO 2: École vérifiée mais expirée
+  userData.isVerified = true
+  userData.verificationExpiresAt = date passée
+  → isVerificationExpired = true
+  → Ligne 144: condition vraie
+  → Dialogue abonnement affiché
+  → Message pas envoyé
+
+SCÉNARIO 3: École vérifiée et active
+  userData.isVerified = true
+  userData.verificationExpiresAt = date future (ou null)
+  → isVerificationExpired = false
+  → Ligne 144: condition fausse
+  → Ligne 153: return true
+  → Message envoyé ✅
+
+═══════════════════════════════════════════════════════════════════
+
+🔍 ERREUR WEBCHANNEL
+=====================
+
+Erreur: WebChannelConnection RPC 'Listen' stream errored
+
+SIGNIFICATION:
+  - Problème connexion Firestore en temps réel
+  - Stream snapshots() interrompu
+  - Peut être temporaire (réseau)
+
+CAUSES POSSIBLES:
+  1. Connexion internet instable
+  2. Règles Firestore deny la lecture
+  3. Quota Firebase atteint
+  4. Indexes manquants
+  5. Timeout réseau
+
+VÉRIFIER:
+  - Firebase Console → Usage
+  - Firebase Console → Firestore → Indexes
+  - Connexion internet stable
+  - Logs Firebase pour détails erreur
+
+═══════════════════════════════════════════════════════════════════
+
+✅ ACTIONS À EFFECTUER
+=======================
+
+1. VÉRIFIER STATUT ÉCOLE DANS FIRESTORE
+   Firebase Console → Firestore → users → {schoolId}
+
+   Champs à vérifier:
+   - accountType: "school"
+   - isVerified: true/false ← CLEF
+   - verificationExpiresAt: Timestamp ← CLEF
+
+   Si isVerified = false:
+     → École pas vérifiée, messagerie bloquée (normal)
+
+   Si verificationExpiresAt < maintenant:
+     → Vérification expirée, messagerie bloquée (normal)
+
+2. SI ÉCOLE DOIT ÊTRE VÉRIFIÉE
+   Option A: Mise à jour manuelle Firestore
+     - Ouvrir document users/{schoolId}
+     - isVerified: true
+     - verificationExpiresAt: date future (ex: +30 jours)
+
+   Option B: Système d'abonnement
+     - École paie abonnement
+     - Cloud Function met à jour isVerified
+
+   Option C: Quota gratuit
+     - Vérifier freeQuotaUsed < freeQuotaLimit
+     - hasAccess = true même sans vérification
+
+3. VÉRIFIER ERREUR WEBCHANNEL
+   - Tester connexion internet
+   - Recharger page/app
+   - Vérifier Firebase Console → Usage
+   - Regarder logs détaillés console
+
+═══════════════════════════════════════════════════════════════════
+
+💡 SOLUTION TEMPORAIRE (DÉVELOPPEMENT)
+=======================================
+
+Si tu veux permettre à l'école d'envoyer messages SANS vérification
+(SEULEMENT pour test/développement):
+
+Option 1: Commenter vérification (TEMPORAIRE)
+
+Fichier: lib/chat_page.dart (lignes 142-151)
+
+// Si c'est une école, vérifier qu'elle est vérifiée
+if (userData.accountType == 'school') {
+  // TEMPORAIREMENT DÉSACTIVÉ POUR TESTS
+  /*
+  if (!userData.isVerified || userData.isVerificationExpired) {
+    if (mounted) {
+      SubscriptionRequiredDialog.show(context, 'school');
+    }
+    return false;
+  }
+  */
+}
+
+⚠️ NE PAS FAIRE EN PRODUCTION! Retirez après tests.
+
+Option 2: Utiliser hasAccess au lieu de isVerified
+
+if (userData.accountType == 'school') {
+  if (!userData.hasAccess) {  ← Utilise quota OU vérification
+    if (mounted) {
+      SubscriptionRequiredDialog.show(context, 'school');
+    }
+    return false;
+  }
+}
+
+✅ MIEUX: Vérifie quota gratuit OU vérification
+
+═══════════════════════════════════════════════════════════════════
+
+📊 LOGIQUE MÉTIER ACTUELLE
+===========================
+
+ENSEIGNANTS (teacher_transfer, teacher_candidate):
+  ✅ Pas de vérification requise pour messagerie
+  ✅ Peuvent toujours envoyer messages
+
+ÉCOLES (school):
+  ⚠️ Vérification requise (isVerified = true)
+  ⚠️ Vérification doit être valide (pas expirée)
+  ⚠️ Sinon: Dialogue abonnement + blocage
+
+RAISON:
+  - Éviter spam écoles non vérifiées
+  - Monétisation via abonnements écoles
+  - Garantir sérieux des écoles
+
+═══════════════════════════════════════════════════════════════════
+
+🎯 RECOMMANDATION
+==================
+
+1. VÉRIFIER DANS FIREBASE CONSOLE:
+   users/{schoolId}.isVerified
+   users/{schoolId}.verificationExpiresAt
+
+2. SI ÉCOLE DOIT ACCÉDER:
+   Mettre à jour manuellement:
+     isVerified: true
+     verificationExpiresAt: (date + 30 jours)
+
+3. OU MODIFIER CODE:
+   Utiliser hasAccess au lieu de isVerified
+   → Permet quota gratuit OU vérification
+
+4. ERREUR WEBCHANNEL:
+   - Probablement indépendant du blocage messagerie
+   - Vérifier connexion et Firebase Console
+   - Peut être temporaire
+
+═══════════════════════════════════════════════════════════════════
+
+💬 QUESTIONS À POSER
+=====================
+
+1. L'école est-elle censée être vérifiée/payée?
+2. Quel est son statut dans Firestore (isVerified)?
+3. Veut-on permettre quota gratuit pour écoles?
+4. L'erreur WebChannel persiste-t-elle après rechargement?
+
+═══════════════════════════════════════════════════════════════════
