@@ -543,6 +543,7 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
       'CDD',
       'Vacataire',
       'Fonctionnaire',
+      'Stage',
     ];
 
     showModalBottomSheet(

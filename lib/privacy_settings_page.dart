@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:myapp/services/privacy_settings_service.dart';
 
 class PrivacySettingsPage extends StatefulWidget {
   const PrivacySettingsPage({super.key});
@@ -13,6 +15,65 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   bool _showOnlineStatus = true;
   bool _allowMessages = true;
   String _profileVisibility = 'all'; // all, verified, none
+  final PrivacySettingsService _privacyService = PrivacySettingsService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrivacySettings();
+  }
+
+  Future<void> _loadPrivacySettings() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      try {
+        final settings = await _privacyService.getUserSettings(currentUser.uid);
+        if (mounted) {
+          setState(() {
+            _hideProfile = settings.hideProfile;
+            _hidePhoneNumber = settings.hidePhoneNumber;
+            _showOnlineStatus = settings.showOnlineStatus;
+            _allowMessages = settings.allowMessages;
+            _profileVisibility = settings.profileVisibility;
+          });
+        }
+      } catch (e) {
+        // Garder les valeurs par défaut en cas d'erreur
+      }
+    }
+  }
+
+  Future<void> _updateBoolSetting(String key, bool value) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      final messenger = ScaffoldMessenger.of(context);
+      try {
+        await _privacyService.updateBoolSetting(currentUser.uid, key, value);
+      } catch (e) {
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Erreur lors de la sauvegarde: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _updateStringSetting(String key, String value) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      final messenger = ScaffoldMessenger.of(context);
+      try {
+        await _privacyService.updateStringSetting(currentUser.uid, key, value);
+      } catch (e) {
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Erreur lors de la sauvegarde: $e')),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,20 +95,24 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                 title: 'Masquer mon profil',
                 subtitle: 'Votre profil ne sera pas visible dans les recherches',
                 value: _hideProfile,
-                onChanged: (value) {
+                onChanged: (value) async {
+                  final messenger = ScaffoldMessenger.of(context);
                   setState(() {
                     _hideProfile = value;
                   });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        value
-                            ? 'Profil masqué'
-                            : 'Profil visible',
+                  await _updateBoolSetting('hideProfile', value);
+                  if (mounted) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          value
+                              ? 'Profil masqué'
+                              : 'Profil visible',
+                        ),
+                        backgroundColor: const Color(0xFF009E60),
                       ),
-                      backgroundColor: const Color(0xFF009E60),
-                    ),
-                  );
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 16),
@@ -62,11 +127,12 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
               const SizedBox(height: 12),
               RadioGroup<String>(
                 groupValue: _profileVisibility,
-                onChanged: (value) {
+                onChanged: (value) async {
                   if (value != null) {
                     setState(() {
                       _profileVisibility = value;
                     });
+                    await _updateStringSetting('profileVisibility', value);
                   }
                 },
                 child: Column(
@@ -102,10 +168,11 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                 title: 'Masquer mon numéro de téléphone',
                 subtitle: 'Le numéro sera partiellement caché',
                 value: _hidePhoneNumber,
-                onChanged: (value) {
+                onChanged: (value) async {
                   setState(() {
                     _hidePhoneNumber = value;
                   });
+                  await _updateBoolSetting('hidePhoneNumber', value);
                 },
               ),
               const SizedBox(height: 16),
@@ -144,10 +211,11 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                 title: 'Afficher mon statut en ligne',
                 subtitle: 'Les autres verront quand vous êtes connecté',
                 value: _showOnlineStatus,
-                onChanged: (value) {
+                onChanged: (value) async {
                   setState(() {
                     _showOnlineStatus = value;
                   });
+                  await _updateBoolSetting('showOnlineStatus', value);
                 },
               ),
             ],
@@ -163,10 +231,11 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                 title: 'Autoriser les messages',
                 subtitle: 'Recevoir des messages d\'autres enseignants',
                 value: _allowMessages,
-                onChanged: (value) {
+                onChanged: (value) async {
                   setState(() {
                     _allowMessages = value;
                   });
+                  await _updateBoolSetting('allowMessages', value);
                 },
               ),
             ],

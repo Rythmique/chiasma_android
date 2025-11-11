@@ -1,0 +1,224 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║         📦 COMMENT PUBLIER UNE NOUVELLE VERSION CHIASMA          ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+EXEMPLE : Passer de v1.0.2 à v1.0.3
+
+═══════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 : MODIFIER PUBSPEC.YAML
+--------------------------------
+
+📁 Fichier : pubspec.yaml
+📍 Ligne 17
+
+AVANT:
+  version: 1.0.2+102
+
+APRÈS:
+  version: 1.0.3+103
+         ↑     ↑
+         │     └─ Build number (incrémenter +1)
+         └─ Version affichée
+
+═══════════════════════════════════════════════════════════════════
+
+ÉTAPE 2 : MODIFIER CLOUD FUNCTION
+----------------------------------
+
+📁 Fichier : functions/src/versionCheck.ts
+📍 Lignes 12-23
+
+AVANT:
+  const LATEST_VERSION = {
+    version: "1.0.2",
+    buildNumber: 102,
+    message: "...",
+    forceUpdate: false,
+    features: [...]
+  };
+
+APRÈS:
+  const LATEST_VERSION = {
+    version: "1.0.3",              ← Changer version
+    buildNumber: 103,              ← Changer build (+1)
+    message: "Nouvelles fonctionnalités et corrections",
+    forceUpdate: false,            ← true = obligatoire
+    features: [
+      "✨ Nouvelle fonctionnalité X",
+      "🐛 Correction du bug Y",
+      "⚡ Performance améliorée",
+    ],
+    releaseDate: "2025-11-15",     ← Date de sortie
+    downloadUrl: "https://chiasma.pro/telecharger.html",
+  };
+
+═══════════════════════════════════════════════════════════════════
+
+ÉTAPE 3 : DÉPLOYER CLOUD FUNCTION
+----------------------------------
+
+Terminal:
+
+  cd /home/user/myapp/functions
+  npm run build
+  cd ..
+  firebase deploy --only functions:getAppVersion,functions:checkAppVersion
+
+Attendez:
+  ✓ functions[getAppVersion] Successful update operation.
+
+═══════════════════════════════════════════════════════════════════
+
+ÉTAPE 4 : COMPILER APK FLUTTER
+-------------------------------
+
+Terminal:
+
+  cd /home/user/myapp
+  flutter build apk --release
+
+Attendez (2-3 minutes):
+  ✓ Built build/app/outputs/flutter-apk/app-release.apk (61.3MB)
+
+═══════════════════════════════════════════════════════════════════
+
+ÉTAPE 5 : TESTER LOCALEMENT
+----------------------------
+
+Terminal - Tester l'endpoint:
+
+  curl https://us-central1-chiasma-android.cloudfunctions.net/getAppVersion
+
+Vérifier:
+  {
+    "version": "1.0.3",     ← Doit afficher la nouvelle version
+    "buildNumber": 103,     ← Doit afficher le nouveau build
+    ...
+  }
+
+═══════════════════════════════════════════════════════════════════
+
+ÉTAPE 6 : UPLOADER APK SUR SERVEUR
+-----------------------------------
+
+1. Copier l'APK:
+   📁 build/app/outputs/flutter-apk/app-release.apk
+
+2. Renommer (optionnel):
+   chiasma-v1.0.3.apk
+
+3. Uploader sur serveur web:
+   https://chiasma.pro/telecharger.html
+
+4. Mettre à jour la page téléchargement avec le nouveau lien
+
+═══════════════════════════════════════════════════════════════════
+
+ÉTAPE 7 : TESTER SUR TÉLÉPHONE
+-------------------------------
+
+1. Installer ANCIENNE version (1.0.2) sur un téléphone test
+
+2. Ouvrir l'app → Paramètres → "Vérifier les mises à jour"
+
+3. Vérifier que dialogue s'affiche:
+   ┌─────────────────────────────────────┐
+   │  🔄 Mise à jour disponible          │
+   │                                      │
+   │  Nouvelles fonctionnalités...       │
+   │                                      │
+   │  Version actuelle:      1.0.2       │
+   │  Nouvelle version:      1.0.3       │
+   │                                      │
+   │  ✨ Nouvelle fonctionnalité X       │
+   │  🐛 Correction du bug Y             │
+   │                                      │
+   │  [Plus tard]  [Télécharger]         │
+   └─────────────────────────────────────┘
+
+4. Cliquer "Télécharger" → Vérifier redirection vers site
+
+═══════════════════════════════════════════════════════════════════
+
+⚠️  MISE À JOUR OBLIGATOIRE (OPTIONNEL)
+----------------------------------------
+
+Pour FORCER les utilisateurs à mettre à jour:
+
+Dans functions/src/versionCheck.ts:
+
+  const LATEST_VERSION = {
+    forceUpdate: true,  ← Mettre à true
+    // ...
+  };
+
+Effet:
+  - ❌ Pas de bouton "Plus tard"
+  - ⚠️  Message d'avertissement
+  - 🚫 Impossible de continuer sans mise à jour
+
+═══════════════════════════════════════════════════════════════════
+
+📋 CHECKLIST COMPLÈTE
+---------------------
+
+Avant de publier, vérifier:
+
+  ☐ pubspec.yaml modifié (version + buildNumber)
+  ☐ versionCheck.ts modifié (version, build, message, features)
+  ☐ Cloud Function déployée (getAppVersion)
+  ☐ Endpoint testé (curl)
+  ☐ APK compilée (flutter build apk)
+  ☐ APK uploadée sur serveur
+  ☐ Page téléchargement mise à jour
+  ☐ Test sur téléphone (ancienne version)
+  ☐ Dialogue de mise à jour s'affiche correctement
+  ☐ Bouton télécharger fonctionne
+
+═══════════════════════════════════════════════════════════════════
+
+🔗 COMMANDES RAPIDES
+--------------------
+
+# Tout en une fois:
+cd /home/user/myapp
+cd functions && npm run build && cd ..
+firebase deploy --only functions:getAppVersion,functions:checkAppVersion
+flutter build apk --release
+
+# Tester:
+curl https://us-central1-chiasma-android.cloudfunctions.net/getAppVersion
+
+# Logs:
+firebase functions:log --only getAppVersion
+
+═══════════════════════════════════════════════════════════════════
+
+💡 CONSEILS
+-----------
+
+✓ Toujours incrémenter buildNumber (+1)
+✓ Tester endpoint AVANT de compiler APK
+✓ Garder un historique des versions
+✓ Ne pas utiliser forceUpdate sauf si critique
+✓ Décrire clairement les changements dans features[]
+✓ Tester sur plusieurs appareils si possible
+
+═══════════════════════════════════════════════════════════════════
+
+📞 EN CAS DE PROBLÈME
+---------------------
+
+Problème: Endpoint retourne 404
+→ Vérifier déploiement: firebase functions:list
+
+Problème: App n'affiche pas de mise à jour
+→ Vérifier buildNumber dans pubspec.yaml vs versionCheck.ts
+
+Problème: Dialogue ne s'affiche pas
+→ Vérifier logs: firebase functions:log --only getAppVersion
+
+═══════════════════════════════════════════════════════════════════
+
+Fait comme un pro ! 💪

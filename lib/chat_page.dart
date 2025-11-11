@@ -772,14 +772,14 @@ class _ChatPageState extends State<ChatPage> {
     try {
       final uri = Uri.parse(url);
       if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        await launchUrl(uri, mode: LaunchMode.externalNonBrowserApplication);
       } else {
         throw 'Impossible d\'ouvrir le fichier';
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
+          SnackBar(content: Text('Erreur lors de l\'ouverture: $e')),
         );
       }
     }

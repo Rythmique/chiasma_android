@@ -4,11 +4,11 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Service pour vérifier les mises à jour depuis le serveur Chiasma
+/// Service pour vérifier les mises à jour depuis Firebase Cloud Functions
 /// Fonctionne pour les installations hors Play Store
 class UpdateCheckerService {
-  // URL du fichier de version sur votre serveur
-  static const String _versionUrl = 'https://chiasma.pro/version.json';
+  // URL de la Cloud Function pour récupérer les infos de version
+  static const String _versionUrl = 'https://us-central1-chiasma-android.cloudfunctions.net/getAppVersion';
   static const String _downloadUrl = 'https://chiasma.pro/telecharger.html';
 
   /// Vérifier s'il y a une nouvelle version disponible

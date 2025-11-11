@@ -5,7 +5,11 @@ import 'package:myapp/edit_profile_page.dart';
 import 'package:myapp/admin_panel_page.dart';
 import 'package:myapp/change_password_page.dart';
 import 'package:myapp/services/firestore_service.dart';
+import 'package:myapp/services/notification_settings_service.dart';
+import 'package:myapp/services/update_checker_service.dart';
 import 'package:myapp/models/user_model.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -16,17 +20,86 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _notificationsEnabled = true;
-  bool _emailNotifications = true;
+  final bool _emailNotifications = true;
   bool _messageNotifications = true;
   bool _matchNotifications = true;
   final FirestoreService _firestoreService = FirestoreService();
+  final NotificationSettingsService _notificationService = NotificationSettingsService();
   UserModel? _currentUserData;
   bool _isLoadingUserData = true;
+  String _cacheSize = 'Calcul...';
+  final String _dataSize = 'N/A';
 
   @override
   void initState() {
     super.initState();
     _loadCurrentUserData();
+    _loadNotificationSettings();
+  }
+
+  /// Calculer la taille d'un répertoire
+  Future<int> _getDirectorySize(Directory directory) async {
+    int size = 0;
+    try {
+      if (await directory.exists()) {
+        await for (var entity in directory.list(recursive: true, followLinks: false)) {
+          if (entity is File) {
+            size += await entity.length();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Erreur calcul taille: $e');
+    }
+    return size;
+  }
+
+  /// Formater la taille en MB
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  /// Calculer la taille du cache
+  Future<void> _calculateCacheSize() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final cacheSize = await _getDirectorySize(tempDir);
+
+      if (mounted) {
+        setState(() {
+          _cacheSize = _formatBytes(cacheSize);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _cacheSize = 'N/A';
+        });
+      }
+    }
+  }
+
+  /// Effacer le cache
+  Future<bool> _clearCache() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+        await tempDir.create();
+
+        // Effacer le cache d'images Flutter
+        PaintingBinding.instance.imageCache.clear();
+        PaintingBinding.instance.imageCache.clearLiveImages();
+
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Erreur lors de l\'effacement du cache: $e');
+      return false;
+    }
   }
 
   Future<void> _loadCurrentUserData() async {
@@ -52,6 +125,39 @@ class _SettingsPageState extends State<SettingsPage> {
         setState(() {
           _isLoadingUserData = false;
         });
+      }
+    }
+  }
+
+  Future<void> _loadNotificationSettings() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      try {
+        final settings = await _notificationService.getUserSettings(currentUser.uid);
+        if (mounted) {
+          setState(() {
+            _messageNotifications = settings.messages;
+            _matchNotifications = settings.newJobOffers || settings.applicationStatus || settings.jobRecommendations;
+            _notificationsEnabled = _messageNotifications || _matchNotifications;
+          });
+        }
+      } catch (e) {
+        // Garder les valeurs par défaut en cas d'erreur
+      }
+    }
+  }
+
+  Future<void> _updateNotificationSetting(String key, bool value) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      try {
+        await _notificationService.updateSetting(currentUser.uid, key, value);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur lors de la sauvegarde: $e')),
+          );
+        }
       }
     }
   }
@@ -159,33 +265,56 @@ class _SettingsPageState extends State<SettingsPage> {
             title: 'Activer les notifications',
             subtitle: 'Recevoir toutes les notifications',
             value: _notificationsEnabled,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 _notificationsEnabled = value;
               });
+              // Activer/désactiver toutes les notifications
+              if (!value) {
+                await _updateNotificationSetting('messages', false);
+                await _updateNotificationSetting('newJobOffers', false);
+                await _updateNotificationSetting('applicationStatus', false);
+                await _updateNotificationSetting('jobRecommendations', false);
+                setState(() {
+                  _messageNotifications = false;
+                  _matchNotifications = false;
+                });
+              } else {
+                await _updateNotificationSetting('messages', true);
+                await _updateNotificationSetting('newJobOffers', true);
+                setState(() {
+                  _messageNotifications = true;
+                  _matchNotifications = true;
+                });
+              }
             },
           ),
           _buildSwitchTile(
             icon: Icons.email_outlined,
             title: 'Notifications par email',
-            subtitle: 'Recevoir des emails de notification',
+            subtitle: 'Fonctionnalité à venir',
             value: _emailNotifications,
             onChanged: (value) {
-              setState(() {
-                _emailNotifications = value;
-              });
+              // Ne fait rien - fonctionnalité désactivée
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Notifications par email - Fonctionnalité à venir'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
             },
-            enabled: _notificationsEnabled,
+            enabled: false,
           ),
           _buildSwitchTile(
             icon: Icons.message_outlined,
             title: 'Nouveaux messages',
             subtitle: 'Alertes pour les nouveaux messages',
             value: _messageNotifications,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 _messageNotifications = value;
               });
+              await _updateNotificationSetting('messages', value);
             },
             enabled: _notificationsEnabled,
           ),
@@ -194,10 +323,14 @@ class _SettingsPageState extends State<SettingsPage> {
             title: 'Matchs mutuels',
             subtitle: 'Alertes pour les correspondances trouvées',
             value: _matchNotifications,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 _matchNotifications = value;
               });
+              // Mettre à jour toutes les notifications de "match"
+              await _updateNotificationSetting('newJobOffers', value);
+              await _updateNotificationSetting('applicationStatus', value);
+              await _updateNotificationSetting('jobRecommendations', value);
             },
             enabled: _notificationsEnabled,
           ),
@@ -284,6 +417,17 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: 'Version 1.0.0',
             onTap: () {
               _showAboutDialog(context);
+            },
+          ),
+          _buildSettingsTile(
+            icon: Icons.system_update,
+            title: 'Vérifier les mises à jour',
+            subtitle: 'Rechercher une nouvelle version',
+            onTap: () async {
+              // Vérifier via Firebase Cloud Functions
+              if (context.mounted) {
+                await UpdateCheckerService.checkManually(context);
+              }
             },
           ),
 
@@ -454,53 +598,113 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showStorageDialog(BuildContext context) {
+  void _showStorageDialog(BuildContext context) async {
+    // Calculer la taille du cache au moment de l'ouverture
+    await _calculateCacheSize();
+
+    if (!context.mounted) return;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Données et stockage'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Cache: 24 MB',
-              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Données et stockage'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Cache:',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[800]),
+                  ),
+                  Text(
+                    _cacheSize,
+                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Données app:',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[800]),
+                  ),
+                  Text(
+                    _dataSize,
+                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 18, color: Colors.blue[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Effacer le cache libérera de l\'espace de stockage sans supprimer vos données.',
+                        style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Fermer'),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Données: 156 MB',
-              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Effacer le cache libérera de l\'espace de stockage.',
-              style: TextStyle(fontSize: 13),
+            ElevatedButton(
+              onPressed: () async {
+                // Afficher un indicateur de chargement
+                setDialogState(() {
+                  _cacheSize = 'Effacement...';
+                });
+
+                // Effacer le cache
+                final success = await _clearCache();
+
+                // Recalculer la taille
+                await _calculateCacheSize();
+
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        success
+                          ? 'Cache effacé avec succès !'
+                          : 'Erreur lors de l\'effacement du cache',
+                      ),
+                      backgroundColor: success ? const Color(0xFF009E60) : Colors.red,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF77F00),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Effacer le cache'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Cache effacé'),
-                  backgroundColor: Color(0xFF009E60),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF77F00),
-            ),
-            child: const Text('Effacer le cache'),
-          ),
-        ],
       ),
     );
   }

@@ -10,12 +10,13 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import algoliasearch from 'algoliasearch';
 
-// Initialiser Algolia
-// IMPORTANT: Configurer ces variables avec firebase functions:config:set
-const algoliaClient = algoliasearch(
-  functions.config().algolia?.app_id || process.env.ALGOLIA_APP_ID || '',
-  functions.config().algolia?.admin_key || process.env.ALGOLIA_ADMIN_KEY || ''
-);
+// Récupérer les identifiants Algolia depuis les variables d'environnement (.env)
+// Solution moderne et durable - Compatible au-delà de Mars 2026
+const algoliaAppId = process.env.ALGOLIA_APP_ID || '';
+const algoliaAdminKey = process.env.ALGOLIA_ADMIN_KEY || '';
+
+// Initialiser Algolia avec les identifiants configurés
+const algoliaClient = algoliasearch(algoliaAppId, algoliaAdminKey);
 
 const usersIndex = algoliaClient.initIndex('users');
 const jobOffersIndex = algoliaClient.initIndex('job_offers');
@@ -152,12 +153,8 @@ export const syncJobOfferToAlgolia = functions.firestore
  */
 export const reindexAllUsers = functions.https.onRequest(async (req, res) => {
   try {
-    // TODO: Ajouter authentification en production
-    // const authHeader = req.headers.authorization;
-    // if (!authHeader || authHeader !== `Bearer ${functions.config().algolia?.reindex_key}`) {
-    //   res.status(401).send('Unauthorized');
-    //   return;
-    // }
+    // TODO: Ajouter authentification en production si nécessaire
+    // Utiliser Firebase Auth ou un token Bearer personnalisé
 
     console.log('Début de la réindexation de tous les utilisateurs');
 
@@ -218,12 +215,8 @@ export const reindexAllUsers = functions.https.onRequest(async (req, res) => {
  */
 export const reindexAllJobOffers = functions.https.onRequest(async (req, res) => {
   try {
-    // TODO: Ajouter authentification en production
-    // const authHeader = req.headers.authorization;
-    // if (!authHeader || authHeader !== `Bearer ${functions.config().algolia?.reindex_key}`) {
-    //   res.status(401).send('Unauthorized');
-    //   return;
-    // }
+    // TODO: Ajouter authentification en production si nécessaire
+    // Utiliser Firebase Auth ou un token Bearer personnalisé
 
     console.log('Début de la réindexation de toutes les offres d\'emploi');
 

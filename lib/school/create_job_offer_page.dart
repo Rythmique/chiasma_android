@@ -43,12 +43,20 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
     'Mathématiques', 'Français', 'Anglais', 'Histoire-Géographie',
     'Sciences Physiques', 'SVT', 'EPS', 'Arts Plastiques',
     'Musique', 'Philosophie', 'Espagnol', 'Allemand',
-    'Économie', 'Informatique'
+    'Économie', 'Informatique', 'Autre (précisez dans description)'
   ];
 
   final List<String> _niveauxDisponibles = [
+    // Maternelle
+    'Maternel',
+    // Primaire
+    'CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2',
+    // Collège
     '6ème', '5ème', '4ème', '3ème',
-    '2nde', '1ère', 'Terminale'
+    // Lycée
+    '2nde', '1ère', 'Terminale',
+    // Cours particuliers
+    'Répétiteur à Domicile'
   ];
 
   final List<String> _exigencesDisponibles = [
@@ -58,7 +66,7 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
   ];
 
   final List<String> _typesContrat = [
-    'CDI', 'CDD', 'Vacataire', 'Stage'
+    'CDI', 'CDD', 'Vacataire', 'Fonctionnaire', 'Stage'
   ];
 
   @override

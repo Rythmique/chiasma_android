@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:path_provider/path_provider.dart';
 import 'my_job_offers_page.dart';
 import 'browse_candidates_page.dart';
 import 'edit_school_profile_page.dart';
@@ -771,7 +773,32 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
   }
 
   /// Afficher le dialogue de gestion du stockage
-  void _showStorageDialog(BuildContext context) {
+  void _showStorageDialog(BuildContext context) async {
+    // Calculer la taille du cache
+    String cacheSize = 'Calcul...';
+    String dataSize = 'Calcul...';
+
+    try {
+      if (!kIsWeb) {
+        final tempDir = await getTemporaryDirectory();
+        final appDir = await getApplicationDocumentsDirectory();
+
+        final cacheSizeBytes = await _getDirectorySize(tempDir);
+        final dataSizeBytes = await _getDirectorySize(appDir);
+
+        cacheSize = _formatBytes(cacheSizeBytes);
+        dataSize = _formatBytes(dataSizeBytes);
+      } else {
+        cacheSize = 'Non disponible sur Web';
+        dataSize = 'Non disponible sur Web';
+      }
+    } catch (e) {
+      cacheSize = 'Erreur';
+      dataSize = 'Erreur';
+    }
+
+    if (!context.mounted) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -782,12 +809,12 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Cache: 24 MB',
+              'Cache: $cacheSize',
               style: TextStyle(fontSize: 14, color: Colors.grey[700]),
             ),
             const SizedBox(height: 8),
             Text(
-              'Données: 156 MB',
+              'Données: $dataSize',
               style: TextStyle(fontSize: 14, color: Colors.grey[700]),
             ),
             const SizedBox(height: 16),
@@ -803,14 +830,55 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
             child: const Text('Fermer'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Cache effacé'),
-                  backgroundColor: Color(0xFF009E60),
+
+              // Afficher un indicateur de chargement
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(
+                  child: Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('Effacement du cache...'),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               );
+
+              try {
+                if (!kIsWeb) {
+                  await _clearCache();
+                }
+
+                if (context.mounted) {
+                  Navigator.pop(context); // Fermer le dialogue de chargement
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cache effacé avec succès'),
+                      backgroundColor: Color(0xFF009E60),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  Navigator.pop(context); // Fermer le dialogue de chargement
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Erreur lors de l\'effacement: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF77F00),
@@ -820,6 +888,54 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
         ],
       ),
     );
+  }
+
+  /// Obtenir la taille d'un répertoire
+  Future<int> _getDirectorySize(Directory dir) async {
+    int totalSize = 0;
+    try {
+      if (await dir.exists()) {
+        await for (var entity in dir.list(recursive: true, followLinks: false)) {
+          if (entity is File) {
+            totalSize += await entity.length();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Erreur lors du calcul de la taille: $e');
+    }
+    return totalSize;
+  }
+
+  /// Formater les bytes en unité lisible
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  /// Effacer le cache
+  Future<bool> _clearCache() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+        await tempDir.create();
+      }
+
+      // Effacer le cache des images Flutter
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+
+      return true;
+    } catch (e) {
+      debugPrint('Erreur lors de l\'effacement du cache: $e');
+      return false;
+    }
   }
 
   @override

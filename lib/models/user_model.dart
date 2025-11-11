@@ -19,6 +19,7 @@ class UserModel {
   final bool isAdmin;
   final bool showContactInfo;            // Afficher les coordonnées (pour les écoles)
   final int profileViewsCount;           // Nombre de vues du profil (pour les candidats)
+  final String? fcmToken;                // Token FCM pour les notifications push
 
   // Système de quotas et abonnements
   final int freeQuotaUsed;               // Quota gratuit utilisé
@@ -46,6 +47,7 @@ class UserModel {
     this.isAdmin = false,
     this.showContactInfo = true,        // Par défaut, les écoles affichent leurs coordonnées
     this.profileViewsCount = 0,         // Par défaut 0 vue
+    this.fcmToken,                      // Token FCM pour notifications push
     this.freeQuotaUsed = 0,            // Par défaut 0 quota utilisé
     int? freeQuotaLimit,               // Calculé selon le type de compte si non fourni
     this.verificationExpiresAt,
@@ -112,6 +114,7 @@ class UserModel {
       'isAdmin': isAdmin,
       'showContactInfo': showContactInfo,
       'profileViewsCount': profileViewsCount,
+      'fcmToken': fcmToken,
       'freeQuotaUsed': freeQuotaUsed,
       'freeQuotaLimit': freeQuotaLimit,
       'verificationExpiresAt': verificationExpiresAt != null
@@ -188,6 +191,7 @@ class UserModel {
       isAdmin: data['isAdmin'] ?? false,
       showContactInfo: data['showContactInfo'] ?? true, // Par défaut true pour compatibilité
       profileViewsCount: data['profileViewsCount'] ?? 0, // Par défaut 0 pour compatibilité
+      fcmToken: data['fcmToken'],
       freeQuotaUsed: data['freeQuotaUsed'] ?? 0,
       freeQuotaLimit: data['freeQuotaLimit'],
       verificationExpiresAt: verificationExpiresAt,
@@ -216,6 +220,7 @@ class UserModel {
     bool? isAdmin,
     bool? showContactInfo,
     int? profileViewsCount,
+    String? fcmToken,
     int? freeQuotaUsed,
     int? freeQuotaLimit,
     DateTime? verificationExpiresAt,
@@ -241,6 +246,7 @@ class UserModel {
       isAdmin: isAdmin ?? this.isAdmin,
       showContactInfo: showContactInfo ?? this.showContactInfo,
       profileViewsCount: profileViewsCount ?? this.profileViewsCount,
+      fcmToken: fcmToken ?? this.fcmToken,
       freeQuotaUsed: freeQuotaUsed ?? this.freeQuotaUsed,
       freeQuotaLimit: freeQuotaLimit ?? this.freeQuotaLimit,
       verificationExpiresAt: verificationExpiresAt ?? this.verificationExpiresAt,
