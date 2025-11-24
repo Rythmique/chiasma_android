@@ -20,6 +20,7 @@ import 'package:myapp/widgets/subscription_required_dialog.dart';
 import 'package:myapp/widgets/verified_badge.dart';
 import 'package:myapp/utils/string_utils.dart';
 import 'package:myapp/services/subscription_service.dart';
+import 'package:myapp/services/analytics_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -192,6 +193,7 @@ class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final FirestoreService _firestoreService = FirestoreService();
+  final AnalyticsService _analytics = AnalyticsService();
   Set<String> _favoriteUserIds = {}; // IDs des profils favoris (vrais userId)
   List<UserModel> _allUsers = []; // Liste de tous les utilisateurs réels depuis Firestore
   bool _isLoadingUsers = true;
@@ -627,6 +629,14 @@ class _SearchPageState extends State<SearchPage> {
                   setState(() {
                     _searchQuery = value;
                   });
+
+                  // 📊 Analytics: Tracker les recherches (minimum 3 caractères)
+                  if (value.trim().length >= 3) {
+                    _analytics.logSearch(
+                      value.trim(),
+                      category: _selectedSearchMode,
+                    );
+                  }
                 },
                 decoration: InputDecoration(
                   hintText: _searchHint,

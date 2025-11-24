@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:myapp/models/user_model.dart';
+import 'package:myapp/services/analytics_service.dart';
 
 /// Résultat d'une consommation de quota
 class QuotaResult {
@@ -21,6 +22,7 @@ class QuotaResult {
 
 class SubscriptionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final AnalyticsService _analytics = AnalyticsService();
 
   // Messages de notification selon le type de compte
   static String getSubscriptionMessage(String accountType) {
@@ -284,6 +286,25 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
         'freeQuotaUsed': 0, // Reset du quota
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      // 📊 Analytics: Tracker l'activation de l'abonnement
+      await _analytics.logSubscriptionStart('premium', duration);
+
+      // 📊 Analytics: Logger aussi comme achat pour métriques de revenus
+      final prices = {
+        '1_week': 1000.0,
+        '1_month': 3000.0,
+        '3_months': 8000.0,
+        '6_months': 15000.0,
+        '12_months': 25000.0,
+      };
+      final price = prices[duration] ?? 0.0;
+
+      await _analytics.logPurchase(
+        subscriptionType: 'premium_$duration',
+        value: price,
+        currency: 'XOF',
+      );
     } catch (e) {
       debugPrint('Erreur lors de l\'activation de l\'abonnement: $e');
       rethrow;

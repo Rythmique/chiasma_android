@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/chat_page.dart';
 import 'package:myapp/services/firestore_service.dart';
+import 'package:myapp/services/analytics_service.dart';
 import 'package:myapp/models/user_model.dart';
 import 'package:myapp/utils/string_utils.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
@@ -22,6 +23,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   bool _isFavorite = false;
   bool _isLoadingFavorite = true;
   final _firestoreService = FirestoreService();
+  final _analytics = AnalyticsService();
   UserModel? _profileUserData;
   UserModel? _currentUserData; // Données de l'utilisateur connecté
   bool _isLoadingProfile = true;
@@ -59,6 +61,14 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           viewerId: currentUser.uid,
           profileUserId: widget.userId,
         );
+
+        // 📊 Analytics: Tracker la vue de profil
+        if (_profileUserData != null) {
+          await _analytics.logViewProfile(
+            widget.userId,
+            _profileUserData!.accountType,
+          );
+        }
       }
     } catch (e) {
       debugPrint('Erreur lors de l\'enregistrement de la vue de profil: $e');

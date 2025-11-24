@@ -41,21 +41,15 @@ service cloud.firestore {
       // Lecture : tous les utilisateurs authentifiés
       allow read: if isSignedIn();
 
-      // Création : Permettre la création AVANT authentification pour les nouveaux comptes
-      // ou après authentification pour son propre profil
-      allow create: if request.auth.uid == userId
+      // Création : Permettre la création pour les nouveaux comptes
+      allow create: if request.auth != null
+        && request.auth.uid == userId
         && request.resource.data.uid == userId
-        && request.resource.data.email == request.auth.token.email
         && request.resource.data.accountType in ['teacher_transfer', 'teacher_candidate', 'school']
-        // S'assurer que isVerified est false pour les nouveaux comptes
+        // S'assurer que isVerified est false pour les nouveaux comptes (ou absent)
         && (!request.resource.data.keys().hasAny(['isVerified']) || request.resource.data.isVerified == false)
-        && (
-          // Pour les enseignants (teacher_transfer): matricule obligatoire et valide
-          (request.resource.data.accountType == 'teacher_transfer' && isValidMatricule(request.resource.data.matricule))
-          // Pour les candidats et écoles: matricule peut être vide
-          || ((request.resource.data.accountType == 'teacher_candidate' || request.resource.data.accountType == 'school')
-              && (!request.resource.data.keys().hasAny(['matricule']) || request.resource.data.matricule == ''))
-        );
+        // S'assurer que isAdmin est false pour les nouveaux comptes (ou absent)
+        && (!request.resource.data.keys().hasAny(['isAdmin']) || request.resource.data.isAdmin == false);
 
       // Mise à jour : propriétaire ou admin
       // Les champs immuables sont protégés
@@ -92,8 +86,8 @@ service cloud.firestore {
       // Mise à jour : participants (lastMessage, lastMessageTime)
       allow update: if isSignedIn() && isParticipant(resource.data.participants);
 
-      // Suppression : admin uniquement
-      allow delete: if isAdmin();
+      // Suppression : participants ou admin
+      allow delete: if isSignedIn() && (isParticipant(resource.data.participants) || isAdmin());
 
       // Sous-collection messages
       match /messages/{messageId} {
@@ -108,7 +102,11 @@ service cloud.firestore {
         allow update: if isSignedIn()
           && exists(/databases/$(database)/documents/messages/$(conversationId))
           && isParticipant(get(/databases/$(database)/documents/messages/$(conversationId)).data.participants);
-        allow delete: if isAdmin();
+        allow delete: if isSignedIn() && (
+          exists(/databases/$(database)/documents/messages/$(conversationId))
+          && isParticipant(get(/databases/$(database)/documents/messages/$(conversationId)).data.participants)
+          || isAdmin()
+        );
       }
     }
 
@@ -233,17 +231,17 @@ service cloud.firestore {
 
     // ========== COLLECTION PRIVACY_SETTINGS ==========
     match /privacy_settings/{userId} {
-      // Lecture : propriétaire ou admin
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Lecture : tous les utilisateurs authentifiés (pour respecter les choix de confidentialité)
+      allow read: if isSignedIn();
 
       // Création : propriétaire uniquement
       allow create: if isSignedIn() && request.auth.uid == userId
         && request.resource.data.userId == userId;
 
-      // Mise à jour : propriétaire ou admin
+      // Mise à jour : propriétaire ou admin uniquement
       allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
 
-      // Suppression : propriétaire ou admin
+      // Suppression : propriétaire ou admin uniquement
       allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 

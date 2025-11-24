@@ -5,6 +5,7 @@ import 'package:myapp/forgot_password_screen.dart';
 import 'package:myapp/onboarding_page.dart';
 import 'package:myapp/services/auth_service.dart';
 import 'package:myapp/services/firestore_service.dart';
+import 'package:myapp/services/analytics_service.dart';
 import 'package:myapp/teacher_candidate/candidate_home_screen.dart';
 import 'package:myapp/school/school_home_screen.dart';
 
@@ -21,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _authService = AuthService();
   final _firestoreService = FirestoreService();
+  final _analytics = AnalyticsService();
 
   // Contrôleurs pour récupérer les valeurs
   final _matriculeController = TextEditingController();
@@ -68,6 +70,14 @@ class _LoginScreenState extends State<LoginScreen> {
         final userData = await _firestoreService.getUser(userCredential.user!.uid);
 
         if (userData != null && mounted) {
+          // 📊 Analytics: Tracker la connexion
+          await _analytics.logLogin(matricule.isNotEmpty ? 'email_matricule' : 'email');
+          await _analytics.setUserId(userCredential.user!.uid);
+          await _analytics.setUserProperties(
+            accountType: userData.accountType,
+            isVerified: userData.isVerified,
+          );
+
           // Redirection selon le type de compte
           Widget homeScreen;
 

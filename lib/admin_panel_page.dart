@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/services/jobs_service.dart';
 import 'package:myapp/services/subscription_service.dart';
@@ -1804,6 +1806,103 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               ),
               const SizedBox(height: 32),
 
+              // 🔥 Section Crashlytics
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.deepOrange.shade50,
+                      Colors.orange.shade50,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.deepOrange.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.deepOrange,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.bug_report,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Firebase Crashlytics',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.deepOrange,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Tests de monitoring des erreurs',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Testez l\'intégration Crashlytics en forçant différents types d\'erreurs :',
+                      style: TextStyle(fontSize: 13, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _buildCrashlyticsButton(
+                          label: 'Force Crash',
+                          icon: Icons.warning,
+                          color: Colors.red,
+                          onPressed: () => _forceCrash(),
+                        ),
+                        _buildCrashlyticsButton(
+                          label: 'Test Exception',
+                          icon: Icons.error_outline,
+                          color: Colors.orange,
+                          onPressed: () => _testException(),
+                        ),
+                        _buildCrashlyticsButton(
+                          label: 'Log Message',
+                          icon: Icons.message,
+                          color: Colors.blue,
+                          onPressed: () => _logMessage(),
+                        ),
+                        _buildCrashlyticsButton(
+                          label: 'Set User ID',
+                          icon: Icons.person,
+                          color: Colors.green,
+                          onPressed: () => _setUserId(),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+
               // Légende
               Container(
                 padding: const EdgeInsets.all(16),
@@ -1965,6 +2064,146 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   }
 
   /// Widget pour un élément de légende
+  // 🔥 Méthodes Crashlytics
+  Widget _buildCrashlyticsButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: kIsWeb ? null : onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+
+  void _forceCrash() {
+    if (kIsWeb) {
+      _showWebNotSupported();
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 12),
+            Text('Force Crash'),
+          ],
+        ),
+        content: const Text(
+          'Cette action va faire crasher l\'application pour tester Crashlytics.\n\n'
+          'Le rapport sera visible dans la console Firebase dans quelques minutes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Forcer un crash après 1 seconde
+              Future.delayed(const Duration(seconds: 1), () {
+                FirebaseCrashlytics.instance.crash();
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Crash Now'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _testException() {
+    if (kIsWeb) {
+      _showWebNotSupported();
+      return;
+    }
+
+    try {
+      throw Exception('🔥 Test Exception depuis Admin Panel - ${DateTime.now()}');
+    } catch (error, stackTrace) {
+      FirebaseCrashlytics.instance.recordError(error, stackTrace, fatal: false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Exception enregistrée dans Crashlytics'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  void _logMessage() {
+    if (kIsWeb) {
+      _showWebNotSupported();
+      return;
+    }
+
+    FirebaseCrashlytics.instance.log('📝 Message de test depuis Admin Panel - ${DateTime.now()}');
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Message logué dans Crashlytics'),
+          backgroundColor: Colors.blue,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _setUserId() {
+    if (kIsWeb) {
+      _showWebNotSupported();
+      return;
+    }
+
+    final userId = 'admin_${DateTime.now().millisecondsSinceEpoch}';
+    FirebaseCrashlytics.instance.setUserIdentifier(userId);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ User ID défini: $userId'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _showWebNotSupported() {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Crashlytics n\'est pas disponible sur le Web'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Widget _buildLegendItem(IconData icon, Color color, String title, String description) {
     return Row(
       children: [

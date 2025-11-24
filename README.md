@@ -1,107 +1,42 @@
-# Chiasma - Plateforme de Gestion des Mutations et Recrutement
+# CHIASMA - Plateforme de mise en relation
 
-Application Flutter pour la gestion des mutations d'enseignants et le recrutement scolaire en Côte d'Ivoire.
+Application Flutter Android pour la mise en relation entre enseignants et établissements scolaires.
 
-## 🎯 Fonctionnalités Principales
+## 📱 Version actuelle
 
-### Pour les Enseignants (Permutation)
-- Recherche de partenaires de permutation
-- Messagerie intégrée
-- Gestion des favoris
-- Système de quotas: 5 consultations gratuites
+**Version :** 1.0.6+106  
+**Date :** 22 novembre 2025
 
-### Pour les Candidats
-- Consultation des offres d'emploi
-- Soumission de candidatures
-- Suivi des candidatures
-- Système de quotas: 2 candidatures gratuites
+## 🔥 Dernières mises à jour (v1.0.6)
 
-### Pour les Écoles
-- Publication d'offres d'emploi
-- Consultation des candidats
-- Gestion des candidatures reçues
-- Système de quotas: 1 offre gratuite
-
-## 🔒 Système d'Abonnement
-
-- **Quotas gratuits** pour tous les nouveaux utilisateurs
-- **Vérification par admin** après paiement
-- **Abonnements** avec durées personnalisables (1 semaine à 12 mois)
-- **Contrôle d'accès** automatique basé sur quota et vérification
+- ✅ Installation Firebase Crashlytics
+- ✅ Monitoring temps réel des crashes
+- ✅ Capture automatique erreurs Flutter + Dart async
 
 ## 🛠️ Technologies
 
-- **Framework**: Flutter
-- **Backend**: Firebase (Firestore, Auth, Storage)
-- **État**: StreamBuilder pour réactivité temps réel
-- **Paiement**: WhatsApp + Vérification manuelle admin
+- **Framework :** Flutter 3.x
+- **Backend :** Firebase (Firestore, Auth, Storage, Functions, Crashlytics)
+- **Notifications :** Firebase Cloud Messaging
+- **Recherche :** Algolia
+- **Plateforme :** Android uniquement
 
-## 📚 Documentation
-
-Consultez le dossier [`docs/`](docs/) pour:
-- Guides d'administration
-- Structure Firebase
-- Règles Firestore
-- Rapports d'audit
-- Guides de production
-
-## 🚀 Démarrage Rapide
+## 📦 Commandes essentielles
 
 ```bash
-# Installer les dépendances
-flutter pub get
-
-# Lancer l'application
-flutter run
-
-# Build pour production
-flutter build apk
+flutter pub get              # Installer dépendances
+flutter run -d emulator-5554 # Lancer sur Android
+flutter build apk --release  # Build APK
+flutter analyze              # Analyser code
+flutter clean                # Nettoyer
 ```
 
-## 📋 Guides Importants
+## 📖 Documentation
 
-- [Guide Admin](ADMIN_GUIDE.md) - Administration de la plateforme
-- [Système d'Abonnement](SUBSCRIPTION_SYSTEM_GUIDE.md) - Gestion des abonnements
-- [Structure Firebase](FIREBASE_STRUCTURE.md) - Architecture de la base de données
-- [Règles Firestore](FIRESTORE_RULES_GUIDE.md) - Sécurité et permissions
-- [Production](PRODUCTION_READINESS_CHECKLIST.md) - Checklist de déploiement
+- **CRASHLYTICS_INSTALLATION.md** - Guide Crashlytics
+- **SESSION_22NOV_CRASHLYTICS.md** - Résumé v1.0.6
+- **NOTIFICATIONS_ANNONCES_ADMIN.md** - Notifications admin
 
-## 🔐 Sécurité
+---
 
-- Authentification Firebase
-- Règles Firestore strictes
-- Vérification admin obligatoire
-- Contrôle d'accès multi-niveaux
-- Transactions atomiques pour quotas
-
-## 📱 Types de Comptes
-
-1. **teacher_transfer** - Enseignants cherchant permutation
-2. **teacher_candidate** - Candidats cherchant emploi
-3. **school** - Établissements recruteurs
-4. **admin** - Administrateurs de la plateforme
-
-## 💳 Tarifs
-
-### Permutation
-- 1 mois: 500 F
-- 3 mois: 1 500 F
-- 12 mois: 2 500 F
-
-### Candidat
-- 1 semaine: 500 F
-- 1 mois: 1 500 F
-- 12 mois: 20 000 F
-
-### École
-- 1 semaine: 2 000 F
-- 1 mois: 5 000 F
-- 12 mois: 90 000 F
-
-## 📞 Support
-
-Contact: WhatsApp (configuré dans l'app)
-
-## 📄 Licence
-
-Propriétaire - Chiasma © 2025
+**Dernière mise à jour :** 22 novembre 2025

@@ -1,7 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/login_screen.dart';
@@ -22,12 +24,24 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Gestionnaire d'erreurs simplifié
+  // 🔥 Crashlytics: Capturer les erreurs Flutter
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
     if (kDebugMode) {
       debugPrint('Error: ${details.exception}');
     }
+    // Envoyer à Crashlytics (uniquement sur mobile)
+    if (!kIsWeb) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    }
+  };
+
+  // 🔥 Crashlytics: Capturer les erreurs asynchrones
+  PlatformDispatcher.instance.onError = (error, stack) {
+    if (!kIsWeb) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    }
+    return true;
   };
 
   // Configurer le handler de notifications en arrière-plan (avant Firebase.initializeApp)
@@ -110,8 +124,8 @@ class _AppInitializerState extends State<AppInitializer> {
         _initializeCache();
       }
 
-      // Vérifier les mises à jour après un délai
-      if (!kIsWeb && mounted) {
+      // Vérifier les mises à jour après un délai (uniquement en release)
+      if (!kIsWeb && !kDebugMode && mounted) {
         // ignore: unawaited_futures
         Future.delayed(const Duration(seconds: 3), () async {
           if (mounted) {
@@ -133,6 +147,8 @@ class _AppInitializerState extends State<AppInitializer> {
             });
           }
         });
+      } else if (kDebugMode) {
+        debugPrint('⚙️ Update checks disabled in debug mode');
       }
     } catch (e, stackTrace) {
       debugPrint('❌ Erreur critique d\'initialisation: $e');

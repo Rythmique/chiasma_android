@@ -1,15 +1,15 @@
 {
-  "version": "1.0.2",
-  "buildNumber": 3,
-  "message": "Nouvelle mise à jour disponible ! Notifications corrigées et quota enseignants augmenté à 5 consultations gratuites.",
-  "forceUpdate": true,
+  "version": "1.0.6",
+  "buildNumber": 106,
+  "message": "Nouvelle mise à jour disponible ! Installation Firebase Crashlytics pour monitoring des erreurs.",
+  "forceUpdate": false,
   "releaseNotes": [
-    "✅ Notifications avec son et vibration maintenant fonctionnelles",
-    "✅ Quota enseignants augmenté : 5 consultations gratuites (au lieu de 3)",
-    "✅ Permissions notifications pour Android 13+",
-    "✅ Amélioration des liens de paiement Wave et WhatsApp",
-    "✅ Corrections de bugs et améliorations de stabilité"
+    "✅ Installation Firebase Crashlytics - Suivi automatique des erreurs",
+    "✅ Monitoring temps réel des crashes en production",
+    "✅ Capture automatique erreurs Flutter + Dart async",
+    "✅ Stack traces complètes pour résolution rapide des bugs",
+    "✅ Métriques de stabilité de l'application"
   ],
-  "downloadUrl": "https://chiasma.pro/downloads/chiasma-v1.0.1-apk-a-jours.apk",
-  "releaseDate": "2025-11-10"
+  "downloadUrl": "https://chiasma.pro/downloads/chiasma-v1.0.6.apk",
+  "releaseDate": "2025-11-22"
 }

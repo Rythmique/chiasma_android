@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'services/firestore_service.dart';
 import 'services/storage_service.dart';
+import 'services/analytics_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'widgets/subscription_required_dialog.dart';
 
@@ -33,6 +34,7 @@ class _ChatPageState extends State<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
   final FirestoreService _firestoreService = FirestoreService();
   final StorageService _storageService = StorageService();
+  final AnalyticsService _analytics = AnalyticsService();
   final ImagePicker _imagePicker = ImagePicker();
   String? _conversationId;
   bool _isUploadingFile = false;
@@ -121,6 +123,19 @@ class _ChatPageState extends State<ChatPage> {
         senderId: currentUser.uid,
         message: messageText,
       );
+
+      // 📊 Analytics: Tracker l'envoi de message
+      final currentUserData = await _firestoreService.getUser(currentUser.uid);
+      final contactData = widget.contactUserId != null
+          ? await _firestoreService.getUser(widget.contactUserId!)
+          : null;
+
+      String conversationType = 'unknown';
+      if (currentUserData != null && contactData != null) {
+        conversationType = '${currentUserData.accountType}_to_${contactData.accountType}';
+      }
+
+      await _analytics.logSendMessage(conversationType);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
