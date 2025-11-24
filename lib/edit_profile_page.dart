@@ -279,23 +279,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
             ),
             const SizedBox(height: 16),
 
-            // Matricule (lecture seule) - Visible uniquement pour les admins
-            if (_currentUserData != null && _currentUserData!.isAdmin) ...[
-              TextFormField(
-                initialValue: _currentUserData?.matricule ?? '',
-                enabled: false,
-                decoration: InputDecoration(
-                  labelText: 'Matricule (non modifiable)',
-                  prefixIcon: const Icon(Icons.badge, color: Colors.grey),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[100],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+            // Matricule masqué : ne JAMAIS afficher dans l'édition de profil
+            // Les utilisateurs (y compris teacher_transfer) ne doivent pas voir leur matricule
+            // Uniquement accessible par les admins via le panel admin
 
             // Téléphones
             Row(

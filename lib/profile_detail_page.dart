@@ -677,13 +677,8 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
               Colors.orange[800]!,
             ),
           ],
-          const SizedBox(height: 16),
-          _buildInfoRow(
-            Icons.badge,
-            'Matricule',
-            profile.matricule,
-            Colors.grey[700]!,
-          ),
+          // Matricule masqué : uniquement visible pour les admins
+          // Ne jamais afficher le matricule sur les profils publics (sécurité)
         ],
       ),
     ];

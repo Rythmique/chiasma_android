@@ -214,15 +214,8 @@ class _UserInfoPageState extends State<UserInfoPage> {
                       _buildSectionTitle('Informations de base'),
                       const SizedBox(height: 8),
                       _buildInfoCard([
-                        // Matricule et identifiant unique uniquement pour les admins
-                        if (userData.isAdmin) ...[
-                          _buildInfoRow(
-                            Icons.badge,
-                            'Matricule',
-                            userData.matricule,
-                            const Color(0xFFF77F00),
-                          ),
-                        ],
+                        // Matricule masqué : ne JAMAIS afficher même sur la page d'infos utilisateur
+                        // Uniquement accessible par les admins via le panel admin
                         _buildInfoRow(
                           Icons.email,
                           'Email',

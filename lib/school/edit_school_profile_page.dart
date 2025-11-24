@@ -313,7 +313,7 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
                               ),
                               const Divider(),
                               Text('Type de compte: ${_schoolInfo!.accountType}'),
-                              Text('Matricule: ${_schoolInfo!.matricule}'),
+                              // Matricule masqué : ne jamais afficher (école n'a pas de matricule)
                             ],
                           ),
                         ),

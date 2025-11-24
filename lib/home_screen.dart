@@ -2363,9 +2363,8 @@ class _ProfilePageState extends State<ProfilePage> {
                       _buildInfoCard(
                         'Informations personnelles',
                         [
-                          // Matricule uniquement pour les admins
-                          if (userData.isAdmin)
-                            _buildInfoRow(Icons.badge, 'Matricule', userData.matricule),
+                          // Matricule masqué : ne JAMAIS afficher sur le profil utilisateur
+                          // Uniquement accessible par les admins via le panel admin
                           _buildInfoRow(Icons.email, 'Email', userData.email),
                           if (userData.telephones.isNotEmpty)
                             _buildInfoRow(Icons.phone, 'Téléphone', userData.telephones.first),

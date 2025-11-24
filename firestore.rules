@@ -36,81 +36,149 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid in participants;
     }
 
+    function isValidAccountType(accountType) {
+      return accountType in ['teacher_transfer', 'teacher_candidate', 'school'];
+    }
+
+    function isValidEmail(email) {
+      return email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+
     // ========== COLLECTION USERS ==========
     match /users/{userId} {
-      // Lecture : tous les utilisateurs authentifiés
+      // Lecture : tous les utilisateurs authentifiés peuvent lire les profils
       allow read: if isSignedIn();
 
-      // Création : Permettre la création pour les nouveaux comptes
+      // Création : Permettre l'inscription pour les nouveaux comptes
+      // Cette règle est CRITIQUE pour permettre les inscriptions
       allow create: if request.auth != null
         && request.auth.uid == userId
         && request.resource.data.uid == userId
-        && request.resource.data.accountType in ['teacher_transfer', 'teacher_candidate', 'school']
+        // Vérifier que l'email correspond à celui de Firebase Auth
+        && request.resource.data.email == request.auth.token.email
+        // Vérifier que le type de compte est valide
+        && isValidAccountType(request.resource.data.accountType)
+        // Vérifier le format de l'email
+        && isValidEmail(request.resource.data.email)
         // S'assurer que isVerified est false pour les nouveaux comptes (ou absent)
         && (!request.resource.data.keys().hasAny(['isVerified']) || request.resource.data.isVerified == false)
         // S'assurer que isAdmin est false pour les nouveaux comptes (ou absent)
-        && (!request.resource.data.keys().hasAny(['isAdmin']) || request.resource.data.isAdmin == false);
+        && (!request.resource.data.keys().hasAny(['isAdmin']) || request.resource.data.isAdmin == false)
+        // Vérifier que les champs obligatoires sont présents
+        && request.resource.data.keys().hasAll(['uid', 'email', 'accountType', 'nom', 'telephones', 'createdAt', 'updatedAt'])
+        // Vérifier que telephones est un array non vide
+        && request.resource.data.telephones is list
+        && request.resource.data.telephones.size() > 0
+        && request.resource.data.telephones.size() <= 3
+        // Vérifier les quotas initiaux
+        && request.resource.data.freeQuotaUsed == 0
+        && request.resource.data.freeQuotaLimit > 0
+        && request.resource.data.freeQuotaLimit <= 10
+        // Validation spécifique pour teacher_transfer : matricule obligatoire et valide
+        && (request.resource.data.accountType != 'teacher_transfer'
+            || (request.resource.data.keys().hasAny(['matricule'])
+                && request.resource.data.matricule is string
+                && request.resource.data.matricule.size() == 7
+                && isValidMatricule(request.resource.data.matricule)))
+        // Pour teacher_candidate et school : matricule peut être vide ou absent
+        && (request.resource.data.accountType == 'teacher_transfer'
+            || !request.resource.data.keys().hasAny(['matricule'])
+            || request.resource.data.matricule == '');
 
-      // Mise à jour : propriétaire ou admin
-      // Les champs immuables sont protégés
-      allow update: if isOwner(userId) && (
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['uid', 'matricule', 'email', 'accountType', 'isAdmin'])
-        )
+      // Mise à jour : propriétaire peut modifier ses données SAUF champs protégés
+      // Admin peut tout modifier
+      allow update: if (isOwner(userId) && (
+          // L'utilisateur ne peut PAS modifier ces champs immuables
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['uid', 'email', 'createdAt'])
+          // Si accountType est teacher_transfer, le matricule ne peut pas être modifié
+          && (resource.data.accountType != 'teacher_transfer'
+              || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['matricule']))
+          // L'utilisateur ne peut PAS s'auto-promouvoir admin
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin'])
+              || request.resource.data.isAdmin == false)
+          // L'utilisateur ne peut PAS s'auto-vérifier
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isVerified']))
+          // L'utilisateur ne peut PAS modifier directement les quotas (géré par Cloud Functions/Transactions)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['freeQuotaUsed', 'freeQuotaLimit', 'verificationExpiresAt']))
+        ))
+        // Admin peut TOUT modifier
         || isAdmin();
 
-      // Suppression : admin uniquement
+      // Suppression : admin uniquement (pour éviter les suppressions accidentelles)
       allow delete: if isAdmin();
     }
 
     // ========== COLLECTION FAVORITES ==========
     match /favorites/{favoriteId} {
+      // Lecture : propriétaire ou admin
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+
+      // Création : utilisateur authentifié pour son propre compte
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'favoriteUserId', 'createdAt'])
+        && request.resource.data.userId != request.resource.data.favoriteUserId; // Empêcher de se favoriser soi-même
+
+      // Mise à jour et suppression : propriétaire ou admin
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // ========== COLLECTION MESSAGES (conversations) ==========
     match /messages/{conversationId} {
-      // Lecture : participants ou admin (permettre lecture même si le document n'existe pas encore)
+      // Lecture : participants ou admin
+      // Permettre la lecture même si le document n'existe pas encore (création de conversation)
       allow read: if isSignedIn() && (
         !exists(/databases/$(database)/documents/messages/$(conversationId))
         || isParticipant(resource.data.participants)
         || isAdmin()
       );
 
-      // Création : participant et exactement 2 participants
+      // Création : participant et exactement 2 participants distincts
       allow create: if isSignedIn()
         && isParticipant(request.resource.data.participants)
-        && request.resource.data.participants.size() == 2;
+        && request.resource.data.participants.size() == 2
+        && request.resource.data.participants[0] != request.resource.data.participants[1]
+        && request.resource.data.keys().hasAll(['participants', 'createdAt']);
 
-      // Mise à jour : participants (lastMessage, lastMessageTime)
-      allow update: if isSignedIn() && isParticipant(resource.data.participants);
+      // Mise à jour : participants (lastMessage, lastMessageTime, unreadCount, etc.)
+      allow update: if isSignedIn() && isParticipant(resource.data.participants)
+        // Empêcher la modification des participants après création
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['participants']);
 
       // Suppression : participants ou admin
       allow delete: if isSignedIn() && (isParticipant(resource.data.participants) || isAdmin());
 
       // Sous-collection messages
       match /messages/{messageId} {
+        // Lecture : participants de la conversation
         allow read: if isSignedIn() && (
           !exists(/databases/$(database)/documents/messages/$(conversationId))
           || isParticipant(get(/databases/$(database)/documents/messages/$(conversationId)).data.participants)
         );
+
+        // Création : participant ET senderId = uid de l'utilisateur
         allow create: if isSignedIn()
           && exists(/databases/$(database)/documents/messages/$(conversationId))
           && isParticipant(get(/databases/$(database)/documents/messages/$(conversationId)).data.participants)
-          && request.resource.data.senderId == request.auth.uid;
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.keys().hasAll(['senderId', 'message', 'timestamp']);
+
+        // Mise à jour : participants (marquer comme lu)
         allow update: if isSignedIn()
           && exists(/databases/$(database)/documents/messages/$(conversationId))
-          && isParticipant(get(/databases/$(database)/documents/messages/$(conversationId)).data.participants);
-        allow delete: if isSignedIn() && (
-          exists(/databases/$(database)/documents/messages/$(conversationId))
           && isParticipant(get(/databases/$(database)/documents/messages/$(conversationId)).data.participants)
+          // Empêcher modification du senderId et du message après création
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['senderId', 'message', 'timestamp']);
+
+        // Suppression : expéditeur du message ou admin
+        allow delete: if isSignedIn() && (
+          resource.data.senderId == request.auth.uid
           || isAdmin()
         );
       }
     }
 
-    // ========== COLLECTION JOB_APPLICATIONS ==========
+    // ========== COLLECTION JOB_APPLICATIONS (candidatures générales) ==========
     match /job_applications/{applicationId} {
       // Lecture : propriétaire, écoles (si active), admin
       allow read: if isSignedIn() && (
@@ -122,19 +190,26 @@ service cloud.firestore {
       // Création : enseignants uniquement
       allow create: if isTeacher()
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'active';
+        && request.resource.data.status == 'active'
+        && request.resource.data.keys().hasAll(['userId', 'status', 'createdAt']);
 
       // Mise à jour : propriétaire ou admin
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isAdmin()
+      );
 
       // Suppression : propriétaire ou admin
-      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isAdmin()
+      );
     }
 
-    // ========== COLLECTION JOB_OFFERS ==========
+    // ========== COLLECTION JOB_OFFERS (offres d'emploi) ==========
     match /job_offers/{offerId} {
       // Lecture :
-      // - Enseignants : peuvent lire toutes les offres (le filtrage par status se fait dans la requête)
+      // - Enseignants : peuvent lire toutes les offres actives
       // - École propriétaire : peut lire ses propres offres
       // - Admin : peut tout lire
       allow read: if isSignedIn() && (
@@ -144,7 +219,10 @@ service cloud.firestore {
       );
 
       // Création : écoles uniquement
-      allow create: if isSchool() && request.resource.data.schoolId == request.auth.uid;
+      allow create: if isSchool()
+        && request.resource.data.schoolId == request.auth.uid
+        && request.resource.data.keys().hasAll(['schoolId', 'title', 'createdAt'])
+        && request.resource.data.status == 'active';
 
       // Mise à jour :
       // - École propriétaire ou admin : toutes modifications
@@ -158,10 +236,13 @@ service cloud.firestore {
       );
 
       // Suppression : école propriétaire ou admin
-      allow delete: if isSignedIn() && (resource.data.schoolId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (
+        resource.data.schoolId == request.auth.uid
+        || isAdmin()
+      );
     }
 
-    // ========== COLLECTION OFFER_APPLICATIONS ==========
+    // ========== COLLECTION OFFER_APPLICATIONS (candidatures aux offres) ==========
     match /offer_applications/{applicationId} {
       // Lecture : candidat, école de l'offre, admin
       allow read: if isSignedIn() && (
@@ -171,7 +252,9 @@ service cloud.firestore {
       );
 
       // Création : enseignants uniquement
-      allow create: if isTeacher() && request.resource.data.userId == request.auth.uid;
+      allow create: if isTeacher()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'offerId', 'createdAt']);
 
       // Mise à jour :
       // - Candidat : peut modifier sa candidature
@@ -187,10 +270,13 @@ service cloud.firestore {
       );
 
       // Suppression : candidat ou admin
-      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isAdmin()
+      );
     }
 
-    // ========== COLLECTION ANNOUNCEMENTS ==========
+    // ========== COLLECTION ANNOUNCEMENTS (annonces admin) ==========
     match /announcements/{announcementId} {
       // Lecture : tous les utilisateurs authentifiés
       allow read: if isSignedIn();
@@ -202,16 +288,26 @@ service cloud.firestore {
     // ========== COLLECTION NOTIFICATIONS ==========
     match /notifications/{notificationId} {
       // Lecture : propriétaire ou admin
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isAdmin()
+      );
 
-      // Création : tous les utilisateurs authentifiés (pour notifier)
-      allow create: if isSignedIn();
+      // Création : tous les utilisateurs authentifiés (pour notifier d'autres utilisateurs)
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['userId', 'type', 'title', 'message', 'createdAt']);
 
       // Mise à jour : propriétaire ou admin (marquer comme lu)
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isAdmin()
+      );
 
       // Suppression : propriétaire ou admin
-      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isAdmin()
+      );
     }
 
     // ========== COLLECTION NOTIFICATION_SETTINGS ==========
@@ -220,7 +316,9 @@ service cloud.firestore {
       allow read: if isSignedIn() && request.auth.uid == userId;
 
       // Création : propriétaire uniquement
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId;
 
       // Mise à jour : propriétaire uniquement
       allow update: if isSignedIn() && request.auth.uid == userId;
@@ -235,14 +333,21 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       // Création : propriétaire uniquement
-      allow create: if isSignedIn() && request.auth.uid == userId
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
         && request.resource.data.userId == userId;
 
       // Mise à jour : propriétaire ou admin uniquement
-      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId
+        || isAdmin()
+      );
 
       // Suppression : propriétaire ou admin uniquement
-      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isSignedIn() && (
+        request.auth.uid == userId
+        || isAdmin()
+      );
     }
 
     // ========== COLLECTION APP_CONFIG ==========
@@ -254,29 +359,35 @@ service cloud.firestore {
       allow write: if isAdmin();
 
       // Document access_restrictions : lecture pour tous (pour AccessControlWrapper)
-      // mais écriture uniquement pour les admins
       match /access_restrictions {
         allow read: if isSignedIn();
         allow write: if isAdmin();
       }
     }
 
-    // ========== COLLECTION SUBSCRIPTIONS (enseignants) ==========
+    // ========== COLLECTION SUBSCRIPTIONS (abonnements enseignants) ==========
     match /subscriptions/{subscriptionId} {
       // Lecture : propriétaire ou admin
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isAdmin()
+      );
 
-      // Écriture : interdite côté client (Cloud Functions uniquement)
+      // Écriture : interdite côté client (Cloud Functions uniquement via Server SDK)
       allow write: if false;
     }
 
     // ========== COLLECTION SCHOOL_SUBSCRIPTIONS ==========
     match /school_subscriptions/{subscriptionId} {
       // Lecture : école propriétaire ou admin
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isAdmin()
+      );
 
       // Création : écoles uniquement
-      allow create: if isSchool() && request.resource.data.userId == request.auth.uid;
+      allow create: if isSchool()
+        && request.resource.data.userId == request.auth.uid;
 
       // Mise à jour et suppression : interdites côté client (Cloud Functions)
       allow update: if false;
@@ -286,7 +397,10 @@ service cloud.firestore {
     // ========== COLLECTION PAYMENT_TRANSACTIONS ==========
     match /payment_transactions/{transactionId} {
       // Lecture : propriétaire ou admin
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isAdmin()
+      );
 
       // Écriture : interdite côté client (Cloud Functions uniquement)
       allow write: if false;
@@ -295,25 +409,33 @@ service cloud.firestore {
     // ========== COLLECTION PROFILE_VIEWS ==========
     match /profile_views/{viewId} {
       // Lecture : propriétaire du profil consulté ou admin
-      allow read: if isSignedIn() && (resource.data.profileUserId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.profileUserId == request.auth.uid
+        || isAdmin()
+      );
 
       // Création : écoles qui consultent les profils de candidats
-      allow create: if isSchool() && request.resource.data.viewerId == request.auth.uid;
+      allow create: if isSchool()
+        && request.resource.data.viewerId == request.auth.uid
+        && request.resource.data.keys().hasAll(['viewerId', 'profileUserId', 'viewedAt']);
 
       // Mise à jour : permettre à l'école de mettre à jour la date de dernière vue
-      allow update: if isSchool() && resource.data.viewerId == request.auth.uid;
+      allow update: if isSchool()
+        && resource.data.viewerId == request.auth.uid;
 
       // Suppression : admin uniquement
       allow delete: if isAdmin();
     }
 
-    // ========== COLLECTION PROBLEM_REPORTS ==========
+    // ========== COLLECTION PROBLEM_REPORTS (signalements) ==========
     match /problem_reports/{reportId} {
       // Lecture : admin uniquement
       allow read: if isAdmin();
 
       // Création : tous les utilisateurs authentifiés peuvent signaler un problème
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'type', 'description', 'createdAt']);
 
       // Mise à jour : admin uniquement (pour changer le statut)
       allow update: if isAdmin();
@@ -322,8 +444,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ========== RÈGLE PAR DÉFAUT ==========
+    // ========== RÈGLE PAR DÉFAUT (SÉCURITÉ) ==========
     // Tout ce qui n'est pas explicitement autorisé est interdit
+    // Cette règle garantit que toute nouvelle collection sera protégée par défaut
     match /{document=**} {
       allow read, write: if false;
     }
