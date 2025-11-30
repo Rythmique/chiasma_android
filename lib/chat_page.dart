@@ -104,8 +104,9 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty || _conversationId == null)
+    if (_messageController.text.trim().isEmpty || _conversationId == null) {
       return;
+    }
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;

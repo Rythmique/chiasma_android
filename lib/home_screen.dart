@@ -297,6 +297,7 @@ class _SearchPageState extends State<SearchPage> {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null) return;
 
+    if (!mounted) return;
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
@@ -320,15 +321,13 @@ class _SearchPageState extends State<SearchPage> {
         currentUserId,
       );
 
-      if (!context.mounted) return;
+      if (!mounted) return;
 
       if (result.needsSubscription) {
-        if (context.mounted) {
-          SubscriptionRequiredDialog.show(
-            context,
-            result.accountType ?? 'teacher_transfer',
-          );
-        }
+        SubscriptionRequiredDialog.show(
+          context,
+          result.accountType ?? 'teacher_transfer',
+        );
       } else if (result.success) {
         navigator.push(
           MaterialPageRoute(
@@ -1430,13 +1429,11 @@ class _SearchPageState extends State<SearchPage> {
 
                             if (result.needsSubscription) {
                               // Afficher le dialogue d'abonnement
-                              if (context.mounted) {
-                                // ignore: use_build_context_synchronously
-                                SubscriptionRequiredDialog.show(
-                                  context,
-                                  result.accountType ?? 'teacher_transfer',
-                                );
-                              }
+                              // ignore: use_build_context_synchronously
+                              SubscriptionRequiredDialog.show(
+                                context,
+                                result.accountType ?? 'teacher_transfer',
+                              );
                             } else if (result.success) {
                               // Naviguer vers la page de chat
                               navigator.push(
@@ -1567,6 +1564,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null) return;
 
+    if (!mounted) return;
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
@@ -1588,7 +1586,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
         currentUserId,
       );
 
-      if (!context.mounted) return;
+      if (!mounted) return;
 
       if (result.needsSubscription) {
         SubscriptionRequiredDialog.show(
@@ -2736,8 +2734,9 @@ class _ProfilePageState extends State<ProfilePage> {
   String _getInitials(String name) {
     final words = name.split(' ').where((word) => word.isNotEmpty).toList();
     if (words.isEmpty) return '??';
-    if (words.length == 1 && words[0].isNotEmpty)
+    if (words.length == 1 && words[0].isNotEmpty) {
       return words[0][0].toUpperCase();
+    }
     if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
       return (words[0][0] + words[1][0]).toUpperCase();
     }

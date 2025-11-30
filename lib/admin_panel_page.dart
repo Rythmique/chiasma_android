@@ -957,8 +957,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   String _getInitials(String name) {
     final words = name.split(' ').where((word) => word.isNotEmpty).toList();
     if (words.isEmpty) return '??';
-    if (words.length == 1 && words[0].isNotEmpty)
+    if (words.length == 1 && words[0].isNotEmpty) {
       return words[0][0].toUpperCase();
+    }
     if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
       return (words[0][0] + words[1][0]).toUpperCase();
     }
