@@ -89,67 +89,10 @@ class _SchoolHomeScreenState extends State<SchoolHomeScreen> {
               stream: _firestoreService.getTotalUnreadMessagesCount(userId),
               builder: (context, snapshot) {
                 final unreadCount = snapshot.data ?? 0;
-
-                return BottomNavigationBar(
-                  type: BottomNavigationBarType.fixed,
-                  currentIndex: _currentIndex,
-                  onTap: _handleTabChange,
-                  selectedItemColor: Theme.of(context).colorScheme.primary,
-                  unselectedItemColor: Colors.grey,
-                  items: [
-                    const BottomNavigationBarItem(
-                      icon: Icon(Icons.work_outline),
-                      activeIcon: Icon(Icons.work),
-                      label: 'Mes offres',
-                    ),
-                    const BottomNavigationBarItem(
-                      icon: Icon(Icons.people_outline),
-                      activeIcon: Icon(Icons.people),
-                      label: 'Candidats',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: _buildMessageIcon(Icons.message_outlined, unreadCount, false),
-                      activeIcon: _buildMessageIcon(Icons.message, unreadCount, true),
-                      label: 'Messages',
-                    ),
-                    const BottomNavigationBarItem(
-                      icon: Icon(Icons.settings_outlined),
-                      activeIcon: Icon(Icons.settings),
-                      label: 'Paramètres',
-                    ),
-                  ],
-                );
+                return _buildBottomNavBar(unreadCount);
               },
             )
-          : BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              currentIndex: _currentIndex,
-              onTap: _handleTabChange,
-              selectedItemColor: Theme.of(context).colorScheme.primary,
-              unselectedItemColor: Colors.grey,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.work_outline),
-                  activeIcon: Icon(Icons.work),
-                  label: 'Mes offres',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.people_outline),
-                  activeIcon: Icon(Icons.people),
-                  label: 'Candidats',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.message_outlined),
-                  activeIcon: Icon(Icons.message),
-                  label: 'Messages',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.settings_outlined),
-                  activeIcon: Icon(Icons.settings),
-                  label: 'Paramètres',
-                ),
-              ],
-            ),
+          : _buildBottomNavBar(0),
     );
   }
 
@@ -159,30 +102,59 @@ class _SchoolHomeScreenState extends State<SchoolHomeScreen> {
       children: [
         Icon(icon),
         if (unreadCount > 0)
-          Positioned(
-            right: -6,
-            top: -4,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-              ),
-              constraints: const BoxConstraints(
-                minWidth: 16,
-                minHeight: 16,
-              ),
-              child: Text(
-                unreadCount > 99 ? '99+' : unreadCount.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
+          Positioned(right: -6, top: -4, child: _buildUnreadBadge(unreadCount)),
+      ],
+    );
+  }
+
+  Widget _buildUnreadBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: const BoxDecoration(
+        color: Colors.red,
+        shape: BoxShape.circle,
+      ),
+      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+      child: Text(
+        count > 99 ? '99+' : count.toString(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  BottomNavigationBar _buildBottomNavBar(int unreadCount) {
+    return BottomNavigationBar(
+      type: BottomNavigationBarType.fixed,
+      currentIndex: _currentIndex,
+      onTap: _handleTabChange,
+      selectedItemColor: Theme.of(context).colorScheme.primary,
+      unselectedItemColor: Colors.grey,
+      items: [
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.work_outline),
+          activeIcon: Icon(Icons.work),
+          label: 'Mes offres',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.people_outline),
+          activeIcon: Icon(Icons.people),
+          label: 'Candidats',
+        ),
+        BottomNavigationBarItem(
+          icon: _buildMessageIcon(Icons.message_outlined, unreadCount, false),
+          activeIcon: _buildMessageIcon(Icons.message, unreadCount, true),
+          label: 'Messages',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.settings_outlined),
+          activeIcon: Icon(Icons.settings),
+          label: 'Paramètres',
+        ),
       ],
     );
   }
@@ -247,9 +219,7 @@ class _SchoolMessagesPageState extends State<SchoolMessagesPage> {
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Text('Erreur: ${snapshot.error}'),
-            );
+            return Center(child: Text('Erreur: ${snapshot.error}'));
           }
 
           final allConversations = snapshot.data?.docs ?? [];
@@ -278,7 +248,8 @@ class _SchoolMessagesPageState extends State<SchoolMessagesPage> {
             separatorBuilder: (context, index) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final conversationDoc = conversations[index];
-              final conversationData = conversationDoc.data() as Map<String, dynamic>;
+              final conversationData =
+                  conversationDoc.data() as Map<String, dynamic>;
               return _buildConversationTile(
                 conversationDoc.id,
                 conversationData,
@@ -296,23 +267,16 @@ class _SchoolMessagesPageState extends State<SchoolMessagesPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.message_outlined,
-            size: 80,
-            color: Colors.grey[300],
-          ),
+          Icon(Icons.message_outlined, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          Text(
-            'Aucun message',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text('Aucun message', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(
             'Vos conversations avec les candidats apparaîtront ici',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
           ),
         ],
       ),
@@ -324,16 +288,13 @@ class _SchoolMessagesPageState extends State<SchoolMessagesPage> {
     Map<String, dynamic> conversationData,
     String currentUserId,
   ) {
-    // Récupérer l'ID de l'autre participant
     final participants = conversationData['participants'] as List<dynamic>;
     final otherUserId = participants.firstWhere(
       (id) => id != currentUserId,
       orElse: () => '',
     );
 
-    if (otherUserId.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (otherUserId.isEmpty) return const SizedBox.shrink();
 
     return FutureBuilder<UserModel?>(
       future: _firestoreService.getUser(otherUserId),
@@ -344,75 +305,22 @@ class _SchoolMessagesPageState extends State<SchoolMessagesPage> {
 
         final otherUser = userSnapshot.data!;
         final lastMessage = conversationData['lastMessage'] as String? ?? '';
-        final lastMessageTime = conversationData['lastMessageTime'] as Timestamp?;
-
-        // Récupérer le compteur de messages non lus
-        final unreadCount = conversationData['unreadCount'] as Map<String, dynamic>?;
+        final lastMessageTime =
+            conversationData['lastMessageTime'] as Timestamp?;
+        final unreadCount =
+            conversationData['unreadCount'] as Map<String, dynamic>?;
         final unreadMessages = (unreadCount?[currentUserId] as int?) ?? 0;
         final hasUnread = unreadMessages > 0;
 
         return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: Stack(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
-                child: Text(
-                  otherUser.nom
-                      .split(' ')
-                      .map((word) => word.isNotEmpty ? word[0] : '')
-                      .take(2)
-                      .join()
-                      .toUpperCase(),
-                  style: const TextStyle(
-                    color: Color(0xFFF77F00),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-              if (otherUser.isOnline)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
-                ),
-              // Badge de messages non lus
-              if (hasUnread)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 20,
-                      minHeight: 20,
-                    ),
-                    child: Text(
-                      unreadMessages > 9 ? '9+' : '$unreadMessages',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
+          leading: _buildConversationAvatar(
+            otherUser,
+            unreadMessages,
+            hasUnread,
           ),
           title: Text(
             otherUser.nom,
@@ -422,57 +330,133 @@ class _SchoolMessagesPageState extends State<SchoolMessagesPage> {
             ),
             overflow: TextOverflow.ellipsis,
           ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 4),
-              Text(
-                otherUser.fonction,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF009E60),
-                ),
-              ),
-              if (lastMessage.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  lastMessage,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: hasUnread ? Colors.black87 : Colors.grey[600],
-                    fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ],
+          subtitle: _buildConversationSubtitle(
+            otherUser,
+            lastMessage,
+            hasUnread,
           ),
           trailing: lastMessageTime != null
               ? Text(
                   _formatTime(lastMessageTime.toDate()),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                 )
               : null,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ChatPage(
-                  contactName: otherUser.nom,
-                  contactFunction: otherUser.fonction,
-                  isOnline: otherUser.isOnline,
-                  conversationId: conversationId,
-                  contactUserId: otherUser.uid,
-                ),
-              ),
-            );
-          },
+          onTap: () => _navigateToChat(otherUser, conversationId),
         );
       },
+    );
+  }
+
+  Widget _buildConversationAvatar(
+    UserModel user,
+    int unreadMessages,
+    bool hasUnread,
+  ) {
+    return Stack(
+      children: [
+        CircleAvatar(
+          radius: 28,
+          backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
+          child: Text(
+            user.nom
+                .split(' ')
+                .map((word) => word.isNotEmpty ? word[0] : '')
+                .take(2)
+                .join()
+                .toUpperCase(),
+            style: const TextStyle(
+              color: Color(0xFFF77F00),
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        ),
+        if (user.isOnline)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+        if (hasUnread)
+          Positioned(
+            left: 0,
+            top: 0,
+            child: _buildConversationUnreadBadge(unreadMessages),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildConversationUnreadBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: const BoxDecoration(
+        color: Colors.red,
+        shape: BoxShape.circle,
+      ),
+      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+      child: Text(
+        count > 9 ? '9+' : '$count',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildConversationSubtitle(
+    UserModel user,
+    String lastMessage,
+    bool hasUnread,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        Text(
+          user.fonction,
+          style: const TextStyle(fontSize: 13, color: Color(0xFF009E60)),
+        ),
+        if (lastMessage.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            lastMessage,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              color: hasUnread ? Colors.black87 : Colors.grey[600],
+              fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _navigateToChat(UserModel user, String conversationId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatPage(
+          contactName: user.nom,
+          contactFunction: user.fonction,
+          isOnline: user.isOnline,
+          conversationId: conversationId,
+          contactUserId: user.uid,
+        ),
+      ),
     );
   }
 }
@@ -525,7 +509,10 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Déconnexion', style: TextStyle(color: Colors.red)),
+            child: const Text(
+              'Déconnexion',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -543,10 +530,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erreur: $e'),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
           );
         }
       }
@@ -583,29 +567,40 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                 '📝 Publier une offre',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
-              Text('Accédez à "Mes offres" et cliquez sur le bouton "+" pour créer une nouvelle offre d\'emploi.'),
+              Text(
+                'Accédez à "Mes offres" et cliquez sur le bouton "+" pour créer une nouvelle offre d\'emploi.',
+              ),
               SizedBox(height: 12),
               Text(
                 '👥 Consulter les candidats',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
-              Text('Naviguez dans l\'onglet "Candidats" pour voir les enseignants qui ont postulé à vos offres.'),
+              Text(
+                'Naviguez dans l\'onglet "Candidats" pour voir les enseignants qui ont postulé à vos offres.',
+              ),
               SizedBox(height: 12),
               Text(
                 '✉️ Contacter un candidat',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
-              Text('Cliquez sur "Contacter" pour voir les coordonnées et envoyer un email au candidat.'),
+              Text(
+                'Cliquez sur "Contacter" pour voir les coordonnées et envoyer un email au candidat.',
+              ),
               SizedBox(height: 12),
               Text(
                 '⚙️ Gérer vos offres',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
-              Text('Vous pouvez modifier, dupliquer, suspendre ou supprimer vos offres via le menu "⋮".'),
+              Text(
+                'Vous pouvez modifier, dupliquer, suspendre ou supprimer vos offres via le menu "⋮".',
+              ),
               SizedBox(height: 16),
               Text(
                 'Pour plus d\'assistance, contactez-nous à support@chiasma.pro',
-                style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
               ),
             ],
           ),
@@ -640,10 +635,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                 ),
               ),
               SizedBox(height: 8),
-              Text(
-                'Version 1.0.0',
-                style: TextStyle(color: Colors.grey),
-              ),
+              Text('Version 1.0.0', style: TextStyle(color: Colors.grey)),
               SizedBox(height: 16),
               Text(
                 'Plateforme de mise en relation entre enseignants et établissements scolaires en Côte d\'Ivoire.',
@@ -652,10 +644,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
               SizedBox(height: 16),
               Divider(),
               SizedBox(height: 8),
-              Text(
-                '📧 Contact',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              Text('📧 Contact', style: TextStyle(fontWeight: FontWeight.bold)),
               Text('support@chiasma.pro'),
               SizedBox(height: 12),
               Text(
@@ -671,7 +660,11 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
               SizedBox(height: 8),
               Text(
                 'Développé par N\'da',
-                style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ],
           ),
@@ -700,9 +693,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           maxLines: 5,
           decoration: InputDecoration(
             hintText: 'Décrivez le problème rencontré...',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
         actions: [
@@ -714,54 +705,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () async {
-              final problemText = problemController.text.trim();
-
-              if (problemText.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Veuillez décrire le problème'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-                return;
-              }
-
-              try {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user != null && _currentUserData != null) {
-                  await _firestoreService.submitProblemReport(
-                    userId: user.uid,
-                    userName: _currentUserData!.nom,
-                    userEmail: user.email ?? '',
-                    accountType: _currentUserData!.accountType,
-                    problemDescription: problemText,
-                  );
-
-                  problemController.dispose();
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Merci pour votre retour ! Nous examinerons votre signalement.'),
-                        backgroundColor: Color(0xFF009E60),
-                      ),
-                    );
-                  }
-                }
-              } catch (e) {
-                problemController.dispose();
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Erreur lors de l\'envoi: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
+            onPressed: () => _submitProblemReport(context, problemController),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF77F00),
             ),
@@ -770,6 +714,60 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _submitProblemReport(
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
+    final problemText = controller.text.trim();
+
+    if (problemText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez décrire le problème'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && _currentUserData != null) {
+        await _firestoreService.submitProblemReport(
+          userId: user.uid,
+          userName: _currentUserData!.nom,
+          userEmail: user.email ?? '',
+          accountType: _currentUserData!.accountType,
+          problemDescription: problemText,
+        );
+
+        controller.dispose();
+        if (context.mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Merci pour votre retour ! Nous examinerons votre signalement.',
+              ),
+              backgroundColor: Color(0xFF009E60),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      controller.dispose();
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'envoi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   /// Afficher le dialogue de gestion du stockage
@@ -895,7 +893,10 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     int totalSize = 0;
     try {
       if (await dir.exists()) {
-        await for (var entity in dir.list(recursive: true, followLinks: false)) {
+        await for (var entity in dir.list(
+          recursive: true,
+          followLinks: false,
+        )) {
           if (entity is File) {
             totalSize += await entity.length();
           }
@@ -941,9 +942,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Paramètres'),
-      ),
+      appBar: AppBar(title: const Text('Paramètres')),
       body: ListView(
         children: [
           ListTile(

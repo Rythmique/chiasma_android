@@ -26,19 +26,27 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
   final _passwordController = TextEditingController();
 
   // Contrôleurs pour téléphones (max 3)
-  final List<TextEditingController> _phoneControllers = [TextEditingController()];
+  final List<TextEditingController> _phoneControllers = [
+    TextEditingController(),
+  ];
 
   // Contrôleurs pour matières
-  final List<TextEditingController> _matiereControllers = [TextEditingController()];
+  final List<TextEditingController> _matiereControllers = [
+    TextEditingController(),
+  ];
 
   // Contrôleurs pour zones souhaitées
-  final List<TextEditingController> _zoneControllers = [TextEditingController()];
+  final List<TextEditingController> _zoneControllers = [
+    TextEditingController(),
+  ];
 
   // Niveaux sélectionnés
   final List<String> _niveauxSelectionnes = [];
 
   // Diplômes
-  final List<TextEditingController> _diplomeControllers = [TextEditingController()];
+  final List<TextEditingController> _diplomeControllers = [
+    TextEditingController(),
+  ];
 
   // Expérience et disponibilité
   final _experienceController = TextEditingController();
@@ -46,9 +54,15 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
 
   // Liste des niveaux disponibles
   final List<String> _niveauxDisponibles = [
-    '6ème', '5ème', '4ème', '3ème',
-    '2nde', '1ère', 'Terminale',
-    'Primaire', 'Maternelle',
+    '6ème',
+    '5ème',
+    '4ème',
+    '3ème',
+    '2nde',
+    '1ère',
+    'Terminale',
+    'Primaire',
+    'Maternelle',
   ];
 
   @override
@@ -186,7 +200,8 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
         fonction: matieres.join(', '), // Utiliser matieres comme fonction
         zoneActuelle: '', // Pas de zone actuelle
         dren: null,
-        infosZoneActuelle: _experienceController.text.trim(), // Utiliser pour stocker l'expérience temporairement
+        infosZoneActuelle: _experienceController.text
+            .trim(), // Utiliser pour stocker l'expérience temporairement
         zonesSouhaitees: zones,
       );
 
@@ -261,28 +276,18 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
           padding: const EdgeInsets.all(24),
           children: [
             // En-tête
-            const Icon(
-              Icons.person_add,
-              size: 64,
-              color: Color(0xFF009E60),
-            ),
+            const Icon(Icons.person_add, size: 64, color: Color(0xFF009E60)),
             const SizedBox(height: 16),
             const Text(
               'Créez votre profil candidat',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               'Remplissez les informations pour déposer votre candidature',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
             const SizedBox(height: 32),
 
@@ -329,8 +334,11 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
                 labelText: 'Mot de passe',
                 prefixIcon: const Icon(Icons.lock),
                 suffixIcon: IconButton(
-                  icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
                 ),
               ),
               obscureText: _obscurePassword,
@@ -374,7 +382,9 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
                           if (index == 0 && (value == null || value.isEmpty)) {
                             return 'Au moins un numéro requis';
                           }
-                          if (value != null && value.isNotEmpty && value.length != 10) {
+                          if (value != null &&
+                              value.isNotEmpty &&
+                              value.length != 10) {
                             return '10 chiffres requis';
                           }
                           return null;
@@ -383,7 +393,10 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
                     ),
                     if (_phoneControllers.length > 1)
                       IconButton(
-                        icon: const Icon(Icons.remove_circle, color: Colors.red),
+                        icon: const Icon(
+                          Icons.remove_circle,
+                          color: Colors.red,
+                        ),
                         onPressed: () => _removePhoneField(index),
                       ),
                   ],
@@ -431,7 +444,10 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
                     ),
                     if (_matiereControllers.length > 1)
                       IconButton(
-                        icon: const Icon(Icons.remove_circle, color: Colors.red),
+                        icon: const Icon(
+                          Icons.remove_circle,
+                          color: Colors.red,
+                        ),
                         onPressed: () => _removeMatiereField(index),
                       ),
                   ],
@@ -512,7 +528,10 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
                     ),
                     if (_diplomeControllers.length > 1)
                       IconButton(
-                        icon: const Icon(Icons.remove_circle, color: Colors.red),
+                        icon: const Icon(
+                          Icons.remove_circle,
+                          color: Colors.red,
+                        ),
                         onPressed: () => _removeDiplomeField(index),
                       ),
                   ],
@@ -576,7 +595,10 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
                     ),
                     if (_zoneControllers.length > 1)
                       IconButton(
-                        icon: const Icon(Icons.remove_circle, color: Colors.red),
+                        icon: const Icon(
+                          Icons.remove_circle,
+                          color: Colors.red,
+                        ),
                         onPressed: () => _removeZoneField(index),
                       ),
                   ],
@@ -598,10 +620,22 @@ class _RegisterCandidatePageState extends State<RegisterCandidatePage> {
               ),
               items: const [
                 DropdownMenuItem(value: 'Immédiate', child: Text('Immédiate')),
-                DropdownMenuItem(value: 'Dans 1 mois', child: Text('Dans 1 mois')),
-                DropdownMenuItem(value: 'Dans 2 mois', child: Text('Dans 2 mois')),
-                DropdownMenuItem(value: 'Dans 3 mois', child: Text('Dans 3 mois')),
-                DropdownMenuItem(value: 'À discuter', child: Text('À discuter')),
+                DropdownMenuItem(
+                  value: 'Dans 1 mois',
+                  child: Text('Dans 1 mois'),
+                ),
+                DropdownMenuItem(
+                  value: 'Dans 2 mois',
+                  child: Text('Dans 2 mois'),
+                ),
+                DropdownMenuItem(
+                  value: 'Dans 3 mois',
+                  child: Text('Dans 3 mois'),
+                ),
+                DropdownMenuItem(
+                  value: 'À discuter',
+                  child: Text('À discuter'),
+                ),
               ],
               onChanged: (value) {
                 if (value != null) {

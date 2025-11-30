@@ -3,17 +3,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:myapp/chat_page.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/services/analytics_service.dart';
+import 'package:myapp/services/access_restrictions_service.dart';
 import 'package:myapp/models/user_model.dart';
 import 'package:myapp/utils/string_utils.dart';
+import 'package:myapp/utils/messaging_restrictions_helper.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
 
 class ProfileDetailPage extends StatefulWidget {
   final String userId; // ID de l'utilisateur dont on consulte le profil
 
-  const ProfileDetailPage({
-    super.key,
-    required this.userId,
-  });
+  const ProfileDetailPage({super.key, required this.userId});
 
   @override
   State<ProfileDetailPage> createState() => _ProfileDetailPageState();
@@ -24,9 +23,12 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   bool _isLoadingFavorite = true;
   final _firestoreService = FirestoreService();
   final _analytics = AnalyticsService();
+  final _restrictionsService = AccessRestrictionsService();
   UserModel? _profileUserData;
   UserModel? _currentUserData; // Données de l'utilisateur connecté
   bool _isLoadingProfile = true;
+  bool _adminRestrictionsEnabled =
+      true; // Restrictions admin pour teacher_transfer
 
   @override
   void initState() {
@@ -34,7 +36,21 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     _loadFavoriteStatus();
     _loadProfileData();
     _loadCurrentUserData();
+    _loadAdminRestrictions();
     _recordProfileView();
+  }
+
+  Future<void> _loadAdminRestrictions() async {
+    try {
+      final restrictions = await _restrictionsService.getRestrictions();
+      if (mounted) {
+        setState(() {
+          _adminRestrictionsEnabled = restrictions['teacher_transfer'] ?? true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur lors du chargement des restrictions admin: $e');
+    }
   }
 
   Future<void> _loadCurrentUserData() async {
@@ -142,8 +158,22 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     try {
       if (_isFavorite) {
         await _firestoreService.removeFavorite(currentUser.uid, widget.userId);
+        // 📊 Analytics: Track retrait favori
+        if (_profileUserData != null) {
+          await _analytics.logRemoveFavorite(
+            widget.userId,
+            _profileUserData!.accountType,
+          );
+        }
       } else {
         await _firestoreService.addFavorite(currentUser.uid, widget.userId);
+        // 📊 Analytics: Track ajout favori
+        if (_profileUserData != null) {
+          await _analytics.logAddFavorite(
+            widget.userId,
+            _profileUserData!.accountType,
+          );
+        }
       }
 
       if (mounted) {
@@ -153,9 +183,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _isFavorite
-                  ? 'Ajouté aux favoris ❤️'
-                  : 'Retiré des favoris',
+              _isFavorite ? 'Ajouté aux favoris ❤️' : 'Retiré des favoris',
             ),
             duration: const Duration(seconds: 2),
             backgroundColor: _isFavorite ? Colors.red : const Color(0xFF009E60),
@@ -184,9 +212,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           foregroundColor: Colors.white,
         ),
         body: const Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFFF77F00),
-          ),
+          child: CircularProgressIndicator(color: Color(0xFFF77F00)),
         ),
       );
     }
@@ -198,9 +224,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
           backgroundColor: const Color(0xFFF77F00),
           foregroundColor: Colors.white,
         ),
-        body: const Center(
-          child: Text('Profil introuvable'),
-        ),
+        body: const Center(child: Text('Profil introuvable')),
       );
     }
 
@@ -259,7 +283,10 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF4CAF50),
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 3),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
                                 ),
                               ),
                             ),
@@ -295,7 +322,9 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
                     : Icon(
@@ -320,179 +349,172 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
                   const SizedBox(height: 16),
 
                   // Contact (affichage conditionnel pour les écoles)
-                  if (profile.accountType != 'school' || profile.showContactInfo)
-                    _buildSectionCard(
-                      'Contact',
-                      [
-                        // Email avec masquage pour écoles non vérifiées
-                        () {
-                          // Masquer si l'utilisateur actuel est une école non vérifiée
-                          final shouldMask = _currentUserData?.accountType == 'school' &&
-                              !(_currentUserData?.isVerified ?? false);
-                          final displayEmail = shouldMask
-                              ? maskEmail(profile.email)
-                              : profile.email;
+                  if (profile.accountType != 'school' ||
+                      profile.showContactInfo)
+                    _buildSectionCard('Contact', [
+                      // Email avec masquage pour écoles et teacher_transfer non vérifiés
+                      () {
+                        // Masquer si:
+                        // 1. Utilisateur actuel = école non vérifiée
+                        // 2. Utilisateur actuel = teacher_transfer avec restrictions admin activées ET non vérifié
+                        final shouldMaskSchool =
+                            _currentUserData?.accountType == 'school' &&
+                            !(_currentUserData?.isVerified ?? false);
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildInfoRow(
-                                Icons.email,
-                                'Email',
-                                displayEmail,
-                                const Color(0xFFF77F00),
-                              ),
-                              if (shouldMask) ...[
-                                const SizedBox(height: 4),
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 48),
-                                  child: Text(
-                                    'Email masqué - Vérification requise',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.orange[700],
-                                      fontStyle: FontStyle.italic,
-                                    ),
+                        final shouldMaskTeacher =
+                            _currentUserData != null &&
+                            MessagingRestrictionsHelper.shouldMaskContacts(
+                              _currentUserData!,
+                              _adminRestrictionsEnabled,
+                            );
+
+                        final shouldMask =
+                            shouldMaskSchool || shouldMaskTeacher;
+                        final displayEmail = shouldMask
+                            ? maskEmail(profile.email)
+                            : profile.email;
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildInfoRow(
+                              Icons.email,
+                              'Email',
+                              displayEmail,
+                              const Color(0xFFF77F00),
+                            ),
+                            if (shouldMask) ...[
+                              const SizedBox(height: 4),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 48),
+                                child: Text(
+                                  shouldMaskTeacher
+                                      ? 'Email masqué - Abonnement requis'
+                                      : 'Email masqué - Vérification requise',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.orange[700],
+                                    fontStyle: FontStyle.italic,
                                   ),
                                 ),
-                              ],
-                            ],
-                          );
-                        }(),
-                        if (profile.telephones.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          ...profile.telephones.asMap().entries.map((entry) {
-                            // Masquer le téléphone si l'utilisateur actuel est une école non vérifiée
-                            final shouldMask = _currentUserData?.accountType == 'school' &&
-                                !(_currentUserData?.isVerified ?? false);
-                            final displayPhone = shouldMask
-                                ? maskPhoneNumber(entry.value)
-                                : entry.value;
-
-                            return Padding(
-                              padding: EdgeInsets.only(
-                                top: entry.key > 0 ? 16 : 0,
                               ),
+                            ],
+                          ],
+                        );
+                      }(),
+                      if (profile.telephones.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        ...profile.telephones.asMap().entries.map((entry) {
+                          // Masquer si:
+                          // 1. Utilisateur actuel = école non vérifiée
+                          // 2. Utilisateur actuel = teacher_transfer avec restrictions admin activées ET non vérifié
+                          final shouldMaskSchool =
+                              _currentUserData?.accountType == 'school' &&
+                              !(_currentUserData?.isVerified ?? false);
+
+                          final shouldMaskTeacher =
+                              _currentUserData != null &&
+                              MessagingRestrictionsHelper.shouldMaskContacts(
+                                _currentUserData!,
+                                _adminRestrictionsEnabled,
+                              );
+
+                          final shouldMask =
+                              shouldMaskSchool || shouldMaskTeacher;
+                          final displayPhone = shouldMask
+                              ? maskPhoneNumber(entry.value)
+                              : entry.value;
+
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              top: entry.key > 0 ? 16 : 0,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildInfoRow(
+                                  Icons.phone,
+                                  profile.telephones.length > 1
+                                      ? 'Téléphone ${entry.key + 1}'
+                                      : 'Téléphone',
+                                  displayPhone,
+                                  const Color(0xFF009E60),
+                                ),
+                                if (shouldMask) ...[
+                                  const SizedBox(height: 4),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 48),
+                                    child: Text(
+                                      shouldMaskTeacher
+                                          ? 'Numéro masqué - Abonnement requis'
+                                          : 'Numéro masqué - Vérification requise',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.orange[700],
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ])
+                  else
+                    _buildSectionCard('Contact', [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(
+                              0xFFF77F00,
+                            ).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.lock_outline,
+                              color: Colors.orange[700],
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildInfoRow(
-                                    Icons.phone,
-                                    profile.telephones.length > 1
-                                        ? 'Téléphone ${entry.key + 1}'
-                                        : 'Téléphone',
-                                    displayPhone,
-                                    const Color(0xFF009E60),
-                                  ),
-                                  if (shouldMask) ...[
-                                    const SizedBox(height: 4),
-                                    Padding(
-                                      padding: const EdgeInsets.only(left: 48),
-                                      child: Text(
-                                        'Numéro masqué - Vérification requise',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.orange[700],
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
+                                  Text(
+                                    'Coordonnées privées',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.orange[900],
                                     ),
-                                  ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Cet établissement a choisi de ne pas afficher ses coordonnées publiquement. Utilisez la messagerie pour le contacter.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.orange[800],
+                                    ),
+                                  ),
                                 ],
                               ),
-                            );
-                          }),
-                        ],
-                      ],
-                    )
-                  else
-                    _buildSectionCard(
-                      'Contact',
-                      [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.orange[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: const Color(0xFFF77F00).withValues(alpha: 0.3),
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.lock_outline,
-                                color: Colors.orange[700],
-                                size: 24,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Coordonnées privées',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.orange[900],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Cet établissement a choisi de ne pas afficher ses coordonnées publiquement. Utilisez la messagerie pour le contacter.',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.orange[800],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ]),
                   const SizedBox(height: 24),
 
                   // Boutons d'action
                   Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ChatPage(
-                                  contactName: profile.nom,
-                                  contactFunction: profile.fonction,
-                                  isOnline: profile.isOnline,
-                                  contactUserId: profile.uid,
-                                ),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF77F00),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(Icons.message),
-                          label: const Text(
-                            'Envoyer un message',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    children: [Expanded(child: _buildMessageButton(profile))],
                   ),
                   const SizedBox(height: 32),
                 ],
@@ -507,9 +529,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   Widget _buildSectionCard(String title, List<Widget> children) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -531,12 +551,7 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
-  Widget _buildInfoRow(
-    IconData icon,
-    String label,
-    String value,
-    Color color,
-  ) {
+  Widget _buildInfoRow(IconData icon, String label, String value, Color color) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -577,47 +592,93 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
     );
   }
 
+  /// Construit le bouton de messagerie avec gestion des restrictions
+  Widget _buildMessageButton(UserModel profile) {
+    // Vérifier si la messagerie doit être restreinte pour l'utilisateur actuel
+    final shouldRestrict =
+        _currentUserData != null &&
+        MessagingRestrictionsHelper.shouldRestrictMessaging(
+          _currentUserData!,
+          _adminRestrictionsEnabled,
+        );
+
+    return ElevatedButton.icon(
+      onPressed: shouldRestrict
+          ? () {
+              // Afficher le dialogue d'abonnement au lieu de naviguer
+              SubscriptionRequiredDialog.show(context, 'teacher_transfer');
+            }
+          : () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChatPage(
+                    contactName: profile.nom,
+                    contactFunction: profile.fonction,
+                    isOnline: profile.isOnline,
+                    contactUserId: profile.uid,
+                  ),
+                ),
+              );
+            },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: shouldRestrict
+            ? Colors.grey[400]
+            : const Color(0xFFF77F00),
+        foregroundColor: shouldRestrict ? Colors.grey[700] : Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      icon: Icon(
+        Icons.message,
+        color: shouldRestrict ? Colors.grey[700] : Colors.white,
+      ),
+      label: Text(
+        'Envoyer un message',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: shouldRestrict ? Colors.grey[700] : Colors.white,
+        ),
+      ),
+    );
+  }
+
   /// Construire le profil pour un candidat enseignant (teacher_candidate)
   List<Widget> _buildCandidateProfile(UserModel profile) {
     return [
       // Zones souhaitées (pour les candidats, c'est le plus important)
       if (profile.zonesSouhaitees.isNotEmpty)
-        _buildSectionCard(
-          'Zones souhaitées',
-          [
-            _buildInfoRow(
-              Icons.location_searching,
-              profile.zonesSouhaitees.length == 1
-                  ? 'Zone souhaitée'
-                  : 'Zones souhaitées',
-              profile.zonesSouhaitees.join(' • '),
-              const Color(0xFF009E60),
-            ),
-          ],
-        ),
+        _buildSectionCard('Zones souhaitées', [
+          _buildInfoRow(
+            Icons.location_searching,
+            profile.zonesSouhaitees.length == 1
+                ? 'Zone souhaitée'
+                : 'Zones souhaitées',
+            profile.zonesSouhaitees.join(' • '),
+            const Color(0xFF009E60),
+          ),
+        ]),
       const SizedBox(height: 16),
 
       // Informations professionnelles
-      _buildSectionCard(
-        'Informations professionnelles',
-        [
+      _buildSectionCard('Informations professionnelles', [
+        _buildInfoRow(
+          Icons.subject,
+          'Matières enseignées',
+          profile.fonction,
+          const Color(0xFF2196F3),
+        ),
+        if (profile.infosZoneActuelle.isNotEmpty) ...[
+          const SizedBox(height: 16),
           _buildInfoRow(
-            Icons.subject,
-            'Matières enseignées',
-            profile.fonction,
-            const Color(0xFF2196F3),
+            Icons.work_history,
+            'Expérience professionnelle',
+            profile.infosZoneActuelle,
+            Colors.orange[800]!,
           ),
-          if (profile.infosZoneActuelle.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildInfoRow(
-              Icons.work_history,
-              'Expérience professionnelle',
-              profile.infosZoneActuelle,
-              Colors.orange[800]!,
-            ),
-          ],
         ],
-      ),
+      ]),
     ];
   }
 
@@ -625,62 +686,56 @@ class _ProfileDetailPageState extends State<ProfileDetailPage> {
   List<Widget> _buildTeacherTransferProfile(UserModel profile) {
     return [
       // Zones
-      _buildSectionCard(
-        'Localisation',
-        [
+      _buildSectionCard('Localisation', [
+        _buildInfoRow(
+          Icons.location_on,
+          'Zone actuelle',
+          profile.zoneActuelle,
+          const Color(0xFFF77F00),
+        ),
+        if (profile.zonesSouhaitees.isNotEmpty) ...[
+          const SizedBox(height: 16),
           _buildInfoRow(
-            Icons.location_on,
-            'Zone actuelle',
-            profile.zoneActuelle,
-            const Color(0xFFF77F00),
+            Icons.location_searching,
+            profile.zonesSouhaitees.length == 1
+                ? 'Zone souhaitée'
+                : 'Zones souhaitées',
+            profile.zonesSouhaitees.join(' • '),
+            const Color(0xFF009E60),
           ),
-          if (profile.zonesSouhaitees.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildInfoRow(
-              Icons.location_searching,
-              profile.zonesSouhaitees.length == 1
-                  ? 'Zone souhaitée'
-                  : 'Zones souhaitées',
-              profile.zonesSouhaitees.join(' • '),
-              const Color(0xFF009E60),
-            ),
-          ],
         ],
-      ),
+      ]),
       const SizedBox(height: 16),
 
       // Informations professionnelles
-      _buildSectionCard(
-        'Informations professionnelles',
-        [
+      _buildSectionCard('Informations professionnelles', [
+        _buildInfoRow(
+          Icons.work,
+          'Fonction',
+          profile.fonction,
+          const Color(0xFF2196F3),
+        ),
+        if (profile.dren != null && profile.dren!.isNotEmpty) ...[
+          const SizedBox(height: 16),
           _buildInfoRow(
-            Icons.work,
-            'Fonction',
-            profile.fonction,
-            const Color(0xFF2196F3),
+            Icons.apartment,
+            'DREN',
+            profile.dren!,
+            const Color(0xFF9C27B0),
           ),
-          if (profile.dren != null && profile.dren!.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildInfoRow(
-              Icons.apartment,
-              'DREN',
-              profile.dren!,
-              const Color(0xFF9C27B0),
-            ),
-          ],
-          if (profile.infosZoneActuelle.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildInfoRow(
-              Icons.school,
-              'Établissement',
-              profile.infosZoneActuelle,
-              Colors.orange[800]!,
-            ),
-          ],
-          // Matricule masqué : uniquement visible pour les admins
-          // Ne jamais afficher le matricule sur les profils publics (sécurité)
         ],
-      ),
+        if (profile.infosZoneActuelle.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            Icons.school,
+            'Établissement',
+            profile.infosZoneActuelle,
+            Colors.orange[800]!,
+          ),
+        ],
+        // Matricule masqué : uniquement visible pour les admins
+        // Ne jamais afficher le matricule sur les profils publics (sécurité)
+      ]),
     ];
   }
 }

@@ -55,9 +55,7 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
   Widget build(BuildContext context) {
     if (_userId == null) {
       return const Scaffold(
-        body: Center(
-          child: Text('Erreur: utilisateur non connecté'),
-        ),
+        body: Center(child: Text('Erreur: utilisateur non connecté')),
       );
     }
 
@@ -118,11 +116,7 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.work_off_outlined,
-              size: 100,
-              color: Colors.grey[300],
-            ),
+            Icon(Icons.work_off_outlined, size: 100, color: Colors.grey[300]),
             const SizedBox(height: 24),
             Text(
               'Aucune candidature',
@@ -196,10 +190,7 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
             children: [
               _buildInfoRow('Matières', application.matieresString),
               _buildInfoRow('Niveaux', application.niveauxString),
-              _buildInfoRow(
-                'Diplômes',
-                application.diplomes.join(', '),
-              ),
+              _buildInfoRow('Diplômes', application.diplomes.join(', ')),
               _buildInfoRow('Expérience', application.experience),
             ],
           ),
@@ -239,9 +230,7 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
                         : Icons.visibility,
                   ),
                   label: Text(
-                    application.status == 'active'
-                        ? 'Désactiver'
-                        : 'Activer',
+                    application.status == 'active' ? 'Désactiver' : 'Activer',
                   ),
                 ),
               ),
@@ -292,9 +281,9 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
                   Text(
                     isActive ? 'Candidature active' : 'Candidature inactive',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: isActive ? Colors.green[900] : Colors.orange[900],
-                        ),
+                      fontWeight: FontWeight.bold,
+                      color: isActive ? Colors.green[900] : Colors.orange[900],
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -344,19 +333,25 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
                       child: _isLoadingViewsCount
                           ? Column(
                               children: [
-                                Icon(Icons.visibility,
-                                    color: Theme.of(context).colorScheme.primary),
+                                Icon(
+                                  Icons.visibility,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                                 const SizedBox(height: 4),
                                 const SizedBox(
                                   width: 20,
                                   height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   'Vues de profil',
                                   style: TextStyle(
-                                      fontSize: 12, color: Colors.grey[600]),
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
                                 ),
                               ],
                             )
@@ -369,11 +364,7 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
                     ),
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Colors.grey[300],
-                ),
+                Container(width: 1, height: 40, color: Colors.grey[300]),
                 Expanded(
                   child: _buildStatItem(
                     context,
@@ -412,14 +403,11 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
         const SizedBox(height: 4),
         Text(
           value,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
         ),
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
     );
   }
@@ -444,8 +432,8 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -498,14 +486,16 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
           children: [
             Row(
               children: [
-                Icon(Icons.attach_file,
-                    color: Theme.of(context).colorScheme.primary),
+                Icon(
+                  Icons.attach_file,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Documents',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -523,7 +513,9 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
                 title: const Text('Lettre de motivation'),
                 trailing: const Icon(Icons.download),
                 onTap: () => _openDocument(
-                    application.lettreMotivationUrl!, 'Lettre de motivation'),
+                  application.lettreMotivationUrl!,
+                  'Lettre de motivation',
+                ),
               ),
             if (application.photoUrl != null)
               ListTile(
@@ -544,10 +536,9 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
     String newStatus,
   ) async {
     try {
-      await _jobsService.updateJobApplication(
-        application.id,
-        {'status': newStatus},
-      );
+      await _jobsService.updateJobApplication(application.id, {
+        'status': newStatus,
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -563,10 +554,7 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -577,10 +565,7 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
     try {
       final uri = Uri.parse(url);
       if (await canLaunchUrl(uri)) {
-        await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -594,10 +579,7 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -623,7 +605,10 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
                   onPressed: () async {
                     final uri = Uri.parse(photoUrl);
                     if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
                     }
                   },
                 ),
@@ -642,7 +627,7 @@ class _MyApplicationPageState extends State<MyApplicationPage> {
                         child: CircularProgressIndicator(
                           value: loadingProgress.expectedTotalBytes != null
                               ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
+                                    loadingProgress.expectedTotalBytes!
                               : null,
                         ),
                       ),

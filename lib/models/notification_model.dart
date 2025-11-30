@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 class NotificationModel {
   final String id;
   final String userId; // Destinataire
-  final String type; // 'message', 'match', 'favorite', 'application', 'offer', 'system'
+  final String
+  type; // 'message', 'match', 'favorite', 'application', 'offer', 'system'
   final String title;
   final String message;
   final DateTime createdAt;
   final bool isRead;
-  final Map<String, dynamic>? data; // Données supplémentaires (ex: profileId, offerId, etc.)
+  final Map<String, dynamic>?
+  data; // Données supplémentaires (ex: profileId, offerId, etc.)
 
   NotificationModel({
     required this.id,
@@ -73,43 +75,29 @@ class NotificationModel {
     );
   }
 
-  // Obtenir l'icône selon le type
-  static IconData getIconDataForType(String type) {
+  // Helper pour obtenir config selon le type (icône et couleur)
+  static (IconData, int) _getTypeConfig(String type) {
     switch (type) {
       case 'message':
-        return Icons.message;
+        return (Icons.message, 0xFF2196F3); // Bleu
       case 'match':
-        return Icons.people;
+        return (Icons.people, 0xFFE91E63); // Rose
       case 'favorite':
-        return Icons.favorite;
+        return (Icons.favorite, 0xFFFF5252); // Rouge
       case 'application':
-        return Icons.work;
+        return (Icons.work, 0xFF009E60); // Vert
       case 'offer':
-        return Icons.business_center;
+        return (Icons.business_center, 0xFFF77F00); // Orange
       case 'system':
-        return Icons.notifications;
+        return (Icons.notifications, 0xFF9C27B0); // Violet
       default:
-        return Icons.notifications;
+        return (Icons.notifications, 0xFF757575); // Gris
     }
   }
 
+  // Obtenir l'icône selon le type
+  static IconData getIconDataForType(String type) => _getTypeConfig(type).$1;
+
   // Obtenir la couleur selon le type
-  static int getColorForType(String type) {
-    switch (type) {
-      case 'message':
-        return 0xFF2196F3; // Bleu
-      case 'match':
-        return 0xFFE91E63; // Rose
-      case 'favorite':
-        return 0xFFFF5252; // Rouge
-      case 'application':
-        return 0xFF009E60; // Vert
-      case 'offer':
-        return 0xFFF77F00; // Orange
-      case 'system':
-        return 0xFF9C27B0; // Violet
-      default:
-        return 0xFF757575; // Gris
-    }
-  }
+  static int getColorForType(String type) => _getTypeConfig(type).$2;
 }

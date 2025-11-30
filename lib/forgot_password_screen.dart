@@ -141,7 +141,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFF77F00).withValues(alpha: 0.3),
+                              color: const Color(
+                                0xFFF77F00,
+                              ).withValues(alpha: 0.3),
                               blurRadius: 20,
                               offset: const Offset(0, 10),
                             ),
@@ -184,7 +186,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           letterSpacing: 1,
                           shadows: [
                             Shadow(
-                              color: const Color(0xFFF77F00).withValues(alpha: 0.3),
+                              color: const Color(
+                                0xFFF77F00,
+                              ).withValues(alpha: 0.3),
                               offset: const Offset(0, 3),
                               blurRadius: 8,
                             ),
@@ -324,7 +328,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                  Icon(
+                    Icons.error_outline,
+                    color: Colors.red.shade700,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -433,10 +441,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
         Text(
           'Nous avons envoyé un lien de réinitialisation à :',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[700],
-          ),
+          style: TextStyle(fontSize: 14, color: Colors.grey[700]),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
@@ -454,11 +459,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
         Text(
           'Veuillez vérifier votre boîte de réception et cliquer sur le lien pour réinitialiser votre mot de passe.',
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.grey[600],
-            height: 1.5,
-          ),
+          style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.5),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 32),
@@ -500,7 +501,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   width: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF009E60)),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFF009E60),
+                    ),
                   ),
                 )
               : const Text(

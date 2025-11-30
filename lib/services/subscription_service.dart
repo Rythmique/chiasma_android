@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:myapp/models/user_model.dart';
 import 'package:myapp/services/analytics_service.dart';
 
-/// Résultat d'une consommation de quota
 class QuotaResult {
   final bool success;
   final String message;
@@ -24,11 +23,8 @@ class SubscriptionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final AnalyticsService _analytics = AnalyticsService();
 
-  // Messages de notification selon le type de compte
-  static String getSubscriptionMessage(String accountType) {
-    switch (accountType) {
-      case 'teacher_transfer':
-        return '''
+  static final _subscriptionMessages = {
+    'teacher_transfer': '''
 Pour continuer à utiliser nos services, veuillez prendre un abonnement :
 • 500 F = 1 mois
 • 1 500 F = 3 mois
@@ -36,9 +32,8 @@ Pour continuer à utiliser nos services, veuillez prendre un abonnement :
 
 Faites un dépôt WAVE ou MTN Money au +225 0758747888,
 puis envoyez la capture de votre preuve de paiement au même numéro via WhatsApp.
-''';
-      case 'teacher_candidate':
-        return '''
+''',
+    'teacher_candidate': '''
 Pour continuer à postuler, veuillez prendre un abonnement :
 • 500 F = 1 semaine
 • 1 500 F = 1 mois (au lieu de 2 000 F)
@@ -46,9 +41,8 @@ Pour continuer à postuler, veuillez prendre un abonnement :
 
 Faites un dépôt WAVE ou MTN Money au +225 0758747888,
 puis envoyez la capture de votre preuve de paiement au même numéro via WhatsApp.
-''';
-      case 'school':
-        return '''
+''',
+    'school': '''
 Pour continuer à publier des offres, veuillez prendre un abonnement :
 • 2 000 F = 1 semaine
 • 5 000 F = 1 mois (au lieu de 8 000 F)
@@ -56,43 +50,38 @@ Pour continuer à publier des offres, veuillez prendre un abonnement :
 
 Faites un dépôt WAVE ou MTN Money au +225 0758747888,
 puis envoyez la capture de votre preuve de paiement au même numéro via WhatsApp.
-''';
-      default:
-        return 'Veuillez contacter l\'administrateur pour plus d\'informations.';
-    }
-  }
+''',
+  };
 
-  // Message de bienvenue avec quota gratuit
-  static String getWelcomeMessage(String accountType, int freeQuota) {
-    switch (accountType) {
-      case 'teacher_transfer':
-        return 'Bienvenue ! Vous disposez de $freeQuota consultations gratuites.';
-      case 'teacher_candidate':
-        return 'Bienvenue ! Vous pouvez postuler gratuitement à $freeQuota offres d\'emploi.';
-      case 'school':
-        return 'Bienvenue ! Vous pouvez créer $freeQuota offre d\'emploi gratuite.';
-      default:
-        return 'Bienvenue !';
-    }
-  }
+  static final _welcomeMessages = {
+    'teacher_transfer': (int quota) =>
+        'Bienvenue ! Vous disposez de $quota consultations gratuites.',
+    'teacher_candidate': (int quota) =>
+        'Bienvenue ! Vous pouvez postuler gratuitement à $quota offres d\'emploi.',
+    'school': (int quota) =>
+        'Bienvenue ! Vous pouvez créer $quota offre d\'emploi gratuite.',
+  };
 
-  // Incrémenter l'utilisation du quota gratuit
+  static String getSubscriptionMessage(String accountType) =>
+      _subscriptionMessages[accountType] ??
+      'Veuillez contacter l\'administrateur pour plus d\'informations.';
+
+  static String getWelcomeMessage(String accountType, int freeQuota) =>
+      _welcomeMessages[accountType]?.call(freeQuota) ?? 'Bienvenue !';
+
   Future<bool> incrementQuotaUsage(String userId) async {
     try {
       final userDoc = _firestore.collection('users').doc(userId);
 
       await _firestore.runTransaction((transaction) async {
         final snapshot = await transaction.get(userDoc);
-        if (!snapshot.exists) {
-          throw Exception('Utilisateur introuvable');
-        }
+        if (!snapshot.exists) throw Exception('Utilisateur introuvable');
 
         final userData = snapshot.data()!;
         final currentUsed = userData['freeQuotaUsed'] ?? 0;
         final limit = userData['freeQuotaLimit'] ?? 0;
 
         if (currentUsed >= limit) {
-          // Quota épuisé, désactiver la vérification
           transaction.update(userDoc, {
             'isVerified': false,
             'updatedAt': FieldValue.serverTimestamp(),
@@ -100,7 +89,6 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
           return false;
         }
 
-        // Incrémenter le quota utilisé
         transaction.update(userDoc, {
           'freeQuotaUsed': currentUsed + 1,
           'updatedAt': FieldValue.serverTimestamp(),
@@ -114,7 +102,6 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
     }
   }
 
-  // Vérifier si l'utilisateur peut effectuer une action
   Future<bool> canPerformAction(String userId) async {
     try {
       final userDoc = await _firestore.collection('users').doc(userId).get();
@@ -122,9 +109,7 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
 
       final user = UserModel.fromFirestore(userDoc);
 
-      // Vérifier l'expiration
       if (user.isVerificationExpired) {
-        // Désactiver la vérification si expiré
         await _firestore.collection('users').doc(userId).update({
           'isVerified': false,
           'updatedAt': FieldValue.serverTimestamp(),
@@ -132,10 +117,7 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
         return false;
       }
 
-      // Vérifier le quota
-      if (user.isFreeQuotaExhausted && !user.isVerified) {
-        return false;
-      }
+      if (user.isFreeQuotaExhausted && !user.isVerified) return false;
 
       return user.hasAccess;
     } catch (e) {
@@ -144,39 +126,34 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
     }
   }
 
-  // Consommer un quota pour voir un profil (Permutation)
-  Future<QuotaResult> consumeProfileViewQuota(String userId) async {
-    return await _consumeQuota(userId, 'teacher_transfer');
-  }
+  Future<QuotaResult> consumeProfileViewQuota(String userId) =>
+      _consumeQuota(userId, 'teacher_transfer');
 
-  // Consommer un quota pour envoyer un message (Permutation)
-  Future<QuotaResult> consumeMessageQuota(String userId) async {
-    return await _consumeQuota(userId, 'teacher_transfer');
-  }
+  Future<QuotaResult> consumeMessageQuota(String userId) =>
+      _consumeQuota(userId, 'teacher_transfer');
 
-  // Consommer un quota pour publier une offre (École)
-  Future<QuotaResult> consumeJobOfferQuota(String userId) async {
-    return await _consumeQuota(userId, 'school');
-  }
+  Future<QuotaResult> consumeJobOfferQuota(String userId) =>
+      _consumeQuota(userId, 'school');
 
-  // Consommer un quota pour voir un candidat (École)
-  Future<QuotaResult> consumeCandidateViewQuota(String userId) async {
-    return await _consumeQuota(userId, 'school');
-  }
+  Future<QuotaResult> consumeCandidateViewQuota(String userId) =>
+      _consumeQuota(userId, 'school');
 
-  // Consommer un quota pour postuler (Candidat)
-  Future<QuotaResult> consumeApplicationQuota(String userId) async {
-    return await _consumeQuota(userId, 'teacher_candidate');
-  }
+  Future<QuotaResult> consumeApplicationQuota(String userId) =>
+      _consumeQuota(userId, 'teacher_candidate');
 
-  // Méthode générique pour consommer un quota
-  Future<QuotaResult> _consumeQuota(String userId, String expectedAccountType) async {
+  Future<QuotaResult> _consumeQuota(
+    String userId,
+    String expectedAccountType,
+  ) async {
     try {
       final userDoc = _firestore.collection('users').doc(userId);
 
       return await _firestore.runTransaction((transaction) async {
-        debugPrint('🔄 Transaction quota - userId: $userId, type: $expectedAccountType');
+        debugPrint(
+          'Transaction quota - userId: $userId, type: $expectedAccountType',
+        );
         final snapshot = await transaction.get(userDoc);
+
         if (!snapshot.exists) {
           return QuotaResult(
             success: false,
@@ -188,7 +165,6 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
 
         final user = UserModel.fromFirestore(snapshot);
 
-        // Vérifier le type de compte
         if (user.accountType != expectedAccountType) {
           return QuotaResult(
             success: false,
@@ -198,19 +174,16 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
           );
         }
 
-        // Si l'utilisateur a un abonnement actif et valide, autoriser sans déduire le quota
         if (user.isVerified && !user.isVerificationExpired) {
           return QuotaResult(
             success: true,
             message: 'Abonnement actif',
-            quotaRemaining: -1, // -1 signifie quota illimité
+            quotaRemaining: -1,
             needsSubscription: false,
           );
         }
 
-        // Vérifier si le quota gratuit est épuisé
         if (user.isFreeQuotaExhausted) {
-          // Désactiver le compte
           transaction.update(userDoc, {
             'isVerified': false,
             'updatedAt': FieldValue.serverTimestamp(),
@@ -225,22 +198,18 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
           );
         }
 
-        // Incrémenter le quota utilisé
         final newQuotaUsed = user.freeQuotaUsed + 1;
         final quotaRemaining = user.freeQuotaLimit - newQuotaUsed;
 
-        // Préparer les données de mise à jour
         final updateData = <String, dynamic>{
           'freeQuotaUsed': newQuotaUsed,
           'updatedAt': FieldValue.serverTimestamp(),
         };
 
-        // Si c'est le dernier quota, désactiver le compte
         if (quotaRemaining == 0) {
           updateData['isVerified'] = false;
         }
 
-        // Faire une seule mise à jour
         transaction.update(userDoc, updateData);
 
         if (quotaRemaining == 0) {
@@ -271,11 +240,7 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
     }
   }
 
-  // Activer un abonnement avec durée spécifique
-  Future<void> activateSubscription(
-    String userId,
-    String duration, // '1_week', '1_month', '3_months', '6_months', '12_months'
-  ) async {
+  Future<void> activateSubscription(String userId, String duration) async {
     try {
       final expiresAt = _calculateExpirationDate(duration);
 
@@ -283,14 +248,12 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
         'isVerified': true,
         'verificationExpiresAt': Timestamp.fromDate(expiresAt),
         'subscriptionDuration': duration,
-        'freeQuotaUsed': 0, // Reset du quota
+        'freeQuotaUsed': 0,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // 📊 Analytics: Tracker l'activation de l'abonnement
       await _analytics.logSubscriptionStart('premium', duration);
 
-      // 📊 Analytics: Logger aussi comme achat pour métriques de revenus
       final prices = {
         '1_week': 1000.0,
         '1_month': 3000.0,
@@ -298,11 +261,10 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
         '6_months': 15000.0,
         '12_months': 25000.0,
       };
-      final price = prices[duration] ?? 0.0;
 
       await _analytics.logPurchase(
         subscriptionType: 'premium_$duration',
-        value: price,
+        value: prices[duration] ?? 0.0,
         currency: 'XOF',
       );
     } catch (e) {
@@ -311,27 +273,25 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
     }
   }
 
-  /// Étendre la durée de vérification d'un utilisateur déjà vérifié
   Future<void> extendSubscription(
     String userId,
-    String additionalDuration, // Durée à ajouter
-    DateTime newExpirationDate, // Nouvelle date d'expiration calculée
+    String additionalDuration,
+    DateTime newExpirationDate,
   ) async {
     try {
       await _firestore.collection('users').doc(userId).update({
         'verificationExpiresAt': Timestamp.fromDate(newExpirationDate),
-        'subscriptionDuration': additionalDuration, // Mise à jour de la dernière durée ajoutée
+        'subscriptionDuration': additionalDuration,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      debugPrint('Abonnement étendu pour l\'utilisateur $userId jusqu\'au $newExpirationDate');
+      debugPrint('Abonnement étendu pour $userId jusqu\'au $newExpirationDate');
     } catch (e) {
       debugPrint('Erreur lors de l\'extension de l\'abonnement: $e');
       rethrow;
     }
   }
 
-  // Calculer la date d'expiration selon la durée
   DateTime _calculateExpirationDate(String duration) {
     final now = DateTime.now();
     switch (duration) {
@@ -346,11 +306,10 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
       case '12_months':
         return DateTime(now.year + 1, now.month, now.day);
       default:
-        return DateTime(now.year, now.month + 1, now.day); // Par défaut 1 mois
+        return DateTime(now.year, now.month + 1, now.day);
     }
   }
 
-  // Vérifier et expirer automatiquement les comptes
   Future<void> checkAndExpireAccounts() async {
     try {
       final now = DateTime.now();
@@ -360,7 +319,6 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
           .where('verificationExpiresAt', isLessThan: Timestamp.fromDate(now))
           .get();
 
-      // Batch update pour performance
       final batch = _firestore.batch();
       for (var doc in expiredUsersQuery.docs) {
         batch.update(doc.reference, {
@@ -376,7 +334,6 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
     }
   }
 
-  // Réinitialiser le quota d'un utilisateur
   Future<void> resetQuota(String userId) async {
     try {
       await _firestore.collection('users').doc(userId).update({
@@ -390,47 +347,35 @@ puis envoyez la capture de votre preuve de paiement au même numéro via WhatsAp
     }
   }
 
-  // Obtenir les tarifs selon le type de compte
   static Map<String, String> getSubscriptionPrices(String accountType) {
-    switch (accountType) {
-      case 'teacher_transfer':
-        return {
-          '1_month': '500 F',
-          '3_months': '1 500 F',
-          '12_months': '2 500 F',
-        };
-      case 'teacher_candidate':
-        return {
-          '1_week': '500 F',
-          '1_month': '1 500 F',
-          '12_months': '20 000 F',
-        };
-      case 'school':
-        return {
-          '1_week': '2 000 F',
-          '1_month': '5 000 F',
-          '12_months': '90 000 F',
-        };
-      default:
-        return {};
-    }
+    const prices = {
+      'teacher_transfer': {
+        '1_month': '500 F',
+        '3_months': '1 500 F',
+        '12_months': '2 500 F',
+      },
+      'teacher_candidate': {
+        '1_week': '500 F',
+        '1_month': '1 500 F',
+        '12_months': '20 000 F',
+      },
+      'school': {
+        '1_week': '2 000 F',
+        '1_month': '5 000 F',
+        '12_months': '90 000 F',
+      },
+    };
+    return prices[accountType] ?? {};
   }
 
-  // Obtenir le libellé de la durée
   static String getDurationLabel(String duration) {
-    switch (duration) {
-      case '1_week':
-        return '1 semaine';
-      case '1_month':
-        return '1 mois';
-      case '3_months':
-        return '3 mois';
-      case '6_months':
-        return '6 mois';
-      case '12_months':
-        return '12 mois';
-      default:
-        return duration;
-    }
+    const labels = {
+      '1_week': '1 semaine',
+      '1_month': '1 mois',
+      '3_months': '3 mois',
+      '6_months': '6 mois',
+      '12_months': '12 mois',
+    };
+    return labels[duration] ?? duration;
   }
 }

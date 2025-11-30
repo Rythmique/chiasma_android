@@ -59,9 +59,7 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
           backgroundColor: const Color(0xFFF77F00),
           foregroundColor: Colors.white,
         ),
-        body: const Center(
-          child: Text('Erreur: utilisateur non connecté'),
-        ),
+        body: const Center(child: Text('Erreur: utilisateur non connecté')),
       );
     }
 
@@ -101,7 +99,9 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
                         height: 24,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
                     : Text(
@@ -115,10 +115,7 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
                 const SizedBox(height: 4),
                 Text(
                   _profileViewsCount <= 1 ? 'vue de profil' : 'vues de profil',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.white,
-                  ),
+                  style: const TextStyle(fontSize: 16, color: Colors.white),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -140,9 +137,7 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFFF77F00),
-                    ),
+                    child: CircularProgressIndicator(color: Color(0xFFF77F00)),
                   );
                 }
 
@@ -193,7 +188,8 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
                 return ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: views.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final view = views[index];
                     return _buildViewCard(view);
@@ -215,10 +211,7 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
     String timeAgoText = '';
     if (lastViewedAt != null) {
       try {
-        timeAgoText = timeago.format(
-          lastViewedAt.toDate(),
-          locale: 'fr',
-        );
+        timeAgoText = timeago.format(lastViewedAt.toDate(), locale: 'fr');
       } catch (e) {
         timeAgoText = 'Récemment';
       }
@@ -235,7 +228,8 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
         firstViewText = 'Première vue';
       } else {
         try {
-          firstViewText = 'Première vue ${timeago.format(firstView, locale: 'fr')}';
+          firstViewText =
+              'Première vue ${timeago.format(firstView, locale: 'fr')}';
         } catch (e) {
           firstViewText = 'Vue multiple';
         }
@@ -250,18 +244,11 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
         leading: CircleAvatar(
           radius: 28,
           backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
-          child: const Icon(
-            Icons.school,
-            color: Color(0xFFF77F00),
-            size: 28,
-          ),
+          child: const Icon(Icons.school, color: Color(0xFFF77F00), size: 28),
         ),
         title: Text(
           viewerName,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,11 +256,7 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
             const SizedBox(height: 4),
             Row(
               children: [
-                const Icon(
-                  Icons.schedule,
-                  size: 14,
-                  color: Color(0xFF009E60),
-                ),
+                const Icon(Icons.schedule, size: 14, color: Color(0xFF009E60)),
                 const SizedBox(width: 4),
                 Text(
                   timeAgoText,
@@ -288,11 +271,7 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
               const SizedBox(height: 2),
               Row(
                 children: [
-                  const Icon(
-                    Icons.history,
-                    size: 14,
-                    color: Colors.grey,
-                  ),
+                  const Icon(Icons.history, size: 14, color: Colors.grey),
                   const SizedBox(width: 4),
                   Text(
                     firstViewText,
@@ -316,11 +295,7 @@ class _ProfileViewsPageState extends State<ProfileViewsPage> {
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.visibility,
-                size: 16,
-                color: Color(0xFFF77F00),
-              ),
+              Icon(Icons.visibility, size: 16, color: Color(0xFFF77F00)),
               SizedBox(width: 4),
               Text(
                 'Vue',

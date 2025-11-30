@@ -15,10 +15,7 @@ import '../widgets/subscription_required_dialog.dart';
 class ViewApplicationsPage extends StatefulWidget {
   final JobOfferModel offer;
 
-  const ViewApplicationsPage({
-    super.key,
-    required this.offer,
-  });
+  const ViewApplicationsPage({super.key, required this.offer});
 
   @override
   State<ViewApplicationsPage> createState() => _ViewApplicationsPageState();
@@ -44,22 +41,10 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
               });
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'all',
-                child: Text('Toutes'),
-              ),
-              const PopupMenuItem(
-                value: 'pending',
-                child: Text('En attente'),
-              ),
-              const PopupMenuItem(
-                value: 'accepted',
-                child: Text('Acceptées'),
-              ),
-              const PopupMenuItem(
-                value: 'rejected',
-                child: Text('Refusées'),
-              ),
+              const PopupMenuItem(value: 'all', child: Text('Toutes')),
+              const PopupMenuItem(value: 'pending', child: Text('En attente')),
+              const PopupMenuItem(value: 'accepted', child: Text('Acceptées')),
+              const PopupMenuItem(value: 'rejected', child: Text('Refusées')),
             ],
           ),
         ],
@@ -72,18 +57,16 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-              border: Border(
-                bottom: BorderSide(color: Colors.grey[300]!),
-              ),
+              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   widget.offer.poste,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -137,8 +120,8 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
                 final filteredApplications = _selectedFilter == 'all'
                     ? allApplications
                     : allApplications
-                        .where((app) => app.status == _selectedFilter)
-                        .toList();
+                          .where((app) => app.status == _selectedFilter)
+                          .toList();
 
                 if (filteredApplications.isEmpty) {
                   return _buildEmptyView();
@@ -146,7 +129,9 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
 
                 return StreamBuilder<UserModel?>(
                   stream: FirebaseAuth.instance.currentUser != null
-                      ? _firestoreService.getUserStream(FirebaseAuth.instance.currentUser!.uid)
+                      ? _firestoreService.getUserStream(
+                          FirebaseAuth.instance.currentUser!.uid,
+                        )
                       : Stream.value(null),
                   builder: (context, schoolSnapshot) {
                     final schoolUser = schoolSnapshot.data;
@@ -194,16 +179,9 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.inbox_outlined,
-              size: 100,
-              color: Colors.grey[300],
-            ),
+            Icon(Icons.inbox_outlined, size: 100, color: Colors.grey[300]),
             const SizedBox(height: 24),
-            Text(
-              message,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text(message, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             Text(
               _selectedFilter == 'all'
@@ -219,32 +197,16 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
   }
 
   /// Carte d'une candidature
-  Widget _buildApplicationCard(OfferApplicationModel application, UserModel? schoolUser) {
-    // Déterminer si on doit masquer les informations de contact
-    final shouldMask = schoolUser != null &&
+  Widget _buildApplicationCard(
+    OfferApplicationModel application,
+    UserModel? schoolUser,
+  ) {
+    final shouldMask =
+        schoolUser != null &&
         schoolUser.accountType == 'school' &&
         (!schoolUser.isVerified || schoolUser.isVerificationExpired);
 
-    Color statusColor;
-    IconData statusIcon;
-
-    switch (application.status) {
-      case 'accepted':
-        statusColor = Colors.green;
-        statusIcon = Icons.check_circle;
-        break;
-      case 'rejected':
-        statusColor = Colors.red;
-        statusIcon = Icons.cancel;
-        break;
-      case 'withdrawn':
-        statusColor = Colors.grey;
-        statusIcon = Icons.remove_circle;
-        break;
-      default:
-        statusColor = Colors.orange;
-        statusIcon = Icons.access_time;
-    }
+    final (statusColor, statusIcon) = _getStatusStyle(application.status);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -281,17 +243,19 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
                         ),
                       ),
                       Text(
-                        shouldMask ? maskEmail(application.candidateEmail) : application.candidateEmail,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                        ),
+                        shouldMask
+                            ? maskEmail(application.candidateEmail)
+                            : application.candidateEmail,
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
@@ -386,7 +350,10 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: (schoolUser != null && schoolUser.isVerified && !schoolUser.isVerificationExpired)
+                    onPressed:
+                        (schoolUser != null &&
+                            schoolUser.isVerified &&
+                            !schoolUser.isVerificationExpired)
                         ? () => _contactCandidate(application)
                         : () {
                             // Afficher le dialogue d'abonnement pour les écoles non vérifiées
@@ -395,7 +362,10 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
                     icon: const Icon(Icons.message, size: 18),
                     label: const Text('Contacter'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: (schoolUser != null && schoolUser.isVerified && !schoolUser.isVerificationExpired)
+                      backgroundColor:
+                          (schoolUser != null &&
+                              schoolUser.isVerified &&
+                              !schoolUser.isVerificationExpired)
                           ? const Color(0xFF009E60)
                           : Colors.grey,
                       visualDensity: VisualDensity.compact,
@@ -415,9 +385,22 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
     );
   }
 
+  (Color, IconData) _getStatusStyle(String status) {
+    switch (status) {
+      case 'accepted':
+        return (Colors.green, Icons.check_circle);
+      case 'rejected':
+        return (Colors.red, Icons.cancel);
+      case 'withdrawn':
+        return (Colors.grey, Icons.remove_circle);
+      default:
+        return (Colors.orange, Icons.access_time);
+    }
+  }
+
   /// Formater la date
   String _formatDate(DateTime date) {
-    final months = [
+    const months = [
       'janv.',
       'févr.',
       'mars',
@@ -429,7 +412,7 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
       'sept.',
       'oct.',
       'nov.',
-      'déc.'
+      'déc.',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
@@ -467,17 +450,15 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
             contactUserId: application.userId,
             contactName: candidateData.nom,
             contactFunction: candidateData.fonction,
-            isOnline: false, // On peut améliorer cela plus tard avec une vraie détection
+            isOnline:
+                false, // On peut améliorer cela plus tard avec une vraie détection
           ),
         ),
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -564,24 +545,21 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
               newStatus == 'accepted'
                   ? 'Candidature acceptée et candidat notifié'
                   : newStatus == 'rejected'
-                      ? 'Candidature refusée et candidat notifié'
-                      : 'Statut mis à jour',
+                  ? 'Candidature refusée et candidat notifié'
+                  : 'Statut mis à jour',
             ),
             backgroundColor: newStatus == 'accepted'
                 ? Colors.green
                 : newStatus == 'rejected'
-                    ? Colors.red
-                    : null,
+                ? Colors.red
+                : null,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     }

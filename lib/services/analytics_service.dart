@@ -62,10 +62,7 @@ class AnalyticsService {
         );
       }
       if (region != null) {
-        await _analytics.setUserProperty(
-          name: 'region',
-          value: region,
-        );
+        await _analytics.setUserProperty(name: 'region', value: region);
       }
       debugPrint('📊 Analytics: User properties set');
     } catch (e) {
@@ -82,11 +79,11 @@ class AnalyticsService {
     try {
       await _analytics.logSearch(
         searchTerm: searchTerm,
-        parameters: {
-          if (category != null) 'search_category': category,
-        },
+        parameters: {if (category != null) 'search_category': category},
       );
-      debugPrint('📊 Analytics: Search tracked ("$searchTerm", category: $category)');
+      debugPrint(
+        '📊 Analytics: Search tracked ("$searchTerm", category: $category)',
+      );
     } catch (e) {
       debugPrint('⚠️ Analytics Error (search): $e');
     }
@@ -122,11 +119,11 @@ class AnalyticsService {
     try {
       await _analytics.logEvent(
         name: 'send_message',
-        parameters: {
-          'conversation_type': conversationType,
-        },
+        parameters: {'conversation_type': conversationType},
       );
-      debugPrint('📊 Analytics: Message sent tracked (type: $conversationType)');
+      debugPrint(
+        '📊 Analytics: Message sent tracked (type: $conversationType)',
+      );
     } catch (e) {
       debugPrint('⚠️ Analytics Error (sendMessage): $e');
     }
@@ -137,7 +134,10 @@ class AnalyticsService {
   // ============================================
 
   /// Track le début d'un abonnement
-  Future<void> logSubscriptionStart(String subscriptionType, String duration) async {
+  Future<void> logSubscriptionStart(
+    String subscriptionType,
+    String duration,
+  ) async {
     try {
       await _analytics.logEvent(
         name: 'subscription_start',
@@ -146,7 +146,9 @@ class AnalyticsService {
           'duration': duration,
         },
       );
-      debugPrint('📊 Analytics: Subscription started (type: $subscriptionType, duration: $duration)');
+      debugPrint(
+        '📊 Analytics: Subscription started (type: $subscriptionType, duration: $duration)',
+      );
     } catch (e) {
       debugPrint('⚠️ Analytics Error (subscriptionStart): $e');
     }
@@ -162,9 +164,7 @@ class AnalyticsService {
       await _analytics.logPurchase(
         value: value,
         currency: currency,
-        parameters: {
-          'item_name': subscriptionType,
-        },
+        parameters: {'item_name': subscriptionType},
       );
       debugPrint('📊 Analytics: Purchase tracked ($value $currency)');
     } catch (e) {
@@ -182,10 +182,7 @@ class AnalyticsService {
     Map<String, Object>? parameters,
   }) async {
     try {
-      await _analytics.logEvent(
-        name: eventName,
-        parameters: parameters,
-      );
+      await _analytics.logEvent(name: eventName, parameters: parameters);
       debugPrint('📊 Analytics: Custom event "$eventName" tracked');
     } catch (e) {
       debugPrint('⚠️ Analytics Error (customEvent): $e');
@@ -201,10 +198,7 @@ class AnalyticsService {
     try {
       await _analytics.logEvent(
         name: 'add_to_favorites',
-        parameters: {
-          'profile_id': profileId,
-          'profile_type': profileType,
-        },
+        parameters: {'profile_id': profileId, 'profile_type': profileType},
       );
       debugPrint('📊 Analytics: Favorite added (type: $profileType)');
     } catch (e) {
@@ -217,10 +211,7 @@ class AnalyticsService {
     try {
       await _analytics.logEvent(
         name: 'remove_from_favorites',
-        parameters: {
-          'profile_id': profileId,
-          'profile_type': profileType,
-        },
+        parameters: {'profile_id': profileId, 'profile_type': profileType},
       );
       debugPrint('📊 Analytics: Favorite removed (type: $profileType)');
     } catch (e) {
@@ -237,9 +228,7 @@ class AnalyticsService {
     try {
       await _analytics.logEvent(
         name: 'job_application',
-        parameters: {
-          'offer_id': offerId,
-        },
+        parameters: {'offer_id': offerId},
       );
       debugPrint('📊 Analytics: Job application tracked');
     } catch (e) {
@@ -255,7 +244,9 @@ class AnalyticsService {
   Future<void> setAnalyticsCollectionEnabled(bool enabled) async {
     try {
       await _analytics.setAnalyticsCollectionEnabled(enabled);
-      debugPrint('📊 Analytics: Collection ${enabled ? "enabled" : "disabled"}');
+      debugPrint(
+        '📊 Analytics: Collection ${enabled ? "enabled" : "disabled"}',
+      );
     } catch (e) {
       debugPrint('⚠️ Analytics Error (setEnabled): $e');
     }

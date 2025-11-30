@@ -10,7 +10,10 @@ class PrivacySettingsService {
   /// Obtenir les paramètres de confidentialité d'un utilisateur
   Future<PrivacySettingsModel> getUserSettings(String userId) async {
     try {
-      final doc = await _firestore.collection(_collectionName).doc(userId).get();
+      final doc = await _firestore
+          .collection(_collectionName)
+          .doc(userId)
+          .get();
 
       if (doc.exists) {
         return PrivacySettingsModel.fromFirestore(doc);
@@ -106,11 +109,9 @@ class PrivacySettingsService {
 
   /// Stream des paramètres de confidentialité
   Stream<PrivacySettingsModel> streamUserSettings(String userId) {
-    return _firestore
-        .collection(_collectionName)
-        .doc(userId)
-        .snapshots()
-        .map((doc) {
+    return _firestore.collection(_collectionName).doc(userId).snapshots().map((
+      doc,
+    ) {
       if (doc.exists) {
         return PrivacySettingsModel.fromFirestore(doc);
       } else {

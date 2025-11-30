@@ -150,9 +150,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           foregroundColor: Colors.white,
         ),
         body: const Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFFF77F00),
-          ),
+          child: CircularProgressIndicator(color: Color(0xFFF77F00)),
         ),
       );
     }
@@ -189,7 +187,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 children: [
                   CircleAvatar(
                     radius: 60,
-                    backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
+                    backgroundColor: const Color(
+                      0xFFF77F00,
+                    ).withValues(alpha: 0.2),
                     child: Text(
                       _getInitials(_currentUserData?.nom ?? ''),
                       style: const TextStyle(
@@ -225,7 +225,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Modification de la photo - Fonctionnalité à venir'),
+                      content: Text(
+                        'Modification de la photo - Fonctionnalité à venir',
+                      ),
                     ),
                   );
                 },
@@ -320,13 +322,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         keyboardType: TextInputType.phone,
                         decoration: InputDecoration(
                           labelText: 'Téléphone ${index + 1}',
-                          prefixIcon: const Icon(Icons.phone, color: Color(0xFFF77F00)),
+                          prefixIcon: const Icon(
+                            Icons.phone,
+                            color: Color(0xFFF77F00),
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFF77F00), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFF77F00),
+                              width: 2,
+                            ),
                           ),
                         ),
                         validator: (value) {
@@ -352,23 +360,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
             _buildSectionTitle('Informations professionnelles'),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _drenActuel != null && _drenList.contains(_drenActuel) ? _drenActuel : null,
+              initialValue:
+                  _drenActuel != null && _drenList.contains(_drenActuel)
+                  ? _drenActuel
+                  : null,
               decoration: InputDecoration(
                 labelText: 'DREN (optionnel)',
-                prefixIcon: const Icon(Icons.apartment, color: Color(0xFFF77F00)),
+                prefixIcon: const Icon(
+                  Icons.apartment,
+                  color: Color(0xFFF77F00),
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFF77F00), width: 2),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFF77F00),
+                    width: 2,
+                  ),
                 ),
               ),
               items: _drenList.map((String item) {
-                return DropdownMenuItem<String>(
-                  value: item,
-                  child: Text(item),
-                );
+                return DropdownMenuItem<String>(value: item, child: Text(item));
               }).toList(),
               onChanged: (value) {
                 setState(() {
@@ -417,7 +431,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFF77F00), width: 2),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFF77F00),
+                    width: 2,
+                  ),
                 ),
               ),
               validator: (value) {
@@ -461,7 +478,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ],
                 ),
                 TextButton.icon(
-                  onPressed: _zonesSouhaitees.length >= 5 ? null : _addZoneSouhaitee,
+                  onPressed: _zonesSouhaitees.length >= 5
+                      ? null
+                      : _addZoneSouhaitee,
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Ajouter'),
                   style: TextButton.styleFrom(
@@ -489,10 +508,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     Expanded(
                       child: Text(
                         'Aucune zone souhaitée. Ajoutez au moins une zone (maximum 5).',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
                     ),
                   ],
@@ -572,7 +588,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     ),
                     child: const Text(
                       'Annuler',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -600,7 +619,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           )
                         : const Text(
                             'Enregistrer',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                   ),
                 ),
@@ -644,9 +666,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: const Color(0xFFF77F00)),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFFF77F00), width: 2),
@@ -655,7 +675,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       validator: validator,
     );
   }
-
 
   void _addPhoneField() {
     if (_telephoneControllers.length < 3) {
@@ -711,10 +730,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   children: [
                     Text(
                       'Recherchez et sélectionnez une zone souhaitée',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 16),
                     ZoneSearchField(
@@ -736,9 +752,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   child: const Text('Annuler'),
                 ),
                 ElevatedButton(
-                  onPressed: selectedZone.isEmpty ||
-                             selectedZone == _zoneActuelle ||
-                             _zonesSouhaitees.contains(selectedZone)
+                  onPressed:
+                      selectedZone.isEmpty ||
+                          selectedZone == _zoneActuelle ||
+                          _zonesSouhaitees.contains(selectedZone)
                       ? null
                       : () {
                           setState(() {
@@ -839,9 +856,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
             Icon(Icons.delete_outline, color: Colors.red),
@@ -862,9 +877,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               });
               Navigator.pop(context);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Supprimer'),
           ),
         ],
@@ -922,7 +935,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
-        dev.log('Utilisateur connecté: ${currentUser.uid}', name: 'EditProfilePage');
+        dev.log(
+          'Utilisateur connecté: ${currentUser.uid}',
+          name: 'EditProfilePage',
+        );
 
         // Collecter les téléphones non vides
         List<String> telephones = _telephoneControllers
@@ -941,7 +957,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
           'infosZoneActuelle': _infosZoneController.text.trim(),
           'zonesSouhaitees': _zonesSouhaitees,
         };
-        dev.log('Données à mettre à jour: $updateData', name: 'EditProfilePage');
+        dev.log(
+          'Données à mettre à jour: $updateData',
+          name: 'EditProfilePage',
+        );
 
         await _firestoreService.updateUser(currentUser.uid, updateData);
         dev.log('Sauvegarde réussie', name: 'EditProfilePage');
@@ -960,7 +979,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
         dev.log('Aucun utilisateur connecté', name: 'EditProfilePage');
       }
     } catch (e) {
-      dev.log('Erreur lors de la sauvegarde: $e', name: 'EditProfilePage', error: e);
+      dev.log(
+        'Erreur lors de la sauvegarde: $e',
+        name: 'EditProfilePage',
+        error: e,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

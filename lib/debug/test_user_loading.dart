@@ -31,14 +31,20 @@ class _TestUserLoadingPageState extends State<TestUserLoadingPage> {
       final allUsersSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .get();
-      dev.log('Total utilisateurs dans la base: ${allUsersSnapshot.docs.length}', name: logName);
+      dev.log(
+        'Total utilisateurs dans la base: ${allUsersSnapshot.docs.length}',
+        name: logName,
+      );
 
       // Test 2: Compter les utilisateurs de type teacher_transfer
       final teacherTransferSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('accountType', isEqualTo: 'teacher_transfer')
           .get();
-      dev.log('Utilisateurs teacher_transfer: ${teacherTransferSnapshot.docs.length}', name: logName);
+      dev.log(
+        'Utilisateurs teacher_transfer: ${teacherTransferSnapshot.docs.length}',
+        name: logName,
+      );
 
       // Test 3: Lister les types de comptes
       final accountTypes = <String>{};
@@ -56,16 +62,30 @@ class _TestUserLoadingPageState extends State<TestUserLoadingPage> {
             .where('accountType', isEqualTo: 'teacher_transfer')
             .orderBy('createdAt', descending: true)
             .get();
-        dev.log('Succès! Trouvé ${querySnapshot.docs.length} utilisateurs', name: logName);
+        dev.log(
+          'Succès! Trouvé ${querySnapshot.docs.length} utilisateurs',
+          name: logName,
+        );
 
         // Analyser les timestamps
         for (var doc in querySnapshot.docs) {
           final data = doc.data();
-          dev.log('User ${doc.id}: createdAt = ${data['createdAt']}, type = ${data['createdAt'].runtimeType}', name: logName);
+          dev.log(
+            'User ${doc.id}: createdAt = ${data['createdAt']}, type = ${data['createdAt'].runtimeType}',
+            name: logName,
+          );
         }
       } catch (e, st) {
-        dev.log('ERREUR avec orderBy: $e', name: logName, error: e, stackTrace: st);
-        dev.log('L\'index composite est peut-être manquant ou en cours de création', name: logName);
+        dev.log(
+          'ERREUR avec orderBy: $e',
+          name: logName,
+          error: e,
+          stackTrace: st,
+        );
+        dev.log(
+          'L\'index composite est peut-être manquant ou en cours de création',
+          name: logName,
+        );
       }
 
       // Test 5: Charger sans orderBy
@@ -91,7 +111,6 @@ class _TestUserLoadingPageState extends State<TestUserLoadingPage> {
         }).toList();
         _isLoading = false;
       });
-
     } catch (e, st) {
       dev.log('ERREUR GLOBALE: $e', name: logName, error: e, stackTrace: st);
       if (mounted) {
@@ -114,66 +133,68 @@ class _TestUserLoadingPageState extends State<TestUserLoadingPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage.isNotEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'ERREUR:',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(_errorMessage),
-                    ],
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Text(
-                      'Utilisateurs trouvés: ${_users.length}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+          ? Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'ERREUR:',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
                     ),
-                    const SizedBox(height: 16),
-                    ..._users.map((user) => Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  user['nom'],
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text('Email: ${user['email']}'),
-                                Text('Type: ${user['accountType']}'),
-                                Text(
-                                  'createdAt: ${user['hasCreatedAt'] ? "✅" : "❌"} ${user['createdAt']}',
-                                  style: TextStyle(
-                                    color: user['hasCreatedAt']
-                                        ? Colors.green
-                                        : Colors.red,
-                                  ),
-                                ),
-                              ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_errorMessage),
+                ],
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  'Utilisateurs trouvés: ${_users.length}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ..._users.map(
+                  (user) => Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user['nom'],
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
                             ),
                           ),
-                        )),
-                  ],
+                          const SizedBox(height: 4),
+                          Text('Email: ${user['email']}'),
+                          Text('Type: ${user['accountType']}'),
+                          Text(
+                            'createdAt: ${user['hasCreatedAt'] ? "✅" : "❌"} ${user['createdAt']}',
+                            style: TextStyle(
+                              color: user['hasCreatedAt']
+                                  ? Colors.green
+                                  : Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           setState(() {

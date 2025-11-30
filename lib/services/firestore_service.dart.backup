@@ -10,12 +10,9 @@ class FirestoreService {
 
   // Collection references
   CollectionReference get _usersCollection => _firestore.collection('users');
-  CollectionReference get _messagesCollection =>
-      _firestore.collection('messages');
-  CollectionReference get _favoritesCollection =>
-      _firestore.collection('favorites');
-  CollectionReference get _profileViewsCollection =>
-      _firestore.collection('profile_views');
+  CollectionReference get _messagesCollection => _firestore.collection('messages');
+  CollectionReference get _favoritesCollection => _firestore.collection('favorites');
+  CollectionReference get _profileViewsCollection => _firestore.collection('profile_views');
 
   // ========== USERS ==========
 
@@ -24,7 +21,7 @@ class FirestoreService {
     return FirestoreErrorHandler.handleOperation(() async {
       await _usersCollection.doc(user.uid).set(user.toMap());
     });
-  }
+
 
   // Récupérer un utilisateur par UID
   Future<UserModel?> getUser(String uid) async {
@@ -35,7 +32,7 @@ class FirestoreService {
       }
       return null;
     });
-  }
+
 
   // Stream d'un utilisateur spécifique (temps réel)
   Stream<UserModel?> getUserStream(String uid) {
@@ -47,7 +44,7 @@ class FirestoreService {
         return null;
       }),
     );
-  }
+
 
   // Vérifier si un matricule existe déjà
   Future<bool> checkMatriculeExists(String matricule) async {
@@ -58,17 +55,20 @@ class FirestoreService {
           .get();
       return query.docs.isNotEmpty;
     });
-  }
+
+
 
   // Mettre à jour le statut en ligne
   Future<void> updateUserOnlineStatus(String uid, bool isOnline) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       await _usersCollection.doc(uid).update({
         'isOnline': isOnline,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-    });
-  }
+    } catch (e) {
+      throw Exception('Erreur lors de la mise à jour du statut: $e');
+    }
+
 
   // Mettre à jour le profil utilisateur
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
@@ -76,94 +76,96 @@ class FirestoreService {
       data['updatedAt'] = FieldValue.serverTimestamp();
       await _usersCollection.doc(uid).update(data);
     });
-  }
+
+
 
   // Supprimer un utilisateur
   Future<void> deleteUser(String uid) async {
     return FirestoreErrorHandler.handleOperation(() async {
       await _usersCollection.doc(uid).delete();
     });
-  }
+
+
 
   // ========== RECHERCHE ==========
 
   // Rechercher par zone actuelle
   Stream<List<UserModel>> searchByZoneActuelle(String zone) {
-    return FirestoreErrorHandler.handleStream(
-      _usersCollection
+    try {
+      return _usersCollection
           .where('zoneActuelle', isGreaterThanOrEqualTo: zone)
           .where('zoneActuelle', isLessThanOrEqualTo: '$zone\uf8ff')
           .snapshots()
-          .map(
-            (snapshot) => snapshot.docs
-                .map((doc) => UserModel.fromFirestore(doc))
-                .toList(),
-          ),
-    );
-  }
+          .map((snapshot) => snapshot.docs
+              .map((doc) => UserModel.fromFirestore(doc))
+              .toList());
+    } catch (e) {
+      throw Exception('Erreur lors de la recherche: $e');
+    }
+
 
   // Rechercher par zone souhaitée
   Stream<List<UserModel>> searchByZoneSouhaitee(String zone) {
-    return FirestoreErrorHandler.handleStream(
-      _usersCollection
+    try {
+      return _usersCollection
           .where('zonesSouhaitees', arrayContains: zone)
           .snapshots()
-          .map(
-            (snapshot) => snapshot.docs
-                .map((doc) => UserModel.fromFirestore(doc))
-                .toList(),
-          ),
-    );
-  }
+          .map((snapshot) => snapshot.docs
+              .map((doc) => UserModel.fromFirestore(doc))
+              .toList());
+    } catch (e) {
+      throw Exception('Erreur lors de la recherche: $e');
+    }
+
 
   // Rechercher par fonction
   Stream<List<UserModel>> searchByFonction(String fonction) {
-    return FirestoreErrorHandler.handleStream(
-      _usersCollection
+    try {
+      return _usersCollection
           .where('fonction', isGreaterThanOrEqualTo: fonction)
           .where('fonction', isLessThanOrEqualTo: '$fonction\uf8ff')
           .snapshots()
-          .map(
-            (snapshot) => snapshot.docs
-                .map((doc) => UserModel.fromFirestore(doc))
-                .toList(),
-          ),
-    );
-  }
+          .map((snapshot) => snapshot.docs
+              .map((doc) => UserModel.fromFirestore(doc))
+              .toList());
+    } catch (e) {
+      throw Exception('Erreur lors de la recherche: $e');
+    }
+
 
   // Rechercher par DREN
   Stream<List<UserModel>> searchByDREN(String dren) {
-    return FirestoreErrorHandler.handleStream(
-      _usersCollection
+    try {
+      return _usersCollection
           .where('dren', isGreaterThanOrEqualTo: dren)
           .where('dren', isLessThanOrEqualTo: '$dren\uf8ff')
           .snapshots()
-          .map(
-            (snapshot) => snapshot.docs
-                .map((doc) => UserModel.fromFirestore(doc))
-                .toList(),
-          ),
-    );
-  }
+          .map((snapshot) => snapshot.docs
+              .map((doc) => UserModel.fromFirestore(doc))
+              .toList());
+    } catch (e) {
+      throw Exception('Erreur lors de la recherche: $e');
+    }
+
 
   // Obtenir tous les utilisateurs (pour l'affichage initial)
   Stream<List<UserModel>> getAllUsers() {
-    return FirestoreErrorHandler.handleStream(
-      _usersCollection
+    try {
+      return _usersCollection
           .orderBy('createdAt', descending: true)
           .snapshots()
-          .map(
-            (snapshot) => snapshot.docs
-                .map((doc) => UserModel.fromFirestore(doc))
-                .toList(),
-          ),
-    );
-  }
+          .map((snapshot) => snapshot.docs
+              .map((doc) => UserModel.fromFirestore(doc))
+              .toList());
+    } catch (e) {
+      throw Exception('Erreur lors de la récupération des utilisateurs: $e');
+    }
+
 
   // Obtenir les utilisateurs filtrés par type de compte
   Stream<List<UserModel>> getUsersByAccountType(String accountType) {
-    return FirestoreErrorHandler.handleStream(
-      _usersCollection
+    try {
+      return _usersCollection
           .where('accountType', isEqualTo: accountType)
           // Note: orderBy nécessite un index composite, temporairement désactivé
           // .orderBy('createdAt', descending: true)
@@ -176,9 +178,11 @@ class FirestoreService {
             // Trier par date de création décroissante
             users.sort((a, b) => b.createdAt.compareTo(a.createdAt));
             return users;
-          }),
-    );
-  }
+          });
+    } catch (e) {
+      throw Exception('Erreur lors de la récupération des utilisateurs par type: $e');
+    }
+
 
   // Obtenir les utilisateurs par type de compte avec pagination
   Future<Map<String, dynamic>> getUsersByAccountTypePaginated(
@@ -186,11 +190,8 @@ class FirestoreService {
     required int limit,
     DocumentSnapshot? startAfterDocument,
   }) async {
-    return FirestoreErrorHandler.handleOperation(() async {
-      Query query = _usersCollection.where(
-        'accountType',
-        isEqualTo: accountType,
-      );
+    try {
+      Query query = _usersCollection.where('accountType', isEqualTo: accountType);
 
       // Si on a un document de départ (pagination), commencer après
       if (startAfterDocument != null) {
@@ -213,20 +214,26 @@ class FirestoreService {
         'users': users,
         'lastDocument': snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
       };
-    });
-  }
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération paginée: $e');
+      return {
+        'users': <UserModel>[],
+        'lastDocument': null,
+      };
+    }
+
 
   // Obtenir tous les utilisateurs en stream (pour panneau admin)
   Stream<List<UserModel>> getAllUsersStream() {
     return getAllUsers();
-  }
+
 
   // Obtenir tous les utilisateurs avec pagination
   Future<Map<String, dynamic>> getAllUsersPaginated({
     required int limit,
     DocumentSnapshot? startAfterDocument,
   }) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       Query query = _usersCollection;
 
       if (startAfterDocument != null) {
@@ -245,8 +252,14 @@ class FirestoreService {
         'users': users,
         'lastDocument': snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
       };
-    });
-  }
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération paginée de tous les utilisateurs: $e');
+      return {
+        'users': <UserModel>[],
+        'lastDocument': null,
+      };
+    }
+
 
   // Mettre à jour le statut de vérification
   Future<void> updateUserVerificationStatus(String uid, bool isVerified) async {
@@ -287,22 +300,26 @@ class FirestoreService {
     });
   }
 
+
   // Mettre à jour le statut admin
   Future<void> updateUserAdminStatus(String uid, bool isAdmin) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       await _usersCollection.doc(uid).update({
         'isAdmin': isAdmin,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-    });
-  }
+    } catch (e) {
+      throw Exception('Erreur lors de la mise à jour du statut admin: $e');
+    }
+
 
   // Recherche de match mutuel
   Future<List<UserModel>> searchMutualMatch({
     required String currentUserZoneActuelle,
     required List<String> currentUserZonesSouhaitees,
   }) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
+      // Chercher les utilisateurs dont la zone actuelle est dans nos zones souhaitées
       List<UserModel> matches = [];
 
       for (String zoneSouhaitee in currentUserZonesSouhaitees) {
@@ -314,17 +331,18 @@ class FirestoreService {
         for (var doc in query.docs) {
           matches.add(UserModel.fromFirestore(doc));
         }
-      }
 
       return matches;
-    });
-  }
+    } catch (e) {
+      throw Exception('Erreur lors de la recherche de match mutuel: $e');
+    }
+
 
   // ========== FAVORIS ==========
 
   // Ajouter un favori
   Future<void> addFavorite(String userId, String favoriteUserId) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       await _favoritesCollection.doc('${userId}_$favoriteUserId').set({
         'userId': userId,
         'favoriteUserId': favoriteUserId,
@@ -341,8 +359,7 @@ class FirestoreService {
 
         String notificationMessage;
         if (userType == 'school') {
-          notificationMessage =
-              'Un établissement scolaire a ajouté votre profil à ses favoris';
+          notificationMessage = 'Un établissement scolaire a ajouté votre profil à ses favoris';
         } else {
           notificationMessage = '$userName a ajouté votre profil à ses favoris';
         }
@@ -352,50 +369,61 @@ class FirestoreService {
           type: 'favorite',
           title: 'Nouveau favori',
           message: notificationMessage,
-          data: {'userId': userId, 'userName': userName, 'userType': userType},
+          data: {
+            'userId': userId,
+            'userName': userName,
+            'userType': userType,
+          },
         );
       } catch (e) {
         debugPrint('Erreur lors de l\'envoi de la notification de favori: $e');
       }
-    });
-  }
+    } catch (e) {
+      throw Exception('Erreur lors de l\'ajout aux favoris: $e');
+    }
+
 
   // Retirer un favori
   Future<void> removeFavorite(String userId, String favoriteUserId) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       await _favoritesCollection.doc('${userId}_$favoriteUserId').delete();
-    });
-  }
+    } catch (e) {
+      throw Exception('Erreur lors du retrait des favoris: $e');
+    }
+
 
   // Obtenir les favoris d'un utilisateur
   Stream<List<UserModel>> getFavorites(String userId) {
-    return FirestoreErrorHandler.handleStream(
-      _favoritesCollection
+    try {
+      return _favoritesCollection
           .where('userId', isEqualTo: userId)
           .snapshots()
           .asyncMap((snapshot) async {
-            List<UserModel> favorites = [];
-            for (var doc in snapshot.docs) {
-              String favoriteUserId = doc['favoriteUserId'];
-              UserModel? user = await getUser(favoriteUserId);
-              if (user != null) {
-                favorites.add(user);
-              }
-            }
-            return favorites;
-          }),
-    );
-  }
+        List<UserModel> favorites = [];
+        for (var doc in snapshot.docs) {
+          String favoriteUserId = doc['favoriteUserId'];
+          UserModel? user = await getUser(favoriteUserId);
+          if (user != null) {
+            favorites.add(user);
+          }
+        return favorites;
+      });
+    } catch (e) {
+      throw Exception('Erreur lors de la récupération des favoris: $e');
+    }
+
 
   // Vérifier si un utilisateur est en favori
   Future<bool> isFavorite(String userId, String targetUserId) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       DocumentSnapshot doc = await _favoritesCollection
           .doc('${userId}_$targetUserId')
           .get();
       return doc.exists;
-    });
-  }
+    } catch (e) {
+      return false;
+    }
+
 
   // ========== VUES DE PROFIL ==========
 
@@ -404,7 +432,7 @@ class FirestoreService {
     required String viewerId,
     required String profileUserId,
   }) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       // Ne pas enregistrer si c'est le même utilisateur qui consulte son propre profil
       if (viewerId == profileUserId) return;
 
@@ -442,7 +470,6 @@ class FirestoreService {
           });
           return;
         }
-      }
 
       // Enregistrer ou mettre à jour la vue
       await _profileViewsCollection.doc(viewId).set({
@@ -453,44 +480,50 @@ class FirestoreService {
         'profileName': profileUser.nom,
         'profileAccountType': profileUser.accountType,
         'lastViewedAt': now,
-        'createdAt': existingView.exists
-            ? (existingView.data() as Map<String, dynamic>)['createdAt']
-            : now,
+        'createdAt': existingView.exists ? (existingView.data() as Map<String, dynamic>)['createdAt'] : now,
       }, SetOptions(merge: true));
 
       // Incrémenter le compteur de vues sur le profil du candidat
       await _usersCollection.doc(profileUserId).update({
         'profileViewsCount': FieldValue.increment(1),
       });
-    });
-  }
+
+    } catch (e) {
+      debugPrint('Erreur lors de l\'enregistrement de la vue de profil: $e');
+      // Ne pas faire échouer l'opération si l'enregistrement de la vue échoue
+    }
+
 
   // Obtenir les vues d'un profil
   Stream<List<Map<String, dynamic>>> getProfileViews(String profileUserId) {
-    return FirestoreErrorHandler.handleStream(
-      _profileViewsCollection
+    try {
+      return _profileViewsCollection
           .where('profileUserId', isEqualTo: profileUserId)
           .orderBy('lastViewedAt', descending: true)
           .snapshots()
-          .map(
-            (snapshot) => snapshot.docs
-                .map((doc) => doc.data() as Map<String, dynamic>)
-                .toList(),
-          ),
-    );
-  }
+          .map((snapshot) => snapshot.docs
+              .map((doc) => doc.data() as Map<String, dynamic>)
+              .toList());
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération des vues de profil: $e');
+      return Stream.value([]);
+    }
+
 
   // Obtenir le nombre total de vues d'un profil
   Future<int> getProfileViewsCount(String profileUserId) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       final userDoc = await _usersCollection.doc(profileUserId).get();
       if (userDoc.exists) {
         final data = userDoc.data() as Map<String, dynamic>;
         return data['profileViewsCount'] ?? 0;
       }
       return 0;
-    });
-  }
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération du compteur de vues: $e');
+      return 0;
+    }
+
 
   // ========== MESSAGES ==========
 
@@ -500,7 +533,7 @@ class FirestoreService {
     List<String> userIds = [user1Id, user2Id]..sort();
     String conversationId = '${userIds[0]}_${userIds[1]}';
 
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       // Vérifier si la conversation existe déjà
       DocumentSnapshot doc = await _messagesCollection
           .doc(conversationId)
@@ -513,13 +546,21 @@ class FirestoreService {
           'createdAt': Timestamp.now(),
           'lastMessage': '',
           'lastMessageTime': Timestamp.now(),
-          'unreadCount': {userIds[0]: 0, userIds[1]: 0},
+          'unreadCount': {
+            userIds[0]: 0,
+            userIds[1]: 0,
+          },
         });
       }
 
       return conversationId;
-    });
-  }
+    } catch (e) {
+      // Retourner l'ID même en cas d'erreur si c'est juste un problème de permissions
+      // car la conversation existe peut-être déjà
+      debugPrint('Erreur lors de la création de la conversation: $e');
+      return conversationId;
+    }
+
 
   // Envoyer un message
   Future<void> sendMessage({
@@ -532,11 +573,9 @@ class FirestoreService {
     String? fileType,
     String? storagePath,
   }) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       // S'assurer que la conversation existe avant d'envoyer le message
-      final conversationDoc = await _messagesCollection
-          .doc(conversationId)
-          .get();
+      final conversationDoc = await _messagesCollection.doc(conversationId).get();
 
       if (!conversationDoc.exists) {
         // Extraire les IDs des participants depuis le conversationId
@@ -548,7 +587,10 @@ class FirestoreService {
           'createdAt': Timestamp.now(),
           'lastMessage': '',
           'lastMessageTime': Timestamp.now(),
-          'unreadCount': {participantIds[0]: 0, participantIds[1]: 0},
+          'unreadCount': {
+            participantIds[0]: 0,
+            participantIds[1]: 0,
+          },
         });
       }
 
@@ -584,8 +626,7 @@ class FirestoreService {
 
       // Déterminer l'ID du destinataire (l'autre participant)
       final conversationData = conversationDoc.data() as Map<String, dynamic>?;
-      final participants =
-          conversationData?['participants'] as List<dynamic>? ?? [];
+      final participants = conversationData?['participants'] as List<dynamic>? ?? [];
       final receiverId = participants.firstWhere(
         (id) => id != senderId,
         orElse: () => '',
@@ -615,8 +656,7 @@ class FirestoreService {
           // Préparer le message de notification
           String notificationMessage;
           if (fileUrl != null) {
-            notificationMessage =
-                'Vous a envoyé un fichier: ${fileName ?? "fichier"}';
+            notificationMessage = 'Vous a envoyé un fichier: ${fileName ?? "fichier"}';
           } else {
             // Limiter le message à 100 caractères pour la notification
             notificationMessage = message.length > 100
@@ -636,76 +676,69 @@ class FirestoreService {
             },
           );
         } catch (e) {
-          debugPrint(
-            'Erreur lors de l\'envoi de la notification de message: $e',
-          );
+          debugPrint('Erreur lors de l\'envoi de la notification de message: $e');
         }
-      }
-    });
-  }
+    } catch (e) {
+      debugPrint('Erreur lors de l\'envoi du message: $e');
+      throw Exception('Erreur lors de l\'envoi du message: $e');
+    }
+
 
   // Réinitialiser le compteur de messages non lus pour un utilisateur
-  Future<void> markConversationAsRead(
-    String conversationId,
-    String userId,
-  ) async {
-    return FirestoreErrorHandler.handleOperation(() async {
-      debugPrint(
-        '[CHAT] Marquage de la conversation $conversationId comme lue pour l\'utilisateur $userId',
-      );
+  Future<void> markConversationAsRead(String conversationId, String userId) async {
+    try {
+      debugPrint('[CHAT] Marquage de la conversation $conversationId comme lue pour l\'utilisateur $userId');
       await _messagesCollection.doc(conversationId).update({
         'unreadCount.$userId': 0,
       });
       debugPrint('[CHAT] Conversation marquée comme lue avec succès');
-    });
-  }
+    } catch (e) {
+      debugPrint('[CHAT] ERREUR lors de la réinitialisation du compteur: $e');
+      rethrow;
+    }
+
 
   // Obtenir le nombre total de messages non lus pour un utilisateur
   Stream<int> getTotalUnreadMessagesCount(String userId) {
-    return FirestoreErrorHandler.handleStream(
-      _messagesCollection
-          .where('participants', arrayContains: userId)
-          .snapshots()
-          .map((snapshot) {
-            int total = 0;
-            debugPrint(
-              '[CHAT] Calcul des messages non lus pour userId: $userId',
-            );
-            debugPrint(
-              '[CHAT] Nombre de conversations: ${snapshot.docs.length}',
-            );
-            for (var doc in snapshot.docs) {
-              final data = doc.data() as Map<String, dynamic>;
-              final unreadCount = data['unreadCount'] as Map<String, dynamic>?;
-              if (unreadCount != null && unreadCount.containsKey(userId)) {
-                final count = (unreadCount[userId] as int?) ?? 0;
-                debugPrint(
-                  '[CHAT] Conversation ${doc.id}: $count message(s) non lu(s)',
-                );
-                total += count;
-              }
-            }
-            debugPrint('[CHAT] Total messages non lus: $total');
-            return total;
-          }),
-    );
-  }
+    return _messagesCollection
+        .where('participants', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+      int total = 0;
+      debugPrint('[CHAT] Calcul des messages non lus pour userId: $userId');
+      debugPrint('[CHAT] Nombre de conversations: ${snapshot.docs.length}');
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final unreadCount = data['unreadCount'] as Map<String, dynamic>?;
+        if (unreadCount != null && unreadCount.containsKey(userId)) {
+          final count = (unreadCount[userId] as int?) ?? 0;
+          debugPrint('[CHAT] Conversation ${doc.id}: $count message(s) non lu(s)');
+          total += count;
+        }
+      debugPrint('[CHAT] Total messages non lus: $total');
+      return total;
+    });
+
 
   // Obtenir les messages d'une conversation
   Stream<QuerySnapshot> getMessages(String conversationId) {
-    return FirestoreErrorHandler.handleStream(
-      _messagesCollection
+    try {
+      return _messagesCollection
           .doc(conversationId)
           .collection('messages')
           .orderBy('timestamp', descending: true)
-          .snapshots(),
-    );
-  }
+          .snapshots();
+    } catch (e) {
+      throw Exception('Erreur lors de la récupération des messages: $e');
+    }
+
 
   // Obtenir toutes les conversations d'un utilisateur
   Stream<QuerySnapshot> getConversations(String userId) {
-    return FirestoreErrorHandler.handleStream(
-      _messagesCollection
+    try {
+      // Utiliser distinctUnique pour éviter les duplications et les erreurs de state
+      // Ne pas manipuler le QuerySnapshot - le tri sera fait dans le widget
+      return _messagesCollection
           .where('participants', arrayContains: userId)
           .snapshots()
           .distinct((prev, next) {
@@ -726,9 +759,13 @@ class FirestoreService {
             }
 
             return true;
-          }),
-    );
-  }
+          });
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération des conversations: $e');
+      // Retourner un stream vide en cas d'erreur plutôt que de lever une exception
+      return Stream.value(_EmptyQuerySnapshot());
+    }
+
 
   // ==================== PROBLEM REPORTS ====================
 
@@ -740,7 +777,7 @@ class FirestoreService {
     required String accountType,
     required String problemDescription,
   }) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       await _firestore.collection('problem_reports').add({
         'userId': userId,
         'userName': userName,
@@ -753,46 +790,84 @@ class FirestoreService {
       });
 
       debugPrint('Signalement de problème soumis avec succès');
-    });
-  }
+    } catch (e) {
+      debugPrint('Erreur lors de la soumission du signalement: $e');
+      rethrow;
+    }
+
 
   /// Obtenir tous les signalements de problèmes pour l'admin
   Stream<List<Map<String, dynamic>>> getProblemReports() {
-    return FirestoreErrorHandler.handleStream(
-      _firestore
+    try {
+      return _firestore
           .collection('problem_reports')
           .orderBy('createdAt', descending: true)
           .snapshots()
           .map((snapshot) {
-            return snapshot.docs.map((doc) {
-              final data = doc.data();
-              data['id'] = doc.id;
-              return data;
-            }).toList();
-          }),
-    );
-  }
+        return snapshot.docs.map((doc) {
+          final data = doc.data();
+          data['id'] = doc.id;
+          return data;
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération des signalements: $e');
+      return Stream.value([]);
+    }
+
 
   /// Mettre à jour le statut d'un signalement
   Future<void> updateProblemReportStatus({
     required String reportId,
     required String status,
   }) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       await _firestore.collection('problem_reports').doc(reportId).update({
         'status': status,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
       debugPrint('Statut du signalement mis à jour: $status');
-    });
-  }
+    } catch (e) {
+      debugPrint('Erreur lors de la mise à jour du signalement: $e');
+      rethrow;
+    }
+
 
   /// Supprimer un signalement
   Future<void> deleteProblemReport(String reportId) async {
-    return FirestoreErrorHandler.handleOperation(() async {
+    try {
       await _firestore.collection('problem_reports').doc(reportId).delete();
       debugPrint('Signalement supprimé avec succès');
-    });
-  }
+    } catch (e) {
+      debugPrint('Erreur lors de la suppression du signalement: $e');
+      rethrow;
+    }
+
+}
+
+// Classe helper pour retourner un QuerySnapshot vide en cas d'erreur
+class _EmptyQuerySnapshot implements QuerySnapshot {
+  @override
+  List<QueryDocumentSnapshot> get docs => [];
+
+  @override
+  List<DocumentChange> get docChanges => [];
+
+  @override
+  SnapshotMetadata get metadata => const _EmptySnapshotMetadata();
+
+  @override
+  int get size => 0;
+}
+
+// Classe helper pour SnapshotMetadata vide
+class _EmptySnapshotMetadata implements SnapshotMetadata {
+  const _EmptySnapshotMetadata();
+
+  @override
+  bool get hasPendingWrites => false;
+
+  @override
+  bool get isFromCache => false;
 }

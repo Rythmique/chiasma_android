@@ -4,6 +4,7 @@ import '../models/job_offer_model.dart';
 import '../services/jobs_service.dart';
 import '../services/firestore_service.dart';
 import '../services/subscription_service.dart';
+import '../services/analytics_service.dart';
 import '../widgets/zone_search_field.dart';
 import '../widgets/subscription_required_dialog.dart';
 
@@ -21,6 +22,7 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
   final _formKey = GlobalKey<FormState>();
   final JobsService _jobsService = JobsService();
   final FirestoreService _firestoreService = FirestoreService();
+  final AnalyticsService _analytics = AnalyticsService();
 
   bool _isLoading = false;
   String? _schoolName;
@@ -40,10 +42,21 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
 
   // Listes de choix
   final List<String> _matieresDisponibles = [
-    'Mathématiques', 'Français', 'Anglais', 'Histoire-Géographie',
-    'Sciences Physiques', 'SVT', 'EPS', 'Arts Plastiques',
-    'Musique', 'Philosophie', 'Espagnol', 'Allemand',
-    'Économie', 'Informatique', 'Autre (précisez dans description)'
+    'Mathématiques',
+    'Français',
+    'Anglais',
+    'Histoire-Géographie',
+    'Sciences Physiques',
+    'SVT',
+    'EPS',
+    'Arts Plastiques',
+    'Musique',
+    'Philosophie',
+    'Espagnol',
+    'Allemand',
+    'Économie',
+    'Informatique',
+    'Autre (précisez dans description)',
   ];
 
   final List<String> _niveauxDisponibles = [
@@ -56,17 +69,26 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
     // Lycée
     '2nde', '1ère', 'Terminale',
     // Cours particuliers
-    'Répétiteur à Domicile'
+    'Répétiteur à Domicile',
   ];
 
   final List<String> _exigencesDisponibles = [
-    'Licence', 'Master', 'Doctorat',
-    'CAFOP', 'Agrégation',
-    '1-3 ans d\'expérience', '3-5 ans d\'expérience', '5+ ans d\'expérience'
+    'Licence',
+    'Master',
+    'Doctorat',
+    'CAFOP',
+    'Agrégation',
+    '1-3 ans d\'expérience',
+    '3-5 ans d\'expérience',
+    '5+ ans d\'expérience',
   ];
 
   final List<String> _typesContrat = [
-    'CDI', 'CDD', 'Vacataire', 'Fonctionnaire', 'Stage'
+    'CDI',
+    'CDD',
+    'Vacataire',
+    'Fonctionnaire',
+    'Stage',
   ];
 
   @override
@@ -165,7 +187,10 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
 
       if (widget.existingOffer != null) {
         // Mise à jour
-        await _jobsService.updateJobOffer(widget.existingOffer!.id, offer.toMap());
+        await _jobsService.updateJobOffer(
+          widget.existingOffer!.id,
+          offer.toMap(),
+        );
 
         if (mounted) {
           Navigator.pop(context, true); // true indique succès
@@ -180,9 +205,23 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
         // Création d'une nouvelle offre
         await _jobsService.createJobOffer(offer);
 
+        // 📊 Analytics: Track création offre d'emploi
+        await _analytics.logCustomEvent(
+          'create_job_offer',
+          parameters: {
+            'poste': offer.poste,
+            'ville': offer.ville,
+            'type_contrat': offer.typeContrat,
+            'matieres_count': offer.matieres.length,
+            'niveaux_count': offer.niveaux.length,
+          },
+        );
+
         // Consommer le quota après création réussie
         final subscriptionService = SubscriptionService();
-        final quotaResult = await subscriptionService.consumeJobOfferQuota(user.uid);
+        final quotaResult = await subscriptionService.consumeJobOfferQuota(
+          user.uid,
+        );
 
         if (mounted) {
           Navigator.pop(context, true); // true indique succès
@@ -190,8 +229,10 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
           // Afficher le message approprié
           if (quotaResult.success) {
             String message = 'Offre créée avec succès';
-            if (quotaResult.quotaRemaining >= 0 && quotaResult.quotaRemaining < 10) {
-              message += ' - Il vous reste ${quotaResult.quotaRemaining} offre${quotaResult.quotaRemaining > 1 ? "s" : ""} gratuite${quotaResult.quotaRemaining > 1 ? "s" : ""}';
+            if (quotaResult.quotaRemaining >= 0 &&
+                quotaResult.quotaRemaining < 10) {
+              message +=
+                  ' - Il vous reste ${quotaResult.quotaRemaining} offre${quotaResult.quotaRemaining > 1 ? "s" : ""} gratuite${quotaResult.quotaRemaining > 1 ? "s" : ""}';
             }
 
             ScaffoldMessenger.of(context).showSnackBar(
@@ -217,20 +258,61 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     }
+  }
+
+  Widget _buildChipSection(
+    String title,
+    List<String> options,
+    List<String> selected,
+    Color accentColor,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((option) {
+            final isSelected = selected.contains(option);
+            return FilterChip(
+              label: Text(option),
+              selected: isSelected,
+              onSelected: (value) {
+                setState(() {
+                  if (value) {
+                    selected.add(option);
+                  } else {
+                    selected.remove(option);
+                  }
+                });
+              },
+              selectedColor: accentColor.withValues(alpha: 0.3),
+              checkmarkColor: accentColor,
+            );
+          }).toList(),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existingOffer != null ? 'Modifier l\'offre' : 'Créer une offre'),
+        title: Text(
+          widget.existingOffer != null
+              ? 'Modifier l\'offre'
+              : 'Créer une offre',
+        ),
         backgroundColor: const Color(0xFFF77F00),
         foregroundColor: Colors.white,
       ),
@@ -350,62 +432,20 @@ class _CreateJobOfferPageState extends State<CreateJobOfferPage> {
                   const SizedBox(height: 24),
 
                   // Matières
-                  const Text(
+                  _buildChipSection(
                     'Matières concernées *',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _matieresDisponibles.map((matiere) {
-                      final isSelected = _selectedMatieres.contains(matiere);
-                      return FilterChip(
-                        label: Text(matiere),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          setState(() {
-                            if (selected) {
-                              _selectedMatieres.add(matiere);
-                            } else {
-                              _selectedMatieres.remove(matiere);
-                            }
-                          });
-                        },
-                        selectedColor: const Color(0xFFF77F00).withValues(alpha: 0.3),
-                        checkmarkColor: const Color(0xFFF77F00),
-                      );
-                    }).toList(),
+                    _matieresDisponibles,
+                    _selectedMatieres,
+                    const Color(0xFFF77F00),
                   ),
                   const SizedBox(height: 24),
 
                   // Niveaux
-                  const Text(
+                  _buildChipSection(
                     'Niveaux (classes) *',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _niveauxDisponibles.map((niveau) {
-                      final isSelected = _selectedNiveaux.contains(niveau);
-                      return FilterChip(
-                        label: Text(niveau),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          setState(() {
-                            if (selected) {
-                              _selectedNiveaux.add(niveau);
-                            } else {
-                              _selectedNiveaux.remove(niveau);
-                            }
-                          });
-                        },
-                        selectedColor: const Color(0xFF009E60).withValues(alpha: 0.3),
-                        checkmarkColor: const Color(0xFF009E60),
-                      );
-                    }).toList(),
+                    _niveauxDisponibles,
+                    _selectedNiveaux,
+                    const Color(0xFF009E60),
                   ),
                   const SizedBox(height: 24),
 

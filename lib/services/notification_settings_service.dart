@@ -10,13 +10,18 @@ class NotificationSettingsService {
   /// Obtenir les paramètres de notifications d'un utilisateur
   Future<NotificationSettingsModel> getUserSettings(String userId) async {
     try {
-      final doc = await _firestore.collection(_collectionName).doc(userId).get();
+      final doc = await _firestore
+          .collection(_collectionName)
+          .doc(userId)
+          .get();
 
       if (doc.exists) {
         return NotificationSettingsModel.fromFirestore(doc);
       } else {
         // Créer des paramètres par défaut si aucun n'existe
-        final defaultSettings = NotificationSettingsModel.defaultSettings(userId);
+        final defaultSettings = NotificationSettingsModel.defaultSettings(
+          userId,
+        );
         await createUserSettings(defaultSettings);
         return defaultSettings;
       }
@@ -90,11 +95,9 @@ class NotificationSettingsService {
 
   /// Stream des paramètres de notifications
   Stream<NotificationSettingsModel> streamUserSettings(String userId) {
-    return _firestore
-        .collection(_collectionName)
-        .doc(userId)
-        .snapshots()
-        .map((doc) {
+    return _firestore.collection(_collectionName).doc(userId).snapshots().map((
+      doc,
+    ) {
       if (doc.exists) {
         return NotificationSettingsModel.fromFirestore(doc);
       } else {

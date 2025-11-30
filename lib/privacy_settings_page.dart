@@ -87,159 +87,140 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
         padding: const EdgeInsets.all(16),
         children: [
           // Section Visibilité du profil
-          _buildSectionCard(
-            'Visibilité du profil',
-            [
-              _buildSwitchTile(
-                icon: Icons.visibility_off,
-                title: 'Masquer mon profil',
-                subtitle: 'Votre profil ne sera pas visible dans les recherches',
-                value: _hideProfile,
-                onChanged: (value) async {
-                  final messenger = ScaffoldMessenger.of(context);
+          _buildSectionCard('Visibilité du profil', [
+            _buildSwitchTile(
+              icon: Icons.visibility_off,
+              title: 'Masquer mon profil',
+              subtitle: 'Votre profil ne sera pas visible dans les recherches',
+              value: _hideProfile,
+              onChanged: (value) async {
+                final messenger = ScaffoldMessenger.of(context);
+                setState(() {
+                  _hideProfile = value;
+                });
+                await _updateBoolSetting('hideProfile', value);
+                if (mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(value ? 'Profil masqué' : 'Profil visible'),
+                      backgroundColor: const Color(0xFF009E60),
+                    ),
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Qui peut voir mon profil',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 12),
+            RadioGroup<String>(
+              groupValue: _profileVisibility,
+              onChanged: (value) async {
+                if (value != null) {
                   setState(() {
-                    _hideProfile = value;
+                    _profileVisibility = value;
                   });
-                  await _updateBoolSetting('hideProfile', value);
-                  if (mounted) {
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          value
-                              ? 'Profil masqué'
-                              : 'Profil visible',
-                        ),
-                        backgroundColor: const Color(0xFF009E60),
-                      ),
-                    );
-                  }
-                },
+                  await _updateStringSetting('profileVisibility', value);
+                }
+              },
+              child: Column(
+                children: [
+                  _buildRadioTile(
+                    title: 'Tout le monde',
+                    subtitle: 'Tous les utilisateurs peuvent voir votre profil',
+                    value: 'all',
+                  ),
+                  _buildRadioTile(
+                    title: 'Utilisateurs vérifiés uniquement',
+                    subtitle: 'Seuls les enseignants vérifiés',
+                    value: 'verified',
+                  ),
+                  _buildRadioTile(
+                    title: 'Personne',
+                    subtitle: 'Votre profil est complètement masqué',
+                    value: 'none',
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Qui peut voir mon profil',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[800],
-                ),
-              ),
-              const SizedBox(height: 12),
-              RadioGroup<String>(
-                groupValue: _profileVisibility,
-                onChanged: (value) async {
-                  if (value != null) {
-                    setState(() {
-                      _profileVisibility = value;
-                    });
-                    await _updateStringSetting('profileVisibility', value);
-                  }
-                },
-                child: Column(
-                  children: [
-                    _buildRadioTile(
-                      title: 'Tout le monde',
-                      subtitle: 'Tous les utilisateurs peuvent voir votre profil',
-                      value: 'all',
-                    ),
-                    _buildRadioTile(
-                      title: 'Utilisateurs vérifiés uniquement',
-                      subtitle: 'Seuls les enseignants vérifiés',
-                      value: 'verified',
-                    ),
-                    _buildRadioTile(
-                      title: 'Personne',
-                      subtitle: 'Votre profil est complètement masqué',
-                      value: 'none',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ]),
           const SizedBox(height: 16),
 
           // Section Informations personnelles
-          _buildSectionCard(
-            'Informations personnelles',
-            [
-              _buildSwitchTile(
-                icon: Icons.phone,
-                title: 'Masquer mon numéro de téléphone',
-                subtitle: 'Le numéro sera partiellement caché',
-                value: _hidePhoneNumber,
-                onChanged: (value) async {
-                  setState(() {
-                    _hidePhoneNumber = value;
-                  });
-                  await _updateBoolSetting('hidePhoneNumber', value);
-                },
+          _buildSectionCard('Informations personnelles', [
+            _buildSwitchTile(
+              icon: Icons.phone,
+              title: 'Masquer mon numéro de téléphone',
+              subtitle: 'Le numéro sera partiellement caché',
+              value: _hidePhoneNumber,
+              onChanged: (value) async {
+                setState(() {
+                  _hidePhoneNumber = value;
+                });
+                await _updateBoolSetting('hidePhoneNumber', value);
+              },
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 18, color: Colors.blue[700]),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Votre matricule n\'est jamais visible par les autres utilisateurs',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.blue[700],
-                        ),
-                      ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: Colors.blue[700]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Votre matricule n\'est jamais visible par les autres utilisateurs',
+                      style: TextStyle(fontSize: 12, color: Colors.blue[700]),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ]),
           const SizedBox(height: 16),
 
           // Section Activité
-          _buildSectionCard(
-            'Activité',
-            [
-              _buildSwitchTile(
-                icon: Icons.circle,
-                title: 'Afficher mon statut en ligne',
-                subtitle: 'Les autres verront quand vous êtes connecté',
-                value: _showOnlineStatus,
-                onChanged: (value) async {
-                  setState(() {
-                    _showOnlineStatus = value;
-                  });
-                  await _updateBoolSetting('showOnlineStatus', value);
-                },
-              ),
-            ],
-          ),
+          _buildSectionCard('Activité', [
+            _buildSwitchTile(
+              icon: Icons.circle,
+              title: 'Afficher mon statut en ligne',
+              subtitle: 'Les autres verront quand vous êtes connecté',
+              value: _showOnlineStatus,
+              onChanged: (value) async {
+                setState(() {
+                  _showOnlineStatus = value;
+                });
+                await _updateBoolSetting('showOnlineStatus', value);
+              },
+            ),
+          ]),
           const SizedBox(height: 16),
 
           // Section Messagerie
-          _buildSectionCard(
-            'Messagerie',
-            [
-              _buildSwitchTile(
-                icon: Icons.message,
-                title: 'Autoriser les messages',
-                subtitle: 'Recevoir des messages d\'autres enseignants',
-                value: _allowMessages,
-                onChanged: (value) async {
-                  setState(() {
-                    _allowMessages = value;
-                  });
-                  await _updateBoolSetting('allowMessages', value);
-                },
-              ),
-            ],
-          ),
+          _buildSectionCard('Messagerie', [
+            _buildSwitchTile(
+              icon: Icons.message,
+              title: 'Autoriser les messages',
+              subtitle: 'Recevoir des messages d\'autres enseignants',
+              value: _allowMessages,
+              onChanged: (value) async {
+                setState(() {
+                  _allowMessages = value;
+                });
+                await _updateBoolSetting('allowMessages', value);
+              },
+            ),
+          ]),
           const SizedBox(height: 16),
 
           // Informations
@@ -257,11 +238,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
               children: [
                 Row(
                   children: [
-                    Icon(
-                      Icons.security,
-                      color: Colors.orange[700],
-                      size: 24,
-                    ),
+                    Icon(Icons.security, color: Colors.orange[700], size: 24),
                     const SizedBox(width: 12),
                     Text(
                       'Confidentialité et sécurité',
@@ -355,10 +332,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
             ],
           ),
@@ -379,15 +353,10 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
       child: Row(
         children: [
-          Radio<String>(
-            value: value,
-            activeColor: const Color(0xFFF77F00),
-          ),
+          Radio<String>(value: value, activeColor: const Color(0xFFF77F00)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,10 +370,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                 ),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),

@@ -31,7 +31,6 @@ class _CandidateHomeScreenState extends State<CandidateHomeScreen> {
   int _currentIndex = 0;
   final FirestoreService _firestoreService = FirestoreService();
 
-  // Les pages de navigation
   final List<Widget> _pages = [
     const JobOffersListPage(),
     const MyApplicationPage(),
@@ -42,8 +41,6 @@ class _CandidateHomeScreenState extends State<CandidateHomeScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Initialiser FCM pour les notifications push (uniquement sur mobile)
     if (!kIsWeb) {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId != null) {
@@ -63,75 +60,42 @@ class _CandidateHomeScreenState extends State<CandidateHomeScreen> {
               stream: _firestoreService.getTotalUnreadMessagesCount(userId),
               builder: (context, snapshot) {
                 final unreadCount = snapshot.data ?? 0;
-
-                return BottomNavigationBar(
-                  type: BottomNavigationBarType.fixed,
-                  currentIndex: _currentIndex,
-                  onTap: (index) {
-                    setState(() {
-                      _currentIndex = index;
-                    });
-                  },
-                  selectedItemColor: Theme.of(context).colorScheme.primary,
-                  unselectedItemColor: Colors.grey,
-                  items: [
-                    const BottomNavigationBarItem(
-                      icon: Icon(Icons.work_outline),
-                      activeIcon: Icon(Icons.work),
-                      label: 'Offres',
-                    ),
-                    const BottomNavigationBarItem(
-                      icon: Icon(Icons.person_outline),
-                      activeIcon: Icon(Icons.person),
-                      label: 'Ma candidature',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: _buildMessageIcon(Icons.message_outlined, unreadCount, false),
-                      activeIcon: _buildMessageIcon(Icons.message, unreadCount, true),
-                      label: 'Messages',
-                    ),
-                    const BottomNavigationBarItem(
-                      icon: Icon(Icons.settings_outlined),
-                      activeIcon: Icon(Icons.settings),
-                      label: 'Paramètres',
-                    ),
-                  ],
-                );
+                return _buildBottomBar(unreadCount);
               },
             )
-          : BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              currentIndex: _currentIndex,
-              onTap: (index) {
-                setState(() {
-                  _currentIndex = index;
-                });
-              },
-              selectedItemColor: Theme.of(context).colorScheme.primary,
-              unselectedItemColor: Colors.grey,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.work_outline),
-                  activeIcon: Icon(Icons.work),
-                  label: 'Offres',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.person_outline),
-                  activeIcon: Icon(Icons.person),
-                  label: 'Ma candidature',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.message_outlined),
-                  activeIcon: Icon(Icons.message),
-                  label: 'Messages',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.settings_outlined),
-                  activeIcon: Icon(Icons.settings),
-                  label: 'Paramètres',
-                ),
-              ],
-            ),
+          : _buildBottomBar(0),
+    );
+  }
+
+  Widget _buildBottomBar(int unreadCount) {
+    return BottomNavigationBar(
+      type: BottomNavigationBarType.fixed,
+      currentIndex: _currentIndex,
+      onTap: (index) => setState(() => _currentIndex = index),
+      selectedItemColor: Theme.of(context).colorScheme.primary,
+      unselectedItemColor: Colors.grey,
+      items: [
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.work_outline),
+          activeIcon: Icon(Icons.work),
+          label: 'Offres',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.person_outline),
+          activeIcon: Icon(Icons.person),
+          label: 'Ma candidature',
+        ),
+        BottomNavigationBarItem(
+          icon: _buildMessageIcon(Icons.message_outlined, unreadCount, false),
+          activeIcon: _buildMessageIcon(Icons.message, unreadCount, true),
+          label: 'Messages',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.settings_outlined),
+          activeIcon: Icon(Icons.settings),
+          label: 'Paramètres',
+        ),
+      ],
     );
   }
 
@@ -150,10 +114,7 @@ class _CandidateHomeScreenState extends State<CandidateHomeScreen> {
                 color: Colors.red,
                 shape: BoxShape.circle,
               ),
-              constraints: const BoxConstraints(
-                minWidth: 16,
-                minHeight: 16,
-              ),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
               child: Text(
                 unreadCount > 99 ? '99+' : unreadCount.toString(),
                 style: const TextStyle(
@@ -203,24 +164,11 @@ class _CandidateMessagesPageState extends State<CandidateMessagesPage> {
     final currentUser = FirebaseAuth.instance.currentUser;
 
     if (currentUser == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Messages'),
-          backgroundColor: const Color(0xFFF77F00),
-          foregroundColor: Colors.white,
-          elevation: 0,
-        ),
-        body: const Center(child: Text('Veuillez vous connecter')),
-      );
+      return _buildErrorScaffold('Veuillez vous connecter');
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Messages'),
-        backgroundColor: const Color(0xFFF77F00),
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
+      appBar: _buildAppBar(),
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestoreService.getConversations(currentUser.uid),
         builder: (context, snapshot) {
@@ -229,27 +177,12 @@ class _CandidateMessagesPageState extends State<CandidateMessagesPage> {
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Text('Erreur: ${snapshot.error}'),
-            );
+            return Center(child: Text('Erreur: ${snapshot.error}'));
           }
 
-          final allConversations = snapshot.data?.docs ?? [];
-
-          // Filtrer et trier les conversations
-          final conversations = allConversations.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return data['lastMessageTime'] != null;
-          }).toList();
-
-          // Trier par lastMessageTime (plus récentes en premier)
-          conversations.sort((a, b) {
-            final aData = a.data() as Map<String, dynamic>;
-            final bData = b.data() as Map<String, dynamic>;
-            final aTime = aData['lastMessageTime'] as Timestamp;
-            final bTime = bData['lastMessageTime'] as Timestamp;
-            return bTime.compareTo(aTime);
-          });
+          final conversations = _filterAndSortConversations(
+            snapshot.data?.docs ?? [],
+          );
 
           if (conversations.isEmpty) {
             return _buildEmptyView();
@@ -260,7 +193,8 @@ class _CandidateMessagesPageState extends State<CandidateMessagesPage> {
             separatorBuilder: (context, index) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final conversationDoc = conversations[index];
-              final conversationData = conversationDoc.data() as Map<String, dynamic>;
+              final conversationData =
+                  conversationDoc.data() as Map<String, dynamic>;
               return _buildConversationTile(
                 conversationDoc.id,
                 conversationData,
@@ -273,28 +207,56 @@ class _CandidateMessagesPageState extends State<CandidateMessagesPage> {
     );
   }
 
+  AppBar _buildAppBar() {
+    return AppBar(
+      title: const Text('Messages'),
+      backgroundColor: const Color(0xFFF77F00),
+      foregroundColor: Colors.white,
+      elevation: 0,
+    );
+  }
+
+  Scaffold _buildErrorScaffold(String message) {
+    return Scaffold(
+      appBar: _buildAppBar(),
+      body: Center(child: Text(message)),
+    );
+  }
+
+  List<QueryDocumentSnapshot> _filterAndSortConversations(
+    List<QueryDocumentSnapshot> allDocs,
+  ) {
+    final filtered = allDocs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return data['lastMessageTime'] != null;
+    }).toList();
+
+    filtered.sort((a, b) {
+      final aData = a.data() as Map<String, dynamic>;
+      final bData = b.data() as Map<String, dynamic>;
+      final aTime = aData['lastMessageTime'] as Timestamp;
+      final bTime = bData['lastMessageTime'] as Timestamp;
+      return bTime.compareTo(aTime);
+    });
+
+    return filtered;
+  }
+
   Widget _buildEmptyView() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.message_outlined,
-            size: 80,
-            color: Colors.grey[300],
-          ),
+          Icon(Icons.message_outlined, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          Text(
-            'Aucun message',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text('Aucun message', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(
             'Vos conversations avec les établissements apparaîtront ici',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
           ),
         ],
       ),
@@ -306,7 +268,6 @@ class _CandidateMessagesPageState extends State<CandidateMessagesPage> {
     Map<String, dynamic> conversationData,
     String currentUserId,
   ) {
-    // Récupérer l'ID de l'autre participant
     final participants = conversationData['participants'] as List<dynamic>;
     final otherUserId = participants.firstWhere(
       (id) => id != currentUserId,
@@ -326,76 +287,19 @@ class _CandidateMessagesPageState extends State<CandidateMessagesPage> {
 
         final otherUser = userSnapshot.data!;
         final lastMessage = conversationData['lastMessage'] as String? ?? '';
-        final lastMessageTime = conversationData['lastMessageTime'] as Timestamp?;
-
-        // Récupérer le compteur de messages non lus
-        final unreadCount = conversationData['unreadCount'] as Map<String, dynamic>?;
+        final lastMessageTime =
+            conversationData['lastMessageTime'] as Timestamp?;
+        final unreadCount =
+            conversationData['unreadCount'] as Map<String, dynamic>?;
         final unreadMessages = (unreadCount?[currentUserId] as int?) ?? 0;
         final hasUnread = unreadMessages > 0;
 
         return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: Stack(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
-                child: Text(
-                  otherUser.nom
-                      .split(' ')
-                      .map((word) => word.isNotEmpty ? word[0] : '')
-                      .take(2)
-                      .join()
-                      .toUpperCase(),
-                  style: const TextStyle(
-                    color: Color(0xFFF77F00),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-              if (otherUser.isOnline)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
-                ),
-              // Badge de messages non lus
-              if (hasUnread)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 20,
-                      minHeight: 20,
-                    ),
-                    child: Text(
-                      unreadMessages > 9 ? '9+' : '$unreadMessages',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
           ),
+          leading: _buildAvatar(otherUser, hasUnread, unreadMessages),
           title: Text(
             otherUser.nom,
             style: TextStyle(
@@ -404,57 +308,117 @@ class _CandidateMessagesPageState extends State<CandidateMessagesPage> {
             ),
             overflow: TextOverflow.ellipsis,
           ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 4),
-              Text(
-                otherUser.fonction,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF009E60),
-                ),
-              ),
-              if (lastMessage.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  lastMessage,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: hasUnread ? Colors.black87 : Colors.grey[600],
-                    fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ],
-          ),
+          subtitle: _buildSubtitle(otherUser, lastMessage, hasUnread),
           trailing: lastMessageTime != null
               ? Text(
                   _formatTime(lastMessageTime.toDate()),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                 )
               : null,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ChatPage(
-                  contactName: otherUser.nom,
-                  contactFunction: otherUser.fonction,
-                  isOnline: otherUser.isOnline,
-                  conversationId: conversationId,
-                  contactUserId: otherUser.uid,
-                ),
-              ),
-            );
-          },
+          onTap: () => _navigateToChat(conversationId, otherUser),
         );
       },
+    );
+  }
+
+  Widget _buildAvatar(UserModel user, bool hasUnread, int unreadMessages) {
+    return Stack(
+      children: [
+        CircleAvatar(
+          radius: 28,
+          backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
+          child: Text(
+            user.nom
+                .split(' ')
+                .map((word) => word.isNotEmpty ? word[0] : '')
+                .take(2)
+                .join()
+                .toUpperCase(),
+            style: const TextStyle(
+              color: Color(0xFFF77F00),
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        ),
+        if (user.isOnline)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+        if (hasUnread)
+          Positioned(
+            left: 0,
+            top: 0,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+              child: Text(
+                unreadMessages > 9 ? '9+' : '$unreadMessages',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSubtitle(UserModel user, String lastMessage, bool hasUnread) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        Text(
+          user.fonction,
+          style: const TextStyle(fontSize: 13, color: Color(0xFF009E60)),
+        ),
+        if (lastMessage.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            lastMessage,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              color: hasUnread ? Colors.black87 : Colors.grey[600],
+              fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _navigateToChat(String conversationId, UserModel user) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatPage(
+          contactName: user.nom,
+          contactFunction: user.fonction,
+          isOnline: user.isOnline,
+          conversationId: conversationId,
+          contactUserId: user.uid,
+        ),
+      ),
     );
   }
 }
@@ -483,9 +447,7 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
       try {
         final userData = await _firestoreService.getUser(user.uid);
         if (mounted) {
-          setState(() {
-            _currentUserData = userData;
-          });
+          setState(() => _currentUserData = userData);
         }
       } catch (e) {
         debugPrint('Erreur lors du chargement des données utilisateur: $e');
@@ -494,7 +456,6 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
   }
 
   Future<void> _handleLogout(BuildContext context) async {
-    // Afficher une confirmation
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -507,7 +468,10 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Déconnexion', style: TextStyle(color: Colors.red)),
+            child: const Text(
+              'Déconnexion',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -525,17 +489,13 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erreur: $e'),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
           );
         }
       }
     }
   }
 
-  /// Afficher les paramètres de notifications
   void _showNotificationSettings(BuildContext context) {
     Navigator.push(
       context,
@@ -545,119 +505,120 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
     );
   }
 
-  /// Afficher l'aide
   void _showHelpDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Aide'),
-        content: const SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Comment utiliser CHIASMA ?',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              SizedBox(height: 16),
-              Text(
-                '🔍 Rechercher des offres',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              Text('Parcourez les offres d\'emploi disponibles dans l\'onglet "Offres" et filtrez par matière, niveau ou localisation.'),
-              SizedBox(height: 12),
-              Text(
-                '📝 Postuler à une offre',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              Text('Cliquez sur une offre pour voir les détails, puis appuyez sur "Postuler" pour envoyer votre candidature.'),
-              SizedBox(height: 12),
-              Text(
-                '📋 Suivre vos candidatures',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              Text('Accédez à "Mes candidatures" pour voir l\'état de vos candidatures (en attente, acceptée, refusée).'),
-              SizedBox(height: 12),
-              Text(
-                '👤 Mettre à jour votre profil',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              Text('Gardez votre profil à jour dans "Paramètres > Modifier mon profil" pour maximiser vos chances.'),
-              SizedBox(height: 16),
-              Text(
-                'Pour plus d\'assistance, contactez-nous à support@chiasma.pro',
-                style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
-              ),
-            ],
+    _showInfoDialog(
+      context,
+      title: 'Aide',
+      content: const Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Comment utiliser CHIASMA ?',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
+          SizedBox(height: 16),
+          Text(
+            '🔍 Rechercher des offres',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          Text(
+            'Parcourez les offres d\'emploi disponibles dans l\'onglet "Offres" et filtrez par matière, niveau ou localisation.',
+          ),
+          SizedBox(height: 12),
+          Text(
+            '📝 Postuler à une offre',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          Text(
+            'Cliquez sur une offre pour voir les détails, puis appuyez sur "Postuler" pour envoyer votre candidature.',
+          ),
+          SizedBox(height: 12),
+          Text(
+            '📋 Suivre vos candidatures',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          Text(
+            'Accédez à "Mes candidatures" pour voir l\'état de vos candidatures (en attente, acceptée, refusée).',
+          ),
+          SizedBox(height: 12),
+          Text(
+            '👤 Mettre à jour votre profil',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          Text(
+            'Gardez votre profil à jour dans "Paramètres > Modifier mon profil" pour maximiser vos chances.',
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Pour plus d\'assistance, contactez-nous à support@chiasma.pro',
+            style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
           ),
         ],
       ),
     );
   }
 
-  /// Afficher à propos
   void _showAboutDialog(BuildContext context) {
+    _showInfoDialog(
+      context,
+      title: 'À propos de CHIASMA',
+      content: const Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'CHIASMA',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFFF6F00),
+            ),
+          ),
+          SizedBox(height: 8),
+          Text('Version 1.0.0', style: TextStyle(color: Colors.grey)),
+          SizedBox(height: 16),
+          Text(
+            'Plateforme de mise en relation entre enseignants et établissements scolaires en Côte d\'Ivoire.',
+            style: TextStyle(fontSize: 15),
+          ),
+          SizedBox(height: 16),
+          Divider(),
+          SizedBox(height: 8),
+          Text('📧 Contact', style: TextStyle(fontWeight: FontWeight.bold)),
+          Text('support@chiasma.pro'),
+          SizedBox(height: 12),
+          Text('🌐 Site web', style: TextStyle(fontWeight: FontWeight.bold)),
+          Text('www.chiasma.pro'),
+          SizedBox(height: 16),
+          Text(
+            '© 2025 CHIASMA. Tous droits réservés.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Développé par N\'da',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showInfoDialog(
+    BuildContext context, {
+    required String title,
+    required Widget content,
+  }) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('À propos de CHIASMA'),
-        content: const SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'CHIASMA',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFFF6F00),
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Version 1.0.0',
-                style: TextStyle(color: Colors.grey),
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Plateforme de mise en relation entre enseignants et établissements scolaires en Côte d\'Ivoire.',
-                style: TextStyle(fontSize: 15),
-              ),
-              SizedBox(height: 16),
-              Divider(),
-              SizedBox(height: 8),
-              Text(
-                '📧 Contact',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text('support@chiasma.pro'),
-              SizedBox(height: 12),
-              Text(
-                '🌐 Site web',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text('www.chiasma.pro'),
-              SizedBox(height: 16),
-              Text(
-                '© 2025 CHIASMA. Tous droits réservés.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Développé par N\'da',
-                style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
-              ),
-            ],
-          ),
-        ),
+        title: Text(title),
+        content: SingleChildScrollView(child: content),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -668,7 +629,6 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
     );
   }
 
-  /// Afficher le dialogue de signalement de problème
   void _showReportDialog(BuildContext context) {
     final problemController = TextEditingController();
 
@@ -682,9 +642,7 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
           maxLines: 5,
           decoration: InputDecoration(
             hintText: 'Décrivez le problème rencontré...',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
         actions: [
@@ -696,54 +654,7 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () async {
-              final problemText = problemController.text.trim();
-
-              if (problemText.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Veuillez décrire le problème'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-                return;
-              }
-
-              try {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user != null && _currentUserData != null) {
-                  await _firestoreService.submitProblemReport(
-                    userId: user.uid,
-                    userName: _currentUserData!.nom,
-                    userEmail: user.email ?? '',
-                    accountType: _currentUserData!.accountType,
-                    problemDescription: problemText,
-                  );
-
-                  problemController.dispose();
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Merci pour votre retour ! Nous examinerons votre signalement.'),
-                        backgroundColor: Color(0xFF009E60),
-                      ),
-                    );
-                  }
-                }
-              } catch (e) {
-                problemController.dispose();
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Erreur lors de l\'envoi: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
+            onPressed: () => _submitProblem(context, problemController),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF77F00),
             ),
@@ -754,9 +665,61 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
     );
   }
 
-  /// Afficher le dialogue de gestion du stockage
-  void _showStorageDialog(BuildContext context) async {
-    // Calculer la taille du cache
+  Future<void> _submitProblem(
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
+    final problemText = controller.text.trim();
+
+    if (problemText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez décrire le problème'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && _currentUserData != null) {
+        await _firestoreService.submitProblemReport(
+          userId: user.uid,
+          userName: _currentUserData!.nom,
+          userEmail: user.email ?? '',
+          accountType: _currentUserData!.accountType,
+          problemDescription: problemText,
+        );
+
+        controller.dispose();
+        if (context.mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Merci pour votre retour ! Nous examinerons votre signalement.',
+              ),
+              backgroundColor: Color(0xFF009E60),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      controller.dispose();
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'envoi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showStorageDialog(BuildContext context) async {
     String cacheSize = 'Calcul...';
     String dataSize = 'Calcul...';
 
@@ -812,56 +775,7 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
             child: const Text('Fermer'),
           ),
           ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-
-              // Afficher un indicateur de chargement
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) => const Center(
-                  child: Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(20.0),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 16),
-                          Text('Effacement du cache...'),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-
-              try {
-                if (!kIsWeb) {
-                  await _clearCache();
-                }
-
-                if (context.mounted) {
-                  Navigator.pop(context); // Fermer le dialogue de chargement
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Cache effacé avec succès'),
-                      backgroundColor: Color(0xFF009E60),
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  Navigator.pop(context); // Fermer le dialogue de chargement
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Erreur lors de l\'effacement: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
+            onPressed: () => _clearCache(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF77F00),
             ),
@@ -872,12 +786,70 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
     );
   }
 
-  /// Obtenir la taille d'un répertoire
+  Future<void> _clearCache(BuildContext context) async {
+    Navigator.pop(context);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Effacement du cache...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      if (!kIsWeb) {
+        final tempDir = await getTemporaryDirectory();
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+          await tempDir.create();
+        }
+        PaintingBinding.instance.imageCache.clear();
+        PaintingBinding.instance.imageCache.clearLiveImages();
+      }
+
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cache effacé avec succès'),
+            backgroundColor: Color(0xFF009E60),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'effacement: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<int> _getDirectorySize(Directory dir) async {
     int totalSize = 0;
     try {
       if (await dir.exists()) {
-        await for (var entity in dir.list(recursive: true, followLinks: false)) {
+        await for (var entity in dir.list(
+          recursive: true,
+          followLinks: false,
+        )) {
           if (entity is File) {
             totalSize += await entity.length();
           }
@@ -889,7 +861,6 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
     return totalSize;
   }
 
-  /// Formater les bytes en unité lisible
   String _formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
@@ -899,81 +870,50 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
-  /// Effacer le cache
-  Future<bool> _clearCache() async {
-    try {
-      final tempDir = await getTemporaryDirectory();
-
-      if (await tempDir.exists()) {
-        await tempDir.delete(recursive: true);
-        await tempDir.create();
-      }
-
-      // Effacer le cache des images Flutter
-      PaintingBinding.instance.imageCache.clear();
-      PaintingBinding.instance.imageCache.clearLiveImages();
-
-      return true;
-    } catch (e) {
-      debugPrint('Erreur lors de l\'effacement du cache: $e');
-      return false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Paramètres'),
-      ),
+      appBar: AppBar(title: const Text('Paramètres')),
       body: ListView(
         children: [
           ListTile(
             leading: const Icon(Icons.person),
             title: const Text('Modifier mon profil'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const EditCandidateProfilePage(),
-                ),
-              );
-            },
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const EditCandidateProfilePage(),
+              ),
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.work, color: Color(0xFF009E60)),
             title: const Text('Mes candidatures'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const MyApplicationsPage(),
-                ),
-              );
-            },
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const MyApplicationsPage(),
+              ),
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.lock),
             title: const Text('Changer le mot de passe'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ChangePasswordPage(),
-                ),
-              );
-            },
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ChangePasswordPage(),
+              ),
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.notifications),
             title: const Text('Notifications'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              _showNotificationSettings(context);
-            },
+            onTap: () => _showNotificationSettings(context),
           ),
           const Divider(),
           ListTile(
@@ -981,9 +921,7 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
             title: const Text('Vérifier les mises à jour'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
-              // Vérifier via Play Store
               await AppUpdateService.checkForUpdateManually(context);
-              // Vérifier via serveur Chiasma (pour installations hors Play Store)
               if (context.mounted) {
                 await UpdateCheckerService.checkManually(context);
               }
@@ -993,33 +931,25 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
             leading: const Icon(Icons.help),
             title: const Text('Aide'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              _showHelpDialog(context);
-            },
+            onTap: () => _showHelpDialog(context),
           ),
           ListTile(
             leading: const Icon(Icons.info),
             title: const Text('À propos'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              _showAboutDialog(context);
-            },
+            onTap: () => _showAboutDialog(context),
           ),
           ListTile(
             leading: const Icon(Icons.bug_report),
             title: const Text('Signaler un problème'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              _showReportDialog(context);
-            },
+            onTap: () => _showReportDialog(context),
           ),
           ListTile(
             leading: const Icon(Icons.storage),
             title: const Text('Données et stockage'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              _showStorageDialog(context);
-            },
+            onTap: () => _showStorageDialog(context),
           ),
           const Divider(),
           ListTile(

@@ -11,6 +11,7 @@ import 'package:myapp/privacy_settings_page.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/services/notification_service.dart';
 import 'package:myapp/services/fcm_service.dart';
+import 'package:myapp/services/access_restrictions_service.dart';
 import 'package:myapp/models/user_model.dart';
 import 'package:myapp/widgets/announcements_banner.dart';
 import 'package:myapp/widgets/subscription_status_banner.dart';
@@ -19,6 +20,7 @@ import 'package:myapp/widgets/welcome_quota_dialog.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
 import 'package:myapp/widgets/verified_badge.dart';
 import 'package:myapp/utils/string_utils.dart';
+import 'package:myapp/utils/messaging_restrictions_helper.dart';
 import 'package:myapp/services/subscription_service.dart';
 import 'package:myapp/services/analytics_service.dart';
 
@@ -98,8 +100,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         label: 'Favoris',
                       ),
                       BottomNavigationBarItem(
-                        icon: _buildMessageIcon(Icons.message, unreadCount, false),
-                        activeIcon: _buildMessageIcon(Icons.message, unreadCount, true),
+                        icon: _buildMessageIcon(
+                          Icons.message,
+                          unreadCount,
+                          false,
+                        ),
+                        activeIcon: _buildMessageIcon(
+                          Icons.message,
+                          unreadCount,
+                          true,
+                        ),
                         label: 'Messages',
                       ),
                       const BottomNavigationBarItem(
@@ -160,10 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: Colors.red,
                 shape: BoxShape.circle,
               ),
-              constraints: const BoxConstraints(
-                minWidth: 16,
-                minHeight: 16,
-              ),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
               child: Text(
                 unreadCount > 99 ? '99+' : unreadCount.toString(),
                 style: const TextStyle(
@@ -194,14 +201,20 @@ class _SearchPageState extends State<SearchPage> {
   String _searchQuery = '';
   final FirestoreService _firestoreService = FirestoreService();
   final AnalyticsService _analytics = AnalyticsService();
+  final AccessRestrictionsService _restrictionsService =
+      AccessRestrictionsService();
+  final SubscriptionService _subscriptionService = SubscriptionService();
   Set<String> _favoriteUserIds = {}; // IDs des profils favoris (vrais userId)
-  List<UserModel> _allUsers = []; // Liste de tous les utilisateurs réels depuis Firestore
+  List<UserModel> _allUsers =
+      []; // Liste de tous les utilisateurs réels depuis Firestore
   bool _isLoadingUsers = true;
   bool _isLoadingMore = false;
   bool _hasMoreUsers = true;
   DocumentSnapshot? _lastDocument;
   final int _pageSize = 20; // Charger 20 utilisateurs par page
   final ScrollController _scrollController = ScrollController();
+  UserModel? _currentUserModel; // UserModel pour les restrictions
+  bool _adminRestrictionsEnabled = true;
 
   // Données de l'utilisateur connecté (pour le match mutuel)
   Map<String, dynamic> _currentUser = {
@@ -217,9 +230,23 @@ class _SearchPageState extends State<SearchPage> {
     _loadFavorites();
     _loadUsers();
     _loadCurrentUserData();
+    _loadAdminRestrictions();
 
     // Écouter le scroll pour charger plus d'utilisateurs
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _loadAdminRestrictions() async {
+    try {
+      final restrictions = await _restrictionsService.getRestrictions();
+      if (mounted) {
+        setState(() {
+          _adminRestrictionsEnabled = restrictions['teacher_transfer'] ?? true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement restrictions admin: $e');
+    }
   }
 
   @override
@@ -231,7 +258,8 @@ class _SearchPageState extends State<SearchPage> {
 
   // Détecter quand on arrive en bas de la liste
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.8) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent * 0.8) {
       // Charger plus quand on atteint 80% du scroll
       if (!_isLoadingMore && _hasMoreUsers) {
         _loadMoreUsers();
@@ -248,6 +276,7 @@ class _SearchPageState extends State<SearchPage> {
       final userData = await _firestoreService.getUser(currentUser.uid);
       if (userData != null && mounted) {
         setState(() {
+          _currentUserModel = userData; // Stocker le UserModel complet
           _currentUser = {
             'zoneActuelle': userData.zoneActuelle,
             'zoneSouhaitee': userData.zonesSouhaitees.isNotEmpty
@@ -260,6 +289,69 @@ class _SearchPageState extends State<SearchPage> {
       }
     } catch (e) {
       debugPrint('Erreur chargement données utilisateur: $e');
+    }
+  }
+
+  // Méthode réutilisable pour naviguer vers un profil avec gestion du quota
+  Future<void> _navigateToProfile(String profileUserId) async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Pour les enseignants permutation avec restrictions admin activées:
+    // Permettre TOUJOURS la navigation (peu importe quota/vérification)
+    final shouldAllowViewWithoutQuota =
+        _currentUserModel != null &&
+        _currentUserModel!.accountType == 'teacher_transfer' &&
+        _adminRestrictionsEnabled;
+
+    if (shouldAllowViewWithoutQuota) {
+      // Naviguer directement sans consommer de quota
+      navigator.push(
+        MaterialPageRoute(
+          builder: (context) => ProfileDetailPage(userId: profileUserId),
+        ),
+      );
+    } else {
+      // Consommer un quota pour voir le profil (comportement normal)
+      final result = await _subscriptionService.consumeProfileViewQuota(
+        currentUserId,
+      );
+
+      if (!context.mounted) return;
+
+      if (result.needsSubscription) {
+        if (context.mounted) {
+          SubscriptionRequiredDialog.show(
+            context,
+            result.accountType ?? 'teacher_transfer',
+          );
+        }
+      } else if (result.success) {
+        navigator.push(
+          MaterialPageRoute(
+            builder: (context) => ProfileDetailPage(userId: profileUserId),
+          ),
+        );
+
+        if (result.quotaRemaining >= 0) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                'Consultations restantes: ${result.quotaRemaining}',
+              ),
+              duration: const Duration(seconds: 2),
+              backgroundColor: const Color(0xFF009E60),
+            ),
+          );
+        }
+      } else {
+        messenger.showSnackBar(
+          SnackBar(content: Text(result.message), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -284,12 +376,16 @@ class _SearchPageState extends State<SearchPage> {
       if (mounted) {
         setState(() {
           // Exclure l'utilisateur connecté
-          _allUsers = result['users'].where((user) => user.uid != currentUser.uid).toList();
+          _allUsers = result['users']
+              .where((user) => user.uid != currentUser.uid)
+              .toList();
           _lastDocument = result['lastDocument'];
           _hasMoreUsers = result['users'].length >= _pageSize;
           _isLoadingUsers = false;
 
-          debugPrint('📊 [SearchPage] Première page chargée: ${_allUsers.length} utilisateurs');
+          debugPrint(
+            '📊 [SearchPage] Première page chargée: ${_allUsers.length} utilisateurs',
+          );
         });
       }
     } catch (e) {
@@ -324,13 +420,17 @@ class _SearchPageState extends State<SearchPage> {
       if (mounted) {
         setState(() {
           // Ajouter les nouveaux utilisateurs (exclure l'utilisateur connecté)
-          final newUsers = result['users'].where((user) => user.uid != currentUser.uid).toList();
+          final newUsers = result['users']
+              .where((user) => user.uid != currentUser.uid)
+              .toList();
           _allUsers.addAll(newUsers);
           _lastDocument = result['lastDocument'];
           _hasMoreUsers = result['users'].length >= _pageSize;
           _isLoadingMore = false;
 
-          debugPrint('📊 [SearchPage] Page suivante chargée: +${newUsers.length} utilisateurs (Total: ${_allUsers.length})');
+          debugPrint(
+            '📊 [SearchPage] Page suivante chargée: +${newUsers.length} utilisateurs (Total: ${_allUsers.length})',
+          );
         });
       }
     } catch (e) {
@@ -356,14 +456,14 @@ class _SearchPageState extends State<SearchPage> {
           .where('userId', isEqualTo: currentUser.uid)
           .snapshots()
           .listen((snapshot) {
-        if (mounted) {
-          setState(() {
-            _favoriteUserIds = snapshot.docs
-                .map((doc) => doc.data()['favoriteUserId'] as String)
-                .toSet();
+            if (mounted) {
+              setState(() {
+                _favoriteUserIds = snapshot.docs
+                    .map((doc) => doc.data()['favoriteUserId'] as String)
+                    .toSet();
+              });
+            }
           });
-        }
-      });
     } catch (e) {
       // Erreur lors du chargement des favoris
       debugPrint('Erreur chargement favoris: $e');
@@ -376,8 +476,17 @@ class _SearchPageState extends State<SearchPage> {
     if (currentUser == null) return;
 
     try {
-      if (_favoriteUserIds.contains(profileUserId)) {
+      final isRemoving = _favoriteUserIds.contains(profileUserId);
+
+      if (isRemoving) {
         await _firestoreService.removeFavorite(currentUser.uid, profileUserId);
+        // 📊 Analytics: Track retrait favori
+        final user = _allUsers.firstWhere(
+          (u) => u.uid == profileUserId,
+          orElse: () => _allUsers.first,
+        );
+        await _analytics.logRemoveFavorite(profileUserId, user.accountType);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -388,6 +497,13 @@ class _SearchPageState extends State<SearchPage> {
         }
       } else {
         await _firestoreService.addFavorite(currentUser.uid, profileUserId);
+        // 📊 Analytics: Track ajout favori
+        final user = _allUsers.firstWhere(
+          (u) => u.uid == profileUserId,
+          orElse: () => _allUsers.first,
+        );
+        await _analytics.logAddFavorite(profileUserId, user.accountType);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -401,16 +517,11 @@ class _SearchPageState extends State<SearchPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
-
-
 
   // Obtenir le placeholder du champ de recherche selon le filtre actif
   String get _searchHint {
@@ -474,11 +585,15 @@ class _SearchPageState extends State<SearchPage> {
       filtered = _allUsers.where((user) {
         // Match mutuel = la zone souhaitée de l'utilisateur correspond à la zone actuelle du profil
         // ET la zone actuelle de l'utilisateur correspond à la zone souhaitée du profil
-        final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty ? user.zonesSouhaitees.first : '';
+        final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty
+            ? user.zonesSouhaitees.first
+            : '';
         return user.zoneActuelle == _currentUser['zoneSouhaitee'] &&
-               zoneSouhaitee == _currentUser['zoneActuelle'];
+            zoneSouhaitee == _currentUser['zoneActuelle'];
       }).toList();
-      debugPrint('📊 [Filtered] Match mutuel: ${filtered.length} sur ${_allUsers.length}');
+      debugPrint(
+        '📊 [Filtered] Match mutuel: ${filtered.length} sur ${_allUsers.length}',
+      );
       return filtered;
     }
 
@@ -501,8 +616,8 @@ class _SearchPageState extends State<SearchPage> {
 
       case 'zone_souhaitee':
         filtered = _allUsers.where((user) {
-          return user.zonesSouhaitees.any((zone) =>
-            containsIgnoringAccents(zone, _searchQuery)
+          return user.zonesSouhaitees.any(
+            (zone) => containsIgnoringAccents(zone, _searchQuery),
           );
         }).toList();
         break;
@@ -524,7 +639,9 @@ class _SearchPageState extends State<SearchPage> {
         filtered = _allUsers;
     }
 
-    debugPrint('📊 [Filtered] Mode: $_selectedSearchMode, Query: "$query", Résultats: ${filtered.length}/${_allUsers.length}');
+    debugPrint(
+      '📊 [Filtered] Mode: $_selectedSearchMode, Query: "$query", Résultats: ${filtered.length}/${_allUsers.length}',
+    );
     return filtered;
   }
 
@@ -542,7 +659,10 @@ class _SearchPageState extends State<SearchPage> {
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               centerTitle: true,
-              titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              titlePadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
               title: const Text(
                 'CHIASMA',
                 style: TextStyle(
@@ -624,7 +744,9 @@ class _SearchPageState extends State<SearchPage> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
                 controller: _searchController,
-                enabled: _selectedSearchMode != 'match_mutuel', // Désactivé en mode match mutuel
+                enabled:
+                    _selectedSearchMode !=
+                    'match_mutuel', // Désactivé en mode match mutuel
                 onChanged: (value) {
                   setState(() {
                     _searchQuery = value;
@@ -642,7 +764,9 @@ class _SearchPageState extends State<SearchPage> {
                   hintText: _searchHint,
                   hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                   prefixIcon: Icon(
-                    _selectedSearchMode == 'match_mutuel' ? Icons.auto_awesome : Icons.search,
+                    _selectedSearchMode == 'match_mutuel'
+                        ? Icons.auto_awesome
+                        : Icons.search,
                     color: const Color(0xFFF77F00),
                   ),
                   suffixIcon: _searchQuery.isNotEmpty
@@ -674,9 +798,15 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFF77F00), width: 2),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFF77F00),
+                      width: 2,
+                    ),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                 ),
               ),
             ),
@@ -699,7 +829,10 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: _getFilterBackgroundColor(),
                       borderRadius: BorderRadius.circular(12),
@@ -719,7 +852,10 @@ class _SearchPageState extends State<SearchPage> {
                       child: DropdownButton<String>(
                         value: _selectedSearchMode,
                         isExpanded: true,
-                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFF77F00)),
+                        icon: const Icon(
+                          Icons.arrow_drop_down,
+                          color: Color(0xFFF77F00),
+                        ),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -733,7 +869,9 @@ class _SearchPageState extends State<SearchPage> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF77F00).withValues(alpha: 0.1),
+                                    color: const Color(
+                                      0xFFF77F00,
+                                    ).withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
@@ -754,7 +892,9 @@ class _SearchPageState extends State<SearchPage> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF009E60).withValues(alpha: 0.1),
+                                    color: const Color(
+                                      0xFF009E60,
+                                    ).withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
@@ -775,7 +915,9 @@ class _SearchPageState extends State<SearchPage> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF2196F3).withValues(alpha: 0.1),
+                                    color: const Color(
+                                      0xFF2196F3,
+                                    ).withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
@@ -796,7 +938,9 @@ class _SearchPageState extends State<SearchPage> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF9C27B0).withValues(alpha: 0.1),
+                                    color: const Color(
+                                      0xFF9C27B0,
+                                    ).withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
@@ -817,7 +961,9 @@ class _SearchPageState extends State<SearchPage> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                                    color: const Color(
+                                      0xFF4CAF50,
+                                    ).withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
@@ -894,7 +1040,9 @@ class _SearchPageState extends State<SearchPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _searchQuery.isNotEmpty ? 'Résultats de recherche' : 'Profils disponibles',
+                    _searchQuery.isNotEmpty
+                        ? 'Résultats de recherche'
+                        : 'Profils disponibles',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -902,7 +1050,10 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF77F00).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -975,7 +1126,8 @@ class _SearchPageState extends State<SearchPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) => _buildProfileCard(_filteredProfiles[index], index),
+                      (context, index) =>
+                          _buildProfileCard(_filteredProfiles[index], index),
                       childCount: _filteredProfiles.length,
                     ),
                   ),
@@ -987,9 +1139,7 @@ class _SearchPageState extends State<SearchPage> {
               child: Padding(
                 padding: EdgeInsets.all(16),
                 child: Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFFF77F00),
-                  ),
+                  child: CircularProgressIndicator(color: Color(0xFFF77F00)),
                 ),
               ),
             ),
@@ -1002,10 +1152,7 @@ class _SearchPageState extends State<SearchPage> {
                 child: Center(
                   child: Text(
                     'Tous les profils ont été chargés',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
                   ),
                 ),
               ),
@@ -1023,10 +1170,13 @@ class _SearchPageState extends State<SearchPage> {
     final name = user.nom;
     final fonction = user.fonction;
     final zoneActuelle = user.zoneActuelle;
-    final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty ? user.zonesSouhaitees.first : 'Non spécifiée';
+    final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty
+        ? user.zonesSouhaitees.first
+        : 'Non spécifiée';
 
     // Get initials from name - avec protection contre les chaînes vides
-    final initials = name.split(' ')
+    final initials = name
+        .split(' ')
         .where((word) => word.isNotEmpty)
         .map((word) => word[0])
         .take(2)
@@ -1057,7 +1207,9 @@ class _SearchPageState extends State<SearchPage> {
                 children: [
                   CircleAvatar(
                     radius: 30,
-                    backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
+                    backgroundColor: const Color(
+                      0xFFF77F00,
+                    ).withValues(alpha: 0.2),
                     child: Text(
                       initials,
                       style: TextStyle(
@@ -1109,7 +1261,9 @@ class _SearchPageState extends State<SearchPage> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                              color: const Color(
+                                0xFF4CAF50,
+                              ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Text(
@@ -1123,27 +1277,25 @@ class _SearchPageState extends State<SearchPage> {
                           ),
                         ],
                         const SizedBox(width: 4),
-                        VerifiedBadge(
-                          isVerified: user.isVerified,
-                          size: 18,
-                        ),
+                        VerifiedBadge(isVerified: user.isVerified, size: 18),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
                       fonction,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
                   ],
                 ),
               ),
               IconButton(
                 icon: Icon(
-                  _favoriteUserIds.contains(userId) ? Icons.favorite : Icons.favorite_border,
-                  color: _favoriteUserIds.contains(userId) ? Colors.red : Colors.grey[400],
+                  _favoriteUserIds.contains(userId)
+                      ? Icons.favorite
+                      : Icons.favorite_border,
+                  color: _favoriteUserIds.contains(userId)
+                      ? Colors.red
+                      : Colors.grey[400],
                 ),
                 onPressed: () => _toggleFavorite(userId),
               ),
@@ -1229,54 +1381,7 @@ class _SearchPageState extends State<SearchPage> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-                    if (currentUserId == null) return;
-
-                    final navigator = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
-
-                    // Consommer un quota pour voir le profil
-                    final result = await SubscriptionService().consumeProfileViewQuota(currentUserId);
-
-                    if (!context.mounted) return;
-
-                    if (result.needsSubscription) {
-                      // Afficher le dialogue d'abonnement
-                      if (context.mounted) {
-                        // ignore: use_build_context_synchronously
-                        SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
-                      }
-                    } else if (result.success) {
-                      // Naviguer vers le profil
-                      navigator.push(
-                        MaterialPageRoute(
-                          builder: (context) => ProfileDetailPage(
-                            userId: userId,
-                          ),
-                        ),
-                      );
-
-                      // Afficher le quota restant si pas illimité
-                      if (result.quotaRemaining >= 0) {
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text('Consultations restantes: ${result.quotaRemaining}'),
-                            duration: const Duration(seconds: 2),
-                            backgroundColor: const Color(0xFF009E60),
-                          ),
-                        );
-                      }
-                    } else {
-                      // Erreur
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(result.message),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: () => _navigateToProfile(userId),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF77F00),
                     foregroundColor: Colors.white,
@@ -1291,69 +1396,110 @@ class _SearchPageState extends State<SearchPage> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-                    if (currentUserId == null) return;
-
-                    final navigator = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
-
-                    // Consommer un quota pour envoyer un message
-                    final result = await SubscriptionService().consumeMessageQuota(currentUserId);
-
-                    if (!context.mounted) return;
-
-                    if (result.needsSubscription) {
-                      // Afficher le dialogue d'abonnement
-                      if (context.mounted) {
-                        // ignore: use_build_context_synchronously
-                        SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
-                      }
-                    } else if (result.success) {
-                      // Naviguer vers la page de chat
-                      navigator.push(
-                        MaterialPageRoute(
-                          builder: (context) => ChatPage(
-                            contactName: name,
-                            contactFunction: fonction,
-                            isOnline: isOnline,
-                            contactUserId: userId,
-                          ),
-                        ),
+                child: () {
+                  // Vérifier si la messagerie doit être restreinte
+                  final shouldRestrict =
+                      _currentUserModel != null &&
+                      MessagingRestrictionsHelper.shouldRestrictMessaging(
+                        _currentUserModel!,
+                        _adminRestrictionsEnabled,
                       );
 
-                      // Afficher le quota restant si pas illimité
-                      if (result.quotaRemaining >= 0) {
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text('Consultations restantes: ${result.quotaRemaining}'),
-                            duration: const Duration(seconds: 2),
-                            backgroundColor: const Color(0xFF009E60),
-                          ),
-                        );
-                      }
-                    } else {
-                      // Erreur
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(result.message),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF009E60),
-                    side: const BorderSide(color: Color(0xFF009E60)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                  return OutlinedButton.icon(
+                    onPressed: shouldRestrict
+                        ? () {
+                            // Afficher le dialogue d'abonnement
+                            SubscriptionRequiredDialog.show(
+                              context,
+                              'teacher_transfer',
+                            );
+                          }
+                        : () async {
+                            final currentUserId =
+                                FirebaseAuth.instance.currentUser?.uid;
+                            if (currentUserId == null) return;
+
+                            final navigator = Navigator.of(context);
+                            final messenger = ScaffoldMessenger.of(context);
+
+                            // Consommer un quota pour envoyer un message
+                            final result = await SubscriptionService()
+                                .consumeMessageQuota(currentUserId);
+
+                            if (!context.mounted) return;
+
+                            if (result.needsSubscription) {
+                              // Afficher le dialogue d'abonnement
+                              if (context.mounted) {
+                                // ignore: use_build_context_synchronously
+                                SubscriptionRequiredDialog.show(
+                                  context,
+                                  result.accountType ?? 'teacher_transfer',
+                                );
+                              }
+                            } else if (result.success) {
+                              // Naviguer vers la page de chat
+                              navigator.push(
+                                MaterialPageRoute(
+                                  builder: (context) => ChatPage(
+                                    contactName: name,
+                                    contactFunction: fonction,
+                                    isOnline: isOnline,
+                                    contactUserId: userId,
+                                  ),
+                                ),
+                              );
+
+                              // Afficher le quota restant si pas illimité
+                              if (result.quotaRemaining >= 0) {
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Consultations restantes: ${result.quotaRemaining}',
+                                    ),
+                                    duration: const Duration(seconds: 2),
+                                    backgroundColor: const Color(0xFF009E60),
+                                  ),
+                                );
+                              }
+                            } else {
+                              // Erreur
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(result.message),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: shouldRestrict
+                          ? Colors.grey[600]
+                          : const Color(0xFF009E60),
+                      side: BorderSide(
+                        color: shouldRestrict
+                            ? Colors.grey[400]!
+                            : const Color(0xFF009E60),
+                      ),
+                      backgroundColor: shouldRestrict ? Colors.grey[200] : null,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                  ),
-                  icon: const Icon(Icons.message, size: 18),
-                  label: const Text('Message'),
-                ),
+                    icon: Icon(
+                      Icons.message,
+                      size: 18,
+                      color: shouldRestrict ? Colors.grey[600] : null,
+                    ),
+                    label: Text(
+                      'Message',
+                      style: TextStyle(
+                        color: shouldRestrict ? Colors.grey[600] : null,
+                      ),
+                    ),
+                  );
+                }(),
               ),
             ],
           ),
@@ -1373,15 +1519,127 @@ class FavoritesPage extends StatefulWidget {
 
 class _FavoritesPageState extends State<FavoritesPage> {
   final FirestoreService _firestoreService = FirestoreService();
+  final AccessRestrictionsService _restrictionsService =
+      AccessRestrictionsService();
+  final AnalyticsService _analytics = AnalyticsService();
+  final SubscriptionService _subscriptionService = SubscriptionService();
+  UserModel? _currentUserData;
+  bool _adminRestrictionsEnabled = true;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUserData();
+    _loadAdminRestrictions();
+  }
 
+  Future<void> _loadCurrentUserData() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        final userData = await _firestoreService.getUser(currentUser.uid);
+        if (mounted) {
+          setState(() {
+            _currentUserData = userData;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement données utilisateur: $e');
+    }
+  }
+
+  Future<void> _loadAdminRestrictions() async {
+    try {
+      final restrictions = await _restrictionsService.getRestrictions();
+      if (mounted) {
+        setState(() {
+          _adminRestrictionsEnabled = restrictions['teacher_transfer'] ?? true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement restrictions admin: $e');
+    }
+  }
+
+  // Méthode réutilisable pour naviguer vers un profil avec gestion du quota
+  Future<void> _navigateToProfile(String profileUserId) async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Pour les enseignants permutation avec restrictions admin activées:
+    // Permettre TOUJOURS la navigation (peu importe quota/vérification)
+    final shouldAllowViewWithoutQuota =
+        _currentUserData != null &&
+        _currentUserData!.accountType == 'teacher_transfer' &&
+        _adminRestrictionsEnabled;
+
+    if (shouldAllowViewWithoutQuota) {
+      navigator.push(
+        MaterialPageRoute(
+          builder: (context) => ProfileDetailPage(userId: profileUserId),
+        ),
+      );
+    } else {
+      final result = await _subscriptionService.consumeProfileViewQuota(
+        currentUserId,
+      );
+
+      if (!context.mounted) return;
+
+      if (result.needsSubscription) {
+        SubscriptionRequiredDialog.show(
+          context,
+          result.accountType ?? 'teacher_transfer',
+        );
+      } else if (result.success) {
+        navigator.push(
+          MaterialPageRoute(
+            builder: (context) => ProfileDetailPage(userId: profileUserId),
+          ),
+        );
+
+        if (result.quotaRemaining >= 0) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                'Consultations restantes: ${result.quotaRemaining}',
+              ),
+              duration: const Duration(seconds: 2),
+              backgroundColor: const Color(0xFF009E60),
+            ),
+          );
+        }
+      } else {
+        messenger.showSnackBar(
+          SnackBar(content: Text(result.message), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
 
   Future<void> _removeFavorite(String favoriteUserId) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
     try {
+      // Récupérer le type de compte pour analytics avant de supprimer
+      final favorites = await _firestoreService
+          .getFavorites(currentUser.uid)
+          .first;
+      final user = favorites.firstWhere(
+        (u) => u.uid == favoriteUserId,
+        orElse: () => favorites.first,
+      );
+
       await _firestoreService.removeFavorite(currentUser.uid, favoriteUserId);
+
+      // 📊 Analytics: Track retrait favori
+      await _analytics.logRemoveFavorite(favoriteUserId, user.accountType);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1393,10 +1651,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1426,9 +1681,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Text('Erreur: ${snapshot.error}'),
-            );
+            return Center(child: Text('Erreur: ${snapshot.error}'));
           }
 
           final favorites = snapshot.data ?? [];
@@ -1446,10 +1699,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   const SizedBox(height: 16),
                   Text(
                     'Aucun favori pour le moment',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 8),
                   Padding(
@@ -1457,10 +1707,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     child: Text(
                       'Ajoutez des profils à vos favoris pour les retrouver facilement',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[500],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[500]),
                     ),
                   ),
                 ],
@@ -1483,14 +1730,17 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   Widget _buildFavoriteProfileCard(UserModel user) {
     // Get initials from name - avec protection contre les chaînes vides
-    final initials = user.nom.split(' ')
+    final initials = user.nom
+        .split(' ')
         .where((word) => word.isNotEmpty)
         .map((word) => word[0])
         .take(2)
         .join()
         .toUpperCase()
         .padRight(1, '?');
-    final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty ? user.zonesSouhaitees.first : 'Non spécifiée';
+    final zoneSouhaitee = user.zonesSouhaitees.isNotEmpty
+        ? user.zonesSouhaitees.first
+        : 'Non spécifiée';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1515,7 +1765,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
                 children: [
                   CircleAvatar(
                     radius: 30,
-                    backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
+                    backgroundColor: const Color(
+                      0xFFF77F00,
+                    ).withValues(alpha: 0.2),
                     child: Text(
                       initials,
                       style: TextStyle(
@@ -1567,7 +1819,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                              color: const Color(
+                                0xFF4CAF50,
+                              ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Text(
@@ -1585,19 +1839,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     const SizedBox(height: 4),
                     Text(
                       user.fonction,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                icon: const Icon(
-                  Icons.favorite,
-                  color: Colors.red,
-                ),
+                icon: const Icon(Icons.favorite, color: Colors.red),
                 onPressed: () => _removeFavorite(user.uid),
               ),
             ],
@@ -1682,52 +1930,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-                    if (currentUserId == null) return;
-
-                    final navigator = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
-
-                    // Consommer un quota pour voir le profil
-                    final result = await SubscriptionService().consumeProfileViewQuota(currentUserId);
-
-                    if (!context.mounted) return;
-
-                    if (result.needsSubscription) {
-                      // Afficher le dialogue d'abonnement
-                      // ignore: use_build_context_synchronously
-                      SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
-                    } else if (result.success) {
-                      // Naviguer vers le profil
-                      navigator.push(
-                        MaterialPageRoute(
-                          builder: (context) => ProfileDetailPage(
-                            userId: user.uid,
-                          ),
-                        ),
-                      );
-
-                      // Afficher le quota restant si pas illimité
-                      if (result.quotaRemaining >= 0) {
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text('Consultations restantes: ${result.quotaRemaining}'),
-                            duration: const Duration(seconds: 2),
-                            backgroundColor: const Color(0xFF009E60),
-                          ),
-                        );
-                      }
-                    } else {
-                      // Erreur
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(result.message),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: () => _navigateToProfile(user.uid),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF77F00),
                     foregroundColor: Colors.white,
@@ -1742,67 +1945,108 @@ class _FavoritesPageState extends State<FavoritesPage> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-                    if (currentUserId == null) return;
-
-                    final navigator = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
-
-                    // Consommer un quota pour envoyer un message
-                    final result = await SubscriptionService().consumeMessageQuota(currentUserId);
-
-                    if (!context.mounted) return;
-
-                    if (result.needsSubscription) {
-                      // Afficher le dialogue d'abonnement
-                      // ignore: use_build_context_synchronously
-                      SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_transfer');
-                    } else if (result.success) {
-                      // Naviguer vers la page de chat
-                      navigator.push(
-                        MaterialPageRoute(
-                          builder: (context) => ChatPage(
-                            contactName: user.nom,
-                            contactFunction: user.fonction,
-                            isOnline: user.isOnline,
-                            contactUserId: user.uid,
-                          ),
-                        ),
+                child: () {
+                  // Vérifier si la messagerie doit être restreinte
+                  final shouldRestrict =
+                      _currentUserData != null &&
+                      MessagingRestrictionsHelper.shouldRestrictMessaging(
+                        _currentUserData!,
+                        _adminRestrictionsEnabled,
                       );
 
-                      // Afficher le quota restant si pas illimité
-                      if (result.quotaRemaining >= 0) {
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text('Consultations restantes: ${result.quotaRemaining}'),
-                            duration: const Duration(seconds: 2),
-                            backgroundColor: const Color(0xFF009E60),
-                          ),
-                        );
-                      }
-                    } else {
-                      // Erreur
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(result.message),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF009E60),
-                    side: const BorderSide(color: Color(0xFF009E60)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                  return OutlinedButton.icon(
+                    onPressed: shouldRestrict
+                        ? () {
+                            // Afficher le dialogue d'abonnement
+                            SubscriptionRequiredDialog.show(
+                              context,
+                              'teacher_transfer',
+                            );
+                          }
+                        : () async {
+                            final currentUserId =
+                                FirebaseAuth.instance.currentUser?.uid;
+                            if (currentUserId == null) return;
+
+                            final navigator = Navigator.of(context);
+                            final messenger = ScaffoldMessenger.of(context);
+
+                            // Consommer un quota pour envoyer un message
+                            final result = await SubscriptionService()
+                                .consumeMessageQuota(currentUserId);
+
+                            if (!context.mounted) return;
+
+                            if (result.needsSubscription) {
+                              // Afficher le dialogue d'abonnement
+                              // ignore: use_build_context_synchronously
+                              SubscriptionRequiredDialog.show(
+                                context,
+                                result.accountType ?? 'teacher_transfer',
+                              );
+                            } else if (result.success) {
+                              // Naviguer vers la page de chat
+                              navigator.push(
+                                MaterialPageRoute(
+                                  builder: (context) => ChatPage(
+                                    contactName: user.nom,
+                                    contactFunction: user.fonction,
+                                    isOnline: user.isOnline,
+                                    contactUserId: user.uid,
+                                  ),
+                                ),
+                              );
+
+                              // Afficher le quota restant si pas illimité
+                              if (result.quotaRemaining >= 0) {
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Consultations restantes: ${result.quotaRemaining}',
+                                    ),
+                                    duration: const Duration(seconds: 2),
+                                    backgroundColor: const Color(0xFF009E60),
+                                  ),
+                                );
+                              }
+                            } else {
+                              // Erreur
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(result.message),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: shouldRestrict
+                          ? Colors.grey[600]
+                          : const Color(0xFF009E60),
+                      side: BorderSide(
+                        color: shouldRestrict
+                            ? Colors.grey[400]!
+                            : const Color(0xFF009E60),
+                      ),
+                      backgroundColor: shouldRestrict ? Colors.grey[200] : null,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                  ),
-                  icon: const Icon(Icons.message, size: 18),
-                  label: const Text('Message'),
-                ),
+                    icon: Icon(
+                      Icons.message,
+                      size: 18,
+                      color: shouldRestrict ? Colors.grey[600] : null,
+                    ),
+                    label: Text(
+                      'Message',
+                      style: TextStyle(
+                        color: shouldRestrict ? Colors.grey[600] : null,
+                      ),
+                    ),
+                  );
+                }(),
               ),
             ],
           ),
@@ -1822,6 +2066,46 @@ class MessagesPage extends StatefulWidget {
 
 class _MessagesPageState extends State<MessagesPage> {
   final FirestoreService _firestoreService = FirestoreService();
+  final AccessRestrictionsService _restrictionsService =
+      AccessRestrictionsService();
+  UserModel? _currentUserData;
+  bool _adminRestrictionsEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUserData();
+    _loadAdminRestrictions();
+  }
+
+  Future<void> _loadCurrentUserData() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        final userData = await _firestoreService.getUser(currentUser.uid);
+        if (mounted) {
+          setState(() {
+            _currentUserData = userData;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement données utilisateur: $e');
+    }
+  }
+
+  Future<void> _loadAdminRestrictions() async {
+    try {
+      final restrictions = await _restrictionsService.getRestrictions();
+      if (mounted) {
+        setState(() {
+          _adminRestrictionsEnabled = restrictions['teacher_transfer'] ?? true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement restrictions admin: $e');
+    }
+  }
 
   String _formatTime(DateTime time) {
     final now = DateTime.now();
@@ -1851,9 +2135,7 @@ class _MessagesPageState extends State<MessagesPage> {
           backgroundColor: const Color(0xFFF77F00),
           foregroundColor: Colors.white,
         ),
-        body: const Center(
-          child: Text('Veuillez vous connecter'),
-        ),
+        body: const Center(child: Text('Veuillez vous connecter')),
       );
     }
 
@@ -1868,9 +2150,7 @@ class _MessagesPageState extends State<MessagesPage> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFFF77F00),
-              ),
+              child: CircularProgressIndicator(color: Color(0xFFF77F00)),
             );
           }
 
@@ -1965,10 +2245,7 @@ class _MessagesPageState extends State<MessagesPage> {
                     child: Text(
                       'Commencez une conversation en envoyant un message depuis un profil',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[500],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                     ),
                   ),
                 ],
@@ -1977,14 +2254,20 @@ class _MessagesPageState extends State<MessagesPage> {
           }
 
           // Récupérer tous les IDs des autres participants en une fois
-          final otherUserIds = conversations.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            final participants = data['participants'] as List<dynamic>;
-            return participants.firstWhere(
-              (id) => id != currentUser.uid,
-              orElse: () => null,
-            ) as String?;
-          }).where((id) => id != null).cast<String>().toSet().toList();
+          final otherUserIds = conversations
+              .map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final participants = data['participants'] as List<dynamic>;
+                return participants.firstWhere(
+                      (id) => id != currentUser.uid,
+                      orElse: () => null,
+                    )
+                    as String?;
+              })
+              .where((id) => id != null)
+              .cast<String>()
+              .toSet()
+              .toList();
 
           // Charger tous les utilisateurs en une seule fois
           return FutureBuilder<Map<String, UserModel>>(
@@ -1992,9 +2275,7 @@ class _MessagesPageState extends State<MessagesPage> {
             builder: (context, usersSnapshot) {
               if (usersSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFFF77F00),
-                  ),
+                  child: CircularProgressIndicator(color: Color(0xFFF77F00)),
                 );
               }
 
@@ -2005,24 +2286,35 @@ class _MessagesPageState extends State<MessagesPage> {
                 separatorBuilder: (context, index) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final conversationDoc = conversations[index];
-                  final conversationData = conversationDoc.data() as Map<String, dynamic>;
-                  final participants = conversationData['participants'] as List<dynamic>;
-                  final lastMessage = conversationData['lastMessage'] as String? ?? '';
-                  final lastMessageTime = conversationData['lastMessageTime'] as Timestamp?;
-                  final unreadCount = conversationData['unreadCount'] as Map<String, dynamic>? ?? {};
+                  final conversationData =
+                      conversationDoc.data() as Map<String, dynamic>;
+                  final participants =
+                      conversationData['participants'] as List<dynamic>;
+                  final lastMessage =
+                      conversationData['lastMessage'] as String? ?? '';
+                  final lastMessageTime =
+                      conversationData['lastMessageTime'] as Timestamp?;
+                  final unreadCount =
+                      conversationData['unreadCount']
+                          as Map<String, dynamic>? ??
+                      {};
 
                   // Trouver l'ID de l'autre participant
-                  final otherUserId = participants.firstWhere(
-                    (id) => id != currentUser.uid,
-                    orElse: () => null,
-                  ) as String?;
+                  final otherUserId =
+                      participants.firstWhere(
+                            (id) => id != currentUser.uid,
+                            orElse: () => null,
+                          )
+                          as String?;
 
-                  if (otherUserId == null || !usersMap.containsKey(otherUserId)) {
+                  if (otherUserId == null ||
+                      !usersMap.containsKey(otherUserId)) {
                     return const SizedBox.shrink();
                   }
 
                   final otherUser = usersMap[otherUserId]!;
-                  final initials = otherUser.nom.split(' ')
+                  final initials = otherUser.nom
+                      .split(' ')
                       .where((word) => word.isNotEmpty)
                       .map((word) => word[0])
                       .take(2)
@@ -2031,97 +2323,136 @@ class _MessagesPageState extends State<MessagesPage> {
                       .padRight(1, '?');
                   final hasUnread = (unreadCount[currentUser.uid] ?? 0) > 0;
 
-                  return ListTile(
-                    leading: Stack(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
-                          child: Text(
-                            initials,
-                            style: const TextStyle(
-                              color: Color(0xFFF77F00),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        if (otherUser.isOnline)
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4CAF50),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    title: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            otherUser.nom,
-                            style: TextStyle(
-                              fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (hasUnread) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF77F00),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                  // Vérifier si la messagerie doit être restreinte
+                  final shouldRestrict =
+                      _currentUserData != null &&
+                      MessagingRestrictionsHelper.shouldRestrictMessaging(
+                        _currentUserData!,
+                        _adminRestrictionsEnabled,
+                      );
+
+                  return Opacity(
+                    opacity: shouldRestrict ? 0.5 : 1.0,
+                    child: ListTile(
+                      leading: Stack(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: shouldRestrict
+                                ? Colors.grey[300]
+                                : const Color(
+                                    0xFFF77F00,
+                                  ).withValues(alpha: 0.2),
                             child: Text(
-                              unreadCount[currentUser.uid].toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
+                              initials,
+                              style: TextStyle(
+                                color: shouldRestrict
+                                    ? Colors.grey[600]
+                                    : const Color(0xFFF77F00),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
+                          if (otherUser.isOnline && !shouldRestrict)
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF4CAF50),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
-                      ],
-                    ),
-                    subtitle: Text(
-                      lastMessage.isEmpty ? 'Aucun message' : lastMessage,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
                       ),
-                    ),
-                    trailing: Text(
-                      lastMessageTime != null
-                          ? _formatTime(lastMessageTime.toDate())
-                          : '',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatPage(
-                            contactName: otherUser.nom,
-                            contactFunction: otherUser.fonction,
-                            isOnline: otherUser.isOnline,
-                            conversationId: conversationDoc.id,
-                            contactUserId: otherUserId,
+                      title: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              otherUser.nom,
+                              style: TextStyle(
+                                fontWeight: hasUnread
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: shouldRestrict ? Colors.grey[600] : null,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
+                          if (hasUnread && !shouldRestrict) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF77F00),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                unreadCount[currentUser.uid].toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text(
+                        lastMessage.isEmpty ? 'Aucun message' : lastMessage,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: hasUnread
+                              ? FontWeight.w500
+                              : FontWeight.normal,
+                          color: shouldRestrict ? Colors.grey[500] : null,
                         ),
-                      );
-                    },
+                      ),
+                      trailing: Text(
+                        lastMessageTime != null
+                            ? _formatTime(lastMessageTime.toDate())
+                            : '',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: shouldRestrict
+                              ? Colors.grey[400]
+                              : Colors.grey[600],
+                        ),
+                      ),
+                      onTap: () {
+                        if (shouldRestrict) {
+                          // Afficher le dialogue d'abonnement
+                          SubscriptionRequiredDialog.show(
+                            context,
+                            'teacher_transfer',
+                          );
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatPage(
+                                contactName: otherUser.nom,
+                                contactFunction: otherUser.fonction,
+                                isOnline: otherUser.isOnline,
+                                conversationId: conversationDoc.id,
+                                contactUserId: otherUserId,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
                   );
                 },
               );
@@ -2186,9 +2517,7 @@ class _ProfilePageState extends State<ProfilePage> {
           backgroundColor: const Color(0xFFF77F00),
           foregroundColor: Colors.white,
         ),
-        body: const Center(
-          child: Text('Aucun utilisateur connecté'),
-        ),
+        body: const Center(child: Text('Aucun utilisateur connecté')),
       );
     }
 
@@ -2203,23 +2532,23 @@ class _ProfilePageState extends State<ProfilePage> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const SettingsPage(),
-                ),
-              ).then((_) => _refreshProfile()); // Rafraîchir après retour des paramètres
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
+              ).then(
+                (_) => _refreshProfile(),
+              ); // Rafraîchir après retour des paramètres
             },
           ),
         ],
       ),
       body: FutureBuilder<UserModel?>(
-        key: ValueKey(_refreshKey), // Utiliser la clé pour forcer le rafraîchissement
+        key: ValueKey(
+          _refreshKey,
+        ), // Utiliser la clé pour forcer le rafraîchissement
         future: FirestoreService().getUser(currentUser.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFFF77F00),
-              ),
+              child: CircularProgressIndicator(color: Color(0xFFF77F00)),
             );
           }
 
@@ -2360,31 +2689,37 @@ class _ProfilePageState extends State<ProfilePage> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      _buildInfoCard(
-                        'Informations personnelles',
-                        [
-                          // Matricule masqué : ne JAMAIS afficher sur le profil utilisateur
-                          // Uniquement accessible par les admins via le panel admin
-                          _buildInfoRow(Icons.email, 'Email', userData.email),
-                          if (userData.telephones.isNotEmpty)
-                            _buildInfoRow(Icons.phone, 'Téléphone', userData.telephones.first),
-                          if (userData.dren != null)
-                            _buildInfoRow(Icons.location_city, 'DREN', userData.dren!),
-                        ],
-                      ),
+                      _buildInfoCard('Informations personnelles', [
+                        // Matricule masqué : ne JAMAIS afficher sur le profil utilisateur
+                        // Uniquement accessible par les admins via le panel admin
+                        _buildInfoRow(Icons.email, 'Email', userData.email),
+                        if (userData.telephones.isNotEmpty)
+                          _buildInfoRow(
+                            Icons.phone,
+                            'Téléphone',
+                            userData.telephones.first,
+                          ),
+                        if (userData.dren != null)
+                          _buildInfoRow(
+                            Icons.location_city,
+                            'DREN',
+                            userData.dren!,
+                          ),
+                      ]),
                       const SizedBox(height: 16),
-                      _buildInfoCard(
-                        'Zones',
-                        [
-                          _buildInfoRow(Icons.location_on, 'Zone actuelle', userData.zoneActuelle),
-                          if (userData.zonesSouhaitees.isNotEmpty)
-                            _buildInfoRow(
-                              Icons.location_searching,
-                              'Zones souhaitées',
-                              userData.zonesSouhaitees.join(', '),
-                            ),
-                        ],
-                      ),
+                      _buildInfoCard('Zones', [
+                        _buildInfoRow(
+                          Icons.location_on,
+                          'Zone actuelle',
+                          userData.zoneActuelle,
+                        ),
+                        if (userData.zonesSouhaitees.isNotEmpty)
+                          _buildInfoRow(
+                            Icons.location_searching,
+                            'Zones souhaitées',
+                            userData.zonesSouhaitees.join(', '),
+                          ),
+                      ]),
                       const SizedBox(height: 16),
                       _buildMenuList(context),
                     ],
@@ -2401,7 +2736,8 @@ class _ProfilePageState extends State<ProfilePage> {
   String _getInitials(String name) {
     final words = name.split(' ').where((word) => word.isNotEmpty).toList();
     if (words.isEmpty) return '??';
-    if (words.length == 1 && words[0].isNotEmpty) return words[0][0].toUpperCase();
+    if (words.length == 1 && words[0].isNotEmpty)
+      return words[0][0].toUpperCase();
     if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
       return (words[0][0] + words[1][0]).toUpperCase();
     }
@@ -2427,10 +2763,7 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           ...children,
@@ -2452,10 +2785,7 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -2472,7 +2802,6 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-
 
   Widget _buildMenuList(BuildContext context) {
     return Container(
@@ -2495,71 +2824,62 @@ class _ProfilePageState extends State<ProfilePage> {
             () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const UserInfoPage(),
-                ),
+                MaterialPageRoute(builder: (context) => const UserInfoPage()),
               );
             },
           ),
           const Divider(height: 1),
-          _buildMenuItem(
-            Icons.privacy_tip_outlined,
-            'Confidentialité',
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const PrivacySettingsPage(),
-                ),
-              );
-            },
-          ),
+          _buildMenuItem(Icons.privacy_tip_outlined, 'Confidentialité', () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const PrivacySettingsPage(),
+              ),
+            );
+          }),
           const Divider(height: 1),
-          _buildMenuItem(
-            Icons.logout,
-            'Déconnexion',
-            () async {
-              // Afficher un dialogue de confirmation
-              final shouldLogout = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: const Row(
-                    children: [
-                      Icon(Icons.logout, color: Colors.red),
-                      SizedBox(width: 12),
-                      Text('Déconnexion'),
-                    ],
-                  ),
-                  content: const Text('Êtes-vous sûr de vouloir vous déconnecter ?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Annuler'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Déconnexion'),
-                    ),
+          _buildMenuItem(Icons.logout, 'Déconnexion', () async {
+            // Afficher un dialogue de confirmation
+            final shouldLogout = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: const Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.red),
+                    SizedBox(width: 12),
+                    Text('Déconnexion'),
                   ],
                 ),
-              );
+                content: const Text(
+                  'Êtes-vous sûr de vouloir vous déconnecter ?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Annuler'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Déconnexion'),
+                  ),
+                ],
+              ),
+            );
 
-              if (shouldLogout == true && context.mounted) {
-                await FirebaseAuth.instance.signOut();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacementNamed('/');
-                }
+            if (shouldLogout == true && context.mounted) {
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) {
+                Navigator.of(context).pushReplacementNamed('/');
               }
-            },
-            color: Colors.red,
-          ),
+            }
+          }, color: Colors.red),
         ],
       ),
     );

@@ -62,12 +62,7 @@ class _SchoolNotificationSettingsPageState
 
       if (mounted) {
         setState(() {
-          _settings = _settings!.copyWith(
-            messages: settingKey == 'messages' ? value : _settings!.messages,
-            newApplications: settingKey == 'newApplications' ? value : _settings!.newApplications,
-            offerExpiration: settingKey == 'offerExpiration' ? value : _settings!.offerExpiration,
-            updatedAt: DateTime.now(),
-          );
+          _settings = _updateSettingsModel(settingKey, value);
           _isSaving = false;
         });
       }
@@ -82,6 +77,19 @@ class _SchoolNotificationSettingsPageState
         );
       }
     }
+  }
+
+  NotificationSettingsModel _updateSettingsModel(String key, bool value) {
+    return _settings!.copyWith(
+      messages: key == 'messages' ? value : _settings!.messages,
+      newApplications: key == 'newApplications'
+          ? value
+          : _settings!.newApplications,
+      offerExpiration: key == 'offerExpiration'
+          ? value
+          : _settings!.offerExpiration,
+      updatedAt: DateTime.now(),
+    );
   }
 
   Future<void> _resetToDefaults() async {
@@ -129,10 +137,7 @@ class _SchoolNotificationSettingsPageState
         if (mounted) {
           setState(() => _isSaving = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erreur: $e'),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
           );
         }
       }
@@ -158,169 +163,172 @@ class _SchoolNotificationSettingsPageState
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _settings == null
-              ? const Center(child: Text('Erreur de chargement'))
-              : Stack(
+          ? const Center(child: Text('Erreur de chargement'))
+          : Stack(
+              children: [
+                ListView(
+                  padding: const EdgeInsets.all(16),
                   children: [
-                    ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        // En-tête
-                        Card(
-                          color: const Color(0xFFF77F00).withValues(alpha: 0.1),
-                          child: const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Row(
+                    // En-tête
+                    Card(
+                      color: const Color(0xFFF77F00).withValues(alpha: 0.1),
+                      child: const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.notifications_active,
+                              color: Color(0xFFF77F00),
+                              size: 28,
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Gérez vos notifications',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFF77F00),
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Choisissez les notifications que vous souhaitez recevoir',
+                                    style: TextStyle(fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Section Communications
+                    _buildSectionHeader('Communications'),
+                    _buildSettingTile(
+                      title: 'Messages',
+                      subtitle:
+                          'Notifications des nouveaux messages des candidats',
+                      icon: Icons.message,
+                      value: _settings!.messages,
+                      onChanged: (value) => _updateSetting('messages', value),
+                    ),
+                    const Divider(height: 32),
+
+                    // Section Candidatures
+                    _buildSectionHeader('Candidatures'),
+                    _buildSettingTile(
+                      title: 'Nouvelles candidatures',
+                      subtitle:
+                          'Soyez informé quand des candidats postulent à vos offres',
+                      icon: Icons.person_add,
+                      value: _settings!.newApplications,
+                      onChanged: (value) =>
+                          _updateSetting('newApplications', value),
+                    ),
+                    const Divider(height: 32),
+
+                    // Section Offres
+                    _buildSectionHeader('Gestion des offres'),
+                    _buildSettingTile(
+                      title: 'Expiration des offres',
+                      subtitle:
+                          'Rappels avant l\'expiration de vos offres d\'emploi',
+                      icon: Icons.schedule,
+                      value: _settings!.offerExpiration,
+                      onChanged: (value) =>
+                          _updateSetting('offerExpiration', value),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Informations supplémentaires
+                    Card(
+                      color: Colors.blue[50],
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.blue[700]),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Les notifications importantes seront toujours affichées dans l\'application pour ne rien manquer',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blue[900],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Conseils
+                    Card(
+                      color: const Color(0xFF009E60).withValues(alpha: 0.1),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
                                 Icon(
-                                  Icons.notifications_active,
-                                  color: Color(0xFFF77F00),
-                                  size: 28,
+                                  Icons.lightbulb_outline,
+                                  color: Colors.green[700],
                                 ),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Gérez vos notifications',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFFF77F00),
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        'Choisissez les notifications que vous souhaitez recevoir',
-                                        style: TextStyle(fontSize: 13),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Section Communications
-                        _buildSectionHeader('Communications'),
-                        _buildSettingTile(
-                          title: 'Messages',
-                          subtitle: 'Notifications des nouveaux messages des candidats',
-                          icon: Icons.message,
-                          value: _settings!.messages,
-                          onChanged: (value) => _updateSetting('messages', value),
-                        ),
-                        const Divider(height: 32),
-
-                        // Section Candidatures
-                        _buildSectionHeader('Candidatures'),
-                        _buildSettingTile(
-                          title: 'Nouvelles candidatures',
-                          subtitle: 'Soyez informé quand des candidats postulent à vos offres',
-                          icon: Icons.person_add,
-                          value: _settings!.newApplications,
-                          onChanged: (value) =>
-                              _updateSetting('newApplications', value),
-                        ),
-                        const Divider(height: 32),
-
-                        // Section Offres
-                        _buildSectionHeader('Gestion des offres'),
-                        _buildSettingTile(
-                          title: 'Expiration des offres',
-                          subtitle: 'Rappels avant l\'expiration de vos offres d\'emploi',
-                          icon: Icons.schedule,
-                          value: _settings!.offerExpiration,
-                          onChanged: (value) =>
-                              _updateSetting('offerExpiration', value),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Informations supplémentaires
-                        Card(
-                          color: Colors.blue[50],
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Row(
-                              children: [
-                                Icon(Icons.info_outline, color: Colors.blue[700]),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    'Les notifications importantes seront toujours affichées dans l\'application pour ne rien manquer',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.blue[900],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Conseils
-                        Card(
-                          color: const Color(0xFF009E60).withValues(alpha: 0.1),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.lightbulb_outline,
-                                      color: Colors.green[700],
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Conseil',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green[900],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
+                                const SizedBox(width: 8),
                                 Text(
-                                  'Activez les notifications de nouvelles candidatures pour répondre rapidement aux candidats et améliorer vos chances de recruter les meilleurs profils.',
+                                  'Conseil',
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
                                     color: Colors.green[900],
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_isSaving)
-                      Container(
-                        color: Colors.black26,
-                        child: const Center(
-                          child: Card(
-                            child: Padding(
-                              padding: EdgeInsets.all(20.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircularProgressIndicator(),
-                                  SizedBox(height: 16),
-                                  Text('Enregistrement...'),
-                                ],
+                            const SizedBox(height: 8),
+                            Text(
+                              'Activez les notifications de nouvelles candidatures pour répondre rapidement aux candidats et améliorer vos chances de recruter les meilleurs profils.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.green[900],
                               ),
                             ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_isSaving)
+                  Container(
+                    color: Colors.black26,
+                    child: const Center(
+                      child: Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(20.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 16),
+                              Text('Enregistrement...'),
+                            ],
                           ),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 
@@ -355,19 +363,10 @@ class _SchoolNotificationSettingsPageState
               : Colors.grey.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(
-          icon,
-          color: value ? const Color(0xFFF77F00) : Colors.grey,
-        ),
+        child: Icon(icon, color: value ? const Color(0xFFF77F00) : Colors.grey),
       ),
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(fontSize: 12),
-      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: Switch(
         value: value,
         onChanged: _isSaving ? null : onChanged,

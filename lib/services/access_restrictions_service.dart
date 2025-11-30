@@ -12,8 +12,10 @@ class AccessRestrictionsService {
   static const String _configDocId = 'access_restrictions';
 
   // Clés pour chaque type de compte
-  static const String _teacherTransferKey = 'teacher_transfer_restrictions_enabled';
-  static const String _teacherCandidateKey = 'teacher_candidate_restrictions_enabled';
+  static const String _teacherTransferKey =
+      'teacher_transfer_restrictions_enabled';
+  static const String _teacherCandidateKey =
+      'teacher_candidate_restrictions_enabled';
   static const String _schoolKey = 'school_restrictions_enabled';
 
   /// Référence au document de configuration
@@ -97,9 +99,7 @@ class AccessRestrictionsService {
           throw Exception('Type de compte invalide: $accountType');
       }
 
-      await _configDoc.set({
-        key: enabled,
-      }, SetOptions(merge: true));
+      await _configDoc.set({key: enabled}, SetOptions(merge: true));
 
       debugPrint('✅ Restrictions updated for $accountType: $enabled');
     } catch (e) {
@@ -111,7 +111,10 @@ class AccessRestrictionsService {
   /// Initialiser le document avec les valeurs par défaut
   Future<void> _initializeDefaultRestrictions() async {
     try {
-      await _configDoc.set(_getDefaultRestrictionsMap(), SetOptions(merge: true));
+      await _configDoc.set(
+        _getDefaultRestrictionsMap(),
+        SetOptions(merge: true),
+      );
       debugPrint('✅ Default restrictions initialized');
     } catch (e) {
       debugPrint('❌ Error initializing default restrictions: $e');

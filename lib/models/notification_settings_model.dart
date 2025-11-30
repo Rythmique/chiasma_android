@@ -35,6 +35,7 @@ class NotificationSettingsModel {
   /// Créer depuis Firestore
   factory NotificationSettingsModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final now = DateTime.now();
     return NotificationSettingsModel(
       userId: doc.id,
       messages: data['messages'] ?? true,
@@ -43,8 +44,8 @@ class NotificationSettingsModel {
       jobRecommendations: data['jobRecommendations'] ?? true,
       newApplications: data['newApplications'] ?? true,
       offerExpiration: data['offerExpiration'] ?? true,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? now,
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? now,
     );
   }
 
@@ -64,16 +65,11 @@ class NotificationSettingsModel {
 
   /// Créer des paramètres par défaut
   factory NotificationSettingsModel.defaultSettings(String userId) {
+    final now = DateTime.now();
     return NotificationSettingsModel(
       userId: userId,
-      messages: true,
-      newJobOffers: true,
-      applicationStatus: true,
-      jobRecommendations: true,
-      newApplications: true,
-      offerExpiration: true,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
+      createdAt: now,
+      updatedAt: now,
     );
   }
 

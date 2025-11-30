@@ -29,97 +29,87 @@ class OnboardingPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                const SizedBox(height: 40),
+                  const SizedBox(height: 40),
 
-                // Logo et titre
-                const Icon(
-                  Icons.school,
-                  size: 80,
-                  color: Color(0xFFF77F00),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'CHIASMA',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFF77F00),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Plateforme éducative de Côte d\'Ivoire',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 60),
-
-                // Question
-                const Text(
-                  'Vous êtes :',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                // Option 1 : Enseignant (Permutation)
-                _buildAccountTypeCard(
-                  context: context,
-                  icon: Icons.swap_horiz,
-                  title: 'Enseignant',
-                  subtitle: 'Je cherche à permuter mon poste',
-                  color: const Color(0xFFF77F00),
-                  accountType: 'teacher_transfer',
-                  description: 'Échangez votre poste avec d\'autres enseignants',
-                ),
-                const SizedBox(height: 16),
-
-                // Option 2 : Candidat Enseignant
-                _buildAccountTypeCard(
-                  context: context,
-                  icon: Icons.person_add,
-                  title: 'Candidat Enseignant',
-                  subtitle: 'Je cherche un emploi',
-                  color: const Color(0xFF009E60),
-                  accountType: 'teacher_candidate',
-                  description: 'Déposez votre candidature et consultez les offres',
-                ),
-                const SizedBox(height: 16),
-
-                // Option 3 : Établissement
-                _buildAccountTypeCard(
-                  context: context,
-                  icon: Icons.business,
-                  title: 'Établissement',
-                  subtitle: 'Je recrute des enseignants',
-                  color: const Color(0xFF2196F3),
-                  accountType: 'school',
-                  description: 'Publiez des offres et consultez les candidatures',
-                ),
-
-                const SizedBox(height: 40),
-
-                // Bouton de connexion
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context); // Retour à l'écran de login
-                  },
-                  child: const Text(
-                    'Vous avez déjà un compte ? Connectez-vous',
+                  // Logo et titre
+                  const Icon(Icons.school, size: 80, color: Color(0xFFF77F00)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'CHIASMA',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
                       color: Color(0xFFF77F00),
-                      fontSize: 14,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Plateforme éducative de Côte d\'Ivoire',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 60),
+
+                  // Question
+                  const Text(
+                    'Vous êtes :',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Option 1 : Enseignant (Permutation)
+                  _buildAccountTypeCard(
+                    context: context,
+                    icon: Icons.swap_horiz,
+                    title: 'Enseignant',
+                    subtitle: 'Je cherche à permuter mon poste',
+                    color: const Color(0xFFF77F00),
+                    accountType: 'teacher_transfer',
+                    description:
+                        'Échangez votre poste avec d\'autres enseignants',
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Option 2 : Candidat Enseignant
+                  _buildAccountTypeCard(
+                    context: context,
+                    icon: Icons.person_add,
+                    title: 'Candidat Enseignant',
+                    subtitle: 'Je cherche un emploi',
+                    color: const Color(0xFF009E60),
+                    accountType: 'teacher_candidate',
+                    description:
+                        'Déposez votre candidature et consultez les offres',
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Option 3 : Établissement
+                  _buildAccountTypeCard(
+                    context: context,
+                    icon: Icons.business,
+                    title: 'Établissement',
+                    subtitle: 'Je recrute des enseignants',
+                    color: const Color(0xFF2196F3),
+                    accountType: 'school',
+                    description:
+                        'Publiez des offres et consultez les candidatures',
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  // Bouton de connexion
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context); // Retour à l'écran de login
+                    },
+                    child: const Text(
+                      'Vous avez déjà un compte ? Connectez-vous',
+                      style: TextStyle(color: Color(0xFFF77F00), fontSize: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -165,10 +155,7 @@ class OnboardingPage extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: color.withValues(alpha: 0.3),
-            width: 2,
-          ),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 2),
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: 0.1),
@@ -186,11 +173,7 @@ class OnboardingPage extends StatelessWidget {
                 color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                size: 32,
-                color: color,
-              ),
+              child: Icon(icon, size: 32, color: color),
             ),
             const SizedBox(width: 16),
 
@@ -210,10 +193,7 @@ class OnboardingPage extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -229,11 +209,7 @@ class OnboardingPage extends StatelessWidget {
             ),
 
             // Flèche
-            Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: color,
-            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: color),
           ],
         ),
       ),

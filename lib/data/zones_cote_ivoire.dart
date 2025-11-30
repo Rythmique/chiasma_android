@@ -497,18 +497,56 @@ class ZonesCoteIvoire {
   static String _normaliser(String texte) {
     // Map des caractères accentués vers leurs équivalents non accentués
     const accents = {
-      'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a',
-      'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
-      'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i',
-      'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
-      'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
-      'ç': 'c', 'ñ': 'n',
-      'À': 'a', 'Á': 'a', 'Â': 'a', 'Ã': 'a', 'Ä': 'a', 'Å': 'a',
-      'È': 'e', 'É': 'e', 'Ê': 'e', 'Ë': 'e',
-      'Ì': 'i', 'Í': 'i', 'Î': 'i', 'Ï': 'i',
-      'Ò': 'o', 'Ó': 'o', 'Ô': 'o', 'Õ': 'o', 'Ö': 'o',
-      'Ù': 'u', 'Ú': 'u', 'Û': 'u', 'Ü': 'u',
-      'Ç': 'c', 'Ñ': 'n',
+      'à': 'a',
+      'á': 'a',
+      'â': 'a',
+      'ã': 'a',
+      'ä': 'a',
+      'å': 'a',
+      'è': 'e',
+      'é': 'e',
+      'ê': 'e',
+      'ë': 'e',
+      'ì': 'i',
+      'í': 'i',
+      'î': 'i',
+      'ï': 'i',
+      'ò': 'o',
+      'ó': 'o',
+      'ô': 'o',
+      'õ': 'o',
+      'ö': 'o',
+      'ù': 'u',
+      'ú': 'u',
+      'û': 'u',
+      'ü': 'u',
+      'ç': 'c',
+      'ñ': 'n',
+      'À': 'a',
+      'Á': 'a',
+      'Â': 'a',
+      'Ã': 'a',
+      'Ä': 'a',
+      'Å': 'a',
+      'È': 'e',
+      'É': 'e',
+      'Ê': 'e',
+      'Ë': 'e',
+      'Ì': 'i',
+      'Í': 'i',
+      'Î': 'i',
+      'Ï': 'i',
+      'Ò': 'o',
+      'Ó': 'o',
+      'Ô': 'o',
+      'Õ': 'o',
+      'Ö': 'o',
+      'Ù': 'u',
+      'Ú': 'u',
+      'Û': 'u',
+      'Ü': 'u',
+      'Ç': 'c',
+      'Ñ': 'n',
     };
 
     String resultat = texte.toLowerCase();
@@ -539,10 +577,14 @@ class ZonesCoteIvoire {
 
   /// Obtenir toutes les régions uniques
   static List<String> getRegions() {
-    final regions = zones.map((zone) {
-      final parts = zone.split(', ');
-      return parts.length >= 3 ? parts[2] : '';
-    }).where((r) => r.isNotEmpty).toSet().toList();
+    final regions = zones
+        .map((zone) {
+          final parts = zone.split(', ');
+          return parts.length >= 3 ? parts[2] : '';
+        })
+        .where((r) => r.isNotEmpty)
+        .toSet()
+        .toList();
 
     regions.sort();
     return regions;

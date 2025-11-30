@@ -9,7 +9,8 @@ class ManageAnnouncementsPage extends StatefulWidget {
   const ManageAnnouncementsPage({super.key});
 
   @override
-  State<ManageAnnouncementsPage> createState() => _ManageAnnouncementsPageState();
+  State<ManageAnnouncementsPage> createState() =>
+      _ManageAnnouncementsPageState();
 }
 
 class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
@@ -38,32 +39,13 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Text('Erreur: ${snapshot.error}'),
-            );
+            return Center(child: Text('Erreur: ${snapshot.error}'));
           }
 
           final announcements = snapshot.data ?? [];
 
           if (announcements.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.campaign_outlined, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Aucune annonce',
-                    style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Créez votre première annonce',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                  ),
-                ],
-              ),
-            );
+            return _buildEmptyState();
           }
 
           return ListView.builder(
@@ -140,38 +122,13 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: announcement.isActive ? Colors.green : Colors.grey,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        announcement.isActive ? 'ACTIF' : 'INACTIF',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                    _buildStatusBadge(
+                      announcement.isActive ? 'ACTIF' : 'INACTIF',
+                      announcement.isActive ? Colors.green : Colors.grey,
                     ),
                     if (isExpired) ...[
                       const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          'EXPIRÉ',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                      _buildStatusBadge('EXPIRÉ', Colors.red),
                     ],
                   ],
                 ),
@@ -200,7 +157,9 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
                   children: announcement.targetAccounts.map((account) {
                     return Chip(
                       label: Text(_getAccountLabel(account)),
-                      backgroundColor: const Color(0xFF009E60).withValues(alpha: 0.1),
+                      backgroundColor: const Color(
+                        0xFF009E60,
+                      ).withValues(alpha: 0.1),
                       side: const BorderSide(color: Color(0xFF009E60)),
                       labelStyle: const TextStyle(
                         fontSize: 11,
@@ -218,7 +177,11 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
                 // Métadonnées
                 Row(
                   children: [
-                    Icon(Icons.priority_high, size: 14, color: Colors.grey[600]),
+                    Icon(
+                      Icons.priority_high,
+                      size: 14,
+                      color: Colors.grey[600],
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'Priorité: ${announcement.priorityLabel}',
@@ -247,7 +210,9 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
               TextButton.icon(
                 onPressed: () => _toggleStatus(announcement),
                 icon: Icon(
-                  announcement.isActive ? Icons.visibility_off : Icons.visibility,
+                  announcement.isActive
+                      ? Icons.visibility_off
+                      : Icons.visibility,
                   size: 18,
                 ),
                 label: Text(announcement.isActive ? 'Désactiver' : 'Activer'),
@@ -260,7 +225,10 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
               TextButton.icon(
                 onPressed: () => _confirmDelete(announcement),
                 icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                label: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+                label: const Text(
+                  'Supprimer',
+                  style: TextStyle(color: Colors.red),
+                ),
               ),
             ],
           ),
@@ -279,13 +247,23 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
 
   void _showAnnouncementDialog(AnnouncementModel? announcement) {
     final isEdit = announcement != null;
-    final titleController = TextEditingController(text: announcement?.title ?? '');
-    final messageController = TextEditingController(text: announcement?.message ?? '');
-    final actionUrlController = TextEditingController(text: announcement?.actionUrl ?? '');
-    final actionLabelController = TextEditingController(text: announcement?.actionLabel ?? '');
+    final titleController = TextEditingController(
+      text: announcement?.title ?? '',
+    );
+    final messageController = TextEditingController(
+      text: announcement?.message ?? '',
+    );
+    final actionUrlController = TextEditingController(
+      text: announcement?.actionUrl ?? '',
+    );
+    final actionLabelController = TextEditingController(
+      text: announcement?.actionLabel ?? '',
+    );
 
     String selectedType = announcement?.type ?? 'info';
-    List<String> selectedAccounts = List.from(announcement?.targetAccounts ?? ['all']);
+    List<String> selectedAccounts = List.from(
+      announcement?.targetAccounts ?? ['all'],
+    );
     int selectedPriority = announcement?.priority ?? 1;
     DateTime? expiresAt = announcement?.expiresAt;
 
@@ -328,7 +306,10 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
                   ),
                   items: const [
                     DropdownMenuItem(value: 'info', child: Text('Information')),
-                    DropdownMenuItem(value: 'warning', child: Text('Avertissement')),
+                    DropdownMenuItem(
+                      value: 'warning',
+                      child: Text('Avertissement'),
+                    ),
                     DropdownMenuItem(value: 'success', child: Text('Succès')),
                     DropdownMenuItem(value: 'error', child: Text('Erreur')),
                   ],
@@ -358,60 +339,38 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
                 const SizedBox(height: 16),
 
                 // Ciblage
-                const Text('Diffuser vers:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  'Diffuser vers:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
                 CheckboxListTile(
                   title: const Text('Tous les comptes'),
                   value: selectedAccounts.contains('all'),
                   onChanged: (value) {
                     setState(() {
-                      if (value == true) {
-                        selectedAccounts = ['all'];
-                      } else {
-                        selectedAccounts.remove('all');
-                      }
+                      selectedAccounts = value == true ? ['all'] : [];
                     });
                   },
                 ),
                 if (!selectedAccounts.contains('all')) ...[
-                  CheckboxListTile(
-                    title: const Text('Enseignants (Permutation)'),
-                    value: selectedAccounts.contains('teacher_transfer'),
-                    onChanged: (value) {
-                      setState(() {
-                        if (value == true) {
-                          selectedAccounts.add('teacher_transfer');
-                        } else {
-                          selectedAccounts.remove('teacher_transfer');
-                        }
-                      });
-                    },
+                  _buildAccountCheckbox(
+                    'Enseignants (Permutation)',
+                    'teacher_transfer',
+                    selectedAccounts,
+                    setState,
                   ),
-                  CheckboxListTile(
-                    title: const Text('Candidats enseignants'),
-                    value: selectedAccounts.contains('teacher_candidate'),
-                    onChanged: (value) {
-                      setState(() {
-                        if (value == true) {
-                          selectedAccounts.add('teacher_candidate');
-                        } else {
-                          selectedAccounts.remove('teacher_candidate');
-                        }
-                      });
-                    },
+                  _buildAccountCheckbox(
+                    'Candidats enseignants',
+                    'teacher_candidate',
+                    selectedAccounts,
+                    setState,
                   ),
-                  CheckboxListTile(
-                    title: const Text('Établissements scolaires'),
-                    value: selectedAccounts.contains('school'),
-                    onChanged: (value) {
-                      setState(() {
-                        if (value == true) {
-                          selectedAccounts.add('school');
-                        } else {
-                          selectedAccounts.remove('school');
-                        }
-                      });
-                    },
+                  _buildAccountCheckbox(
+                    'Établissements scolaires',
+                    'school',
+                    selectedAccounts,
+                    setState,
                   ),
                 ],
 
@@ -431,9 +390,13 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
                         onPressed: () async {
                           final date = await showDatePicker(
                             context: context,
-                            initialDate: expiresAt ?? DateTime.now().add(const Duration(days: 7)),
+                            initialDate:
+                                expiresAt ??
+                                DateTime.now().add(const Duration(days: 7)),
                             firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(const Duration(days: 365)),
+                            lastDate: DateTime.now().add(
+                              const Duration(days: 365),
+                            ),
                           );
                           if (date != null) {
                             setState(() => expiresAt = date);
@@ -479,54 +442,48 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (titleController.text.isEmpty || messageController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Le titre et le message sont obligatoires'),
-                      backgroundColor: Colors.red,
-                    ),
+                if (titleController.text.isEmpty ||
+                    messageController.text.isEmpty) {
+                  _showSnackBar(
+                    'Le titre et le message sont obligatoires',
+                    isError: true,
                   );
                   return;
                 }
 
                 if (selectedAccounts.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Veuillez sélectionner au moins un type de compte'),
-                      backgroundColor: Colors.red,
-                    ),
+                  _showSnackBar(
+                    'Veuillez sélectionner au moins un type de compte',
+                    isError: true,
                   );
                   return;
                 }
 
                 // Capturer le contexte avant les opérations async
                 final navigator = Navigator.of(context);
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
 
                 try {
                   final currentUser = FirebaseAuth.instance.currentUser;
                   if (currentUser == null) return;
 
                   if (isEdit) {
-                    await _announcementService.updateAnnouncement(
-                      announcement.id,
-                      {
-                        'title': titleController.text,
-                        'message': messageController.text,
-                        'type': selectedType,
-                        'targetAccounts': selectedAccounts,
-                        'priority': selectedPriority,
-                        'expiresAt': expiresAt != null
-                            ? Timestamp.fromDate(expiresAt!)
-                            : null,
-                        'actionUrl': actionUrlController.text.isNotEmpty
-                            ? actionUrlController.text
-                            : null,
-                        'actionLabel': actionLabelController.text.isNotEmpty
-                            ? actionLabelController.text
-                            : null,
-                      },
-                    );
+                    await _announcementService
+                        .updateAnnouncement(announcement.id, {
+                          'title': titleController.text,
+                          'message': messageController.text,
+                          'type': selectedType,
+                          'targetAccounts': selectedAccounts,
+                          'priority': selectedPriority,
+                          'expiresAt': expiresAt != null
+                              ? Timestamp.fromDate(expiresAt!)
+                              : null,
+                          'actionUrl': actionUrlController.text.isNotEmpty
+                              ? actionUrlController.text
+                              : null,
+                          'actionLabel': actionLabelController.text.isNotEmpty
+                              ? actionLabelController.text
+                              : null,
+                        });
                   } else {
                     final newAnnouncement = AnnouncementModel(
                       id: '',
@@ -546,31 +503,19 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
                       priority: selectedPriority,
                     );
 
-                    await _announcementService.createAnnouncement(newAnnouncement);
+                    await _announcementService.createAnnouncement(
+                      newAnnouncement,
+                    );
                   }
 
-                  if (mounted) {
-                    navigator.pop();
-                    scaffoldMessenger.showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          isEdit
-                              ? 'Annonce modifiée avec succès'
-                              : 'Annonce créée avec succès',
-                        ),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
+                  navigator.pop();
+                  _showSnackBar(
+                    isEdit
+                        ? 'Annonce modifiée avec succès'
+                        : 'Annonce créée avec succès',
+                  );
                 } catch (e) {
-                  if (mounted) {
-                    scaffoldMessenger.showSnackBar(
-                      SnackBar(
-                        content: Text('Erreur: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
+                  _showSnackBar('Erreur: $e', isError: true);
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -591,27 +536,11 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
         announcement.id,
         !announcement.isActive,
       );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              announcement.isActive
-                  ? 'Annonce désactivée'
-                  : 'Annonce activée',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      _showSnackBar(
+        announcement.isActive ? 'Annonce désactivée' : 'Annonce activée',
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _showSnackBar('Erreur: $e', isError: true);
     }
   }
 
@@ -640,23 +569,9 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
     if (confirm == true) {
       try {
         await _announcementService.deleteAnnouncement(announcement.id);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Annonce supprimée'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        _showSnackBar('Annonce supprimée');
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erreur: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        _showSnackBar('Erreur: $e', isError: true);
       }
     }
   }
@@ -664,24 +579,81 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
   Future<void> _cleanExpiredAnnouncements() async {
     try {
       final count = await _announcementService.cleanExpiredAnnouncements();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$count annonce(s) expirée(s) nettoyée(s)'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      _showSnackBar('$count annonce(s) expirée(s) nettoyée(s)');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _showSnackBar('Erreur: $e', isError: true);
     }
+  }
+
+  // Méthodes utilitaires
+  Widget _buildAccountCheckbox(
+    String title,
+    String accountType,
+    List<String> selectedAccounts,
+    StateSetter setState,
+  ) {
+    return CheckboxListTile(
+      title: Text(title),
+      value: selectedAccounts.contains(accountType),
+      onChanged: (value) {
+        setState(() {
+          if (value == true) {
+            selectedAccounts.add(accountType);
+          } else {
+            selectedAccounts.remove(accountType);
+          }
+        });
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.campaign_outlined, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'Aucune annonce',
+            style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Créez votre première annonce',
+            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
   }
 
   String _getAccountLabel(String account) {
@@ -701,8 +673,18 @@ class _ManageAnnouncementsPageState extends State<ManageAnnouncementsPage> {
 
   String _formatDate(DateTime date) {
     final months = [
-      'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
-      'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'
+      'janv.',
+      'févr.',
+      'mars',
+      'avr.',
+      'mai',
+      'juin',
+      'juil.',
+      'août',
+      'sept.',
+      'oct.',
+      'nov.',
+      'déc.',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }

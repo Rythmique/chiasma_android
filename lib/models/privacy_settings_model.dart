@@ -35,6 +35,7 @@ class PrivacySettingsModel {
   /// Créer depuis Firestore
   factory PrivacySettingsModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final now = DateTime.now();
     return PrivacySettingsModel(
       userId: doc.id,
       hideProfile: data['hideProfile'] ?? false,
@@ -42,8 +43,8 @@ class PrivacySettingsModel {
       hidePhoneNumber: data['hidePhoneNumber'] ?? true,
       showOnlineStatus: data['showOnlineStatus'] ?? true,
       allowMessages: data['allowMessages'] ?? true,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? now,
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? now,
     );
   }
 
@@ -62,16 +63,8 @@ class PrivacySettingsModel {
 
   /// Créer des paramètres par défaut
   factory PrivacySettingsModel.defaultSettings(String userId) {
-    return PrivacySettingsModel(
-      userId: userId,
-      hideProfile: false,
-      profileVisibility: 'all',
-      hidePhoneNumber: true,
-      showOnlineStatus: true,
-      allowMessages: true,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
+    final now = DateTime.now();
+    return PrivacySettingsModel(userId: userId, createdAt: now, updatedAt: now);
   }
 
   /// Copier avec modifications

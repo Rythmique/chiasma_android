@@ -45,8 +45,10 @@ class AnnouncementService {
   /// Récupérer une annonce par ID
   Future<AnnouncementModel?> getAnnouncement(String announcementId) async {
     try {
-      final doc =
-          await _firestore.collection(_collection).doc(announcementId).get();
+      final doc = await _firestore
+          .collection(_collection)
+          .doc(announcementId)
+          .get();
       if (!doc.exists) return null;
       return AnnouncementModel.fromFirestore(doc);
     } catch (e) {
@@ -61,9 +63,11 @@ class AnnouncementService {
         .orderBy('priority', descending: true)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => AnnouncementModel.fromFirestore(doc))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => AnnouncementModel.fromFirestore(doc))
+              .toList(),
+        );
   }
 
   /// Stream des annonces actives pour un type de compte
@@ -77,19 +81,21 @@ class AnnouncementService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      final now = DateTime.now();
-      return snapshot.docs
-          .map((doc) => AnnouncementModel.fromFirestore(doc))
-          .where((announcement) {
-            // Filtrer par type de compte et expiration
-            final isForAccount = announcement.targetAccounts.contains('all') ||
-                announcement.targetAccounts.contains(accountType);
-            final isNotExpired = announcement.expiresAt == null ||
-                announcement.expiresAt!.isAfter(now);
-            return isForAccount && isNotExpired;
-          })
-          .toList();
-    });
+          final now = DateTime.now();
+          return snapshot.docs
+              .map((doc) => AnnouncementModel.fromFirestore(doc))
+              .where((announcement) {
+                // Filtrer par type de compte et expiration
+                final isForAccount =
+                    announcement.targetAccounts.contains('all') ||
+                    announcement.targetAccounts.contains(accountType);
+                final isNotExpired =
+                    announcement.expiresAt == null ||
+                    announcement.expiresAt!.isAfter(now);
+                return isForAccount && isNotExpired;
+              })
+              .toList();
+        });
   }
 
   /// Récupérer les annonces actives pour un type de compte (Future)
@@ -108,9 +114,11 @@ class AnnouncementService {
       return snapshot.docs
           .map((doc) => AnnouncementModel.fromFirestore(doc))
           .where((announcement) {
-            final isForAccount = announcement.targetAccounts.contains('all') ||
+            final isForAccount =
+                announcement.targetAccounts.contains('all') ||
                 announcement.targetAccounts.contains(accountType);
-            final isNotExpired = announcement.expiresAt == null ||
+            final isNotExpired =
+                announcement.expiresAt == null ||
                 announcement.expiresAt!.isAfter(now);
             return isForAccount && isNotExpired;
           })

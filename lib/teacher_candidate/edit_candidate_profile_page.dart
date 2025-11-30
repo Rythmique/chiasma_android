@@ -9,7 +9,8 @@ class EditCandidateProfilePage extends StatefulWidget {
   const EditCandidateProfilePage({super.key});
 
   @override
-  State<EditCandidateProfilePage> createState() => _EditCandidateProfilePageState();
+  State<EditCandidateProfilePage> createState() =>
+      _EditCandidateProfilePageState();
 }
 
 class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
@@ -34,9 +35,15 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
   String? _applicationId;
 
   final List<String> _niveauxDisponibles = [
-    '6ème', '5ème', '4ème', '3ème',
-    '2nde', '1ère', 'Terminale',
-    'Primaire', 'Maternelle',
+    '6ème',
+    '5ème',
+    '4ème',
+    '3ème',
+    '2nde',
+    '1ère',
+    'Terminale',
+    'Primaire',
+    'Maternelle',
   ];
 
   @override
@@ -168,31 +175,28 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
 
       if (_applicationId != null) {
         // Mettre à jour job_application
-        await _jobsService.updateJobApplication(
-          _applicationId!,
-          {
-            'nom': _nomController.text.trim(),
-            'telephones': telephones,
-            'matieres': matieres,
-            'niveaux': _niveauxSelectionnes,
-            'diplomes': diplomes,
-            'experience': _experienceController.text.trim(),
-            'zonesSouhaitees': zones,
-            'disponibilite': _disponibilite,
-          },
-        );
+        await _jobsService.updateJobApplication(_applicationId!, {
+          'nom': _nomController.text.trim(),
+          'telephones': telephones,
+          'matieres': matieres,
+          'niveaux': _niveauxSelectionnes,
+          'diplomes': diplomes,
+          'experience': _experienceController.text.trim(),
+          'zonesSouhaitees': zones,
+          'disponibilite': _disponibilite,
+        });
 
         // Mettre à jour aussi le document user
         await FirebaseFirestore.instance
             .collection('users')
             .doc(_userId)
             .update({
-          'nom': _nomController.text.trim(),
-          'telephones': telephones,
-          'fonction': matieres.join(', '),
-          'zonesSouhaitees': zones,
-          'updatedAt': Timestamp.now(),
-        });
+              'nom': _nomController.text.trim(),
+              'telephones': telephones,
+              'fonction': matieres.join(', '),
+              'zonesSouhaitees': zones,
+              'updatedAt': Timestamp.now(),
+            });
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -207,10 +211,7 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -300,7 +301,8 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                           ),
                           keyboardType: TextInputType.phone,
                           validator: (value) {
-                            if (index == 0 && (value == null || value.trim().isEmpty)) {
+                            if (index == 0 &&
+                                (value == null || value.trim().isEmpty)) {
                               return 'Au moins un numéro requis';
                             }
                             return null;
@@ -309,8 +311,12 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                       ),
                       if (_phoneControllers.length > 1)
                         IconButton(
-                          icon: const Icon(Icons.remove_circle, color: Colors.red),
-                          onPressed: () => _removeField(_phoneControllers, index),
+                          icon: const Icon(
+                            Icons.remove_circle,
+                            color: Colors.red,
+                          ),
+                          onPressed: () =>
+                              _removeField(_phoneControllers, index),
                         ),
                     ],
                   ),
@@ -347,7 +353,8 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                           ),
                           validator: (value) {
                             // Vérifier les informations de contact
-                            if (value != null && ContactValidator.containsContactInfo(value)) {
+                            if (value != null &&
+                                ContactValidator.containsContactInfo(value)) {
                               return 'Pas de contact dans ce champ';
                             }
                             return null;
@@ -356,8 +363,12 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                       ),
                       if (_matiereControllers.length > 1)
                         IconButton(
-                          icon: const Icon(Icons.remove_circle, color: Colors.red),
-                          onPressed: () => _removeField(_matiereControllers, index),
+                          icon: const Icon(
+                            Icons.remove_circle,
+                            color: Colors.red,
+                          ),
+                          onPressed: () =>
+                              _removeField(_matiereControllers, index),
                         ),
                     ],
                   ),
@@ -421,7 +432,8 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                           ),
                           validator: (value) {
                             // Vérifier les informations de contact
-                            if (value != null && ContactValidator.containsContactInfo(value)) {
+                            if (value != null &&
+                                ContactValidator.containsContactInfo(value)) {
                               return 'Pas de contact dans ce champ';
                             }
                             return null;
@@ -430,8 +442,12 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                       ),
                       if (_diplomeControllers.length > 1)
                         IconButton(
-                          icon: const Icon(Icons.remove_circle, color: Colors.red),
-                          onPressed: () => _removeField(_diplomeControllers, index),
+                          icon: const Icon(
+                            Icons.remove_circle,
+                            color: Colors.red,
+                          ),
+                          onPressed: () =>
+                              _removeField(_diplomeControllers, index),
                         ),
                     ],
                   ),
@@ -491,8 +507,12 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                       ),
                       if (_zoneControllers.length > 1)
                         IconButton(
-                          icon: const Icon(Icons.remove_circle, color: Colors.red),
-                          onPressed: () => _removeField(_zoneControllers, index),
+                          icon: const Icon(
+                            Icons.remove_circle,
+                            color: Colors.red,
+                          ),
+                          onPressed: () =>
+                              _removeField(_zoneControllers, index),
                         ),
                     ],
                   ),
@@ -513,10 +533,22 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                   border: OutlineInputBorder(),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'Immédiate', child: Text('Immédiate')),
-                  DropdownMenuItem(value: 'Dans 1 mois', child: Text('Dans 1 mois')),
-                  DropdownMenuItem(value: 'Dans 2 mois', child: Text('Dans 2 mois')),
-                  DropdownMenuItem(value: 'Dans 3 mois', child: Text('Dans 3 mois')),
+                  DropdownMenuItem(
+                    value: 'Immédiate',
+                    child: Text('Immédiate'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Dans 1 mois',
+                    child: Text('Dans 1 mois'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Dans 2 mois',
+                    child: Text('Dans 2 mois'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Dans 3 mois',
+                    child: Text('Dans 3 mois'),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -545,7 +577,10 @@ class _EditCandidateProfilePageState extends State<EditCandidateProfilePage> {
                       )
                     : const Text(
                         'Enregistrer les modifications',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
             ],

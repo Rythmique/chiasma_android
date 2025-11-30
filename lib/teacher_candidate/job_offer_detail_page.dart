@@ -7,6 +7,7 @@ import 'package:myapp/services/jobs_service.dart';
 import 'package:myapp/services/firestore_service.dart';
 import 'package:myapp/services/subscription_service.dart';
 import 'package:myapp/services/notification_service.dart';
+import 'package:myapp/services/analytics_service.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
@@ -24,6 +25,7 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
   final JobsService _jobsService = JobsService();
   final FirestoreService _firestoreService = FirestoreService();
   final NotificationService _notificationService = NotificationService();
+  final AnalyticsService _analytics = AnalyticsService();
   final TextEditingController _coverLetterController = TextEditingController();
 
   bool _isLoading = false;
@@ -109,15 +111,15 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
       // Fermer le modal d'abord
       Navigator.pop(context);
       // Afficher le dialogue d'abonnement
-      SubscriptionRequiredDialog.show(context, result.accountType ?? 'teacher_candidate');
+      SubscriptionRequiredDialog.show(
+        context,
+        result.accountType ?? 'teacher_candidate',
+      );
       return;
     } else if (!result.success) {
       // Erreur
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.message),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(result.message), backgroundColor: Colors.red),
       );
       return;
     }
@@ -126,7 +128,9 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
     if (result.quotaRemaining >= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Candidatures gratuites restantes: ${result.quotaRemaining}'),
+          content: Text(
+            'Candidatures gratuites restantes: ${result.quotaRemaining}',
+          ),
           duration: const Duration(seconds: 2),
           backgroundColor: const Color(0xFF009E60),
         ),
@@ -170,13 +174,17 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
 
       await _jobsService.createOfferApplication(application);
 
+      // 📊 Analytics: Track candidature
+      await _analytics.logJobApplication(widget.offer.id);
+
       // Envoyer une notification à l'école
       try {
         await _notificationService.sendNotification(
           userId: widget.offer.schoolId,
           type: 'application',
           title: 'Nouvelle candidature reçue',
-          message: '${user.nom} a postulé pour le poste de ${widget.offer.poste}',
+          message:
+              '${user.nom} a postulé pour le poste de ${widget.offer.poste}',
           data: {
             'offerId': widget.offer.id,
             'candidateId': userId,
@@ -207,7 +215,9 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur: ${e.toString().replaceAll('Exception: ', '')}'),
+            content: Text(
+              'Erreur: ${e.toString().replaceAll('Exception: ', '')}',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -362,14 +372,14 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
                   const SizedBox(height: 8),
                   Text(
                     widget.offer.localisationComplete,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[700],
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.grey[700]),
                   ),
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF009E60).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
@@ -404,10 +414,7 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
                   const SizedBox(height: 8),
                   Text(
                     'Publié ${timeago.format(widget.offer.createdAt, locale: 'fr')}',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
                   ),
                   const SizedBox(height: 24),
 
@@ -422,7 +429,9 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
                         children: widget.offer.matieres.map((matiere) {
                           return Chip(
                             label: Text(matiere),
-                            backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.1),
+                            backgroundColor: const Color(
+                              0xFFF77F00,
+                            ).withValues(alpha: 0.1),
                           );
                         }).toList(),
                       ),
@@ -440,7 +449,9 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
                         children: widget.offer.niveaux.map((niveau) {
                           return Chip(
                             label: Text(niveau),
-                            backgroundColor: const Color(0xFF009E60).withValues(alpha: 0.1),
+                            backgroundColor: const Color(
+                              0xFF009E60,
+                            ).withValues(alpha: 0.1),
                           );
                         }).toList(),
                       ),
@@ -522,7 +533,11 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
                           value: widget.offer.viewsCount.toString(),
                           label: 'Vues',
                         ),
-                        Container(width: 1, height: 40, color: Colors.grey[300]),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Colors.grey[300],
+                        ),
                         _buildStat(
                           icon: Icons.people,
                           value: widget.offer.applicantsCount.toString(),
@@ -561,11 +576,12 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
                             ),
                             if (_schoolInfo!.telephones.isNotEmpty) ...[
                               const SizedBox(height: 12),
-                              ..._schoolInfo!.telephones.map((phone) =>
-                                Padding(
+                              ..._schoolInfo!.telephones.map(
+                                (phone) => Padding(
                                   padding: const EdgeInsets.only(top: 8),
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Icon(
                                         Icons.phone,
@@ -594,12 +610,18 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
                           color: Colors.orange[50],
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: const Color(0xFFF77F00).withValues(alpha: 0.3),
+                            color: const Color(
+                              0xFFF77F00,
+                            ).withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.lock_outline, color: Colors.orange[700], size: 24),
+                            Icon(
+                              Icons.lock_outline,
+                              color: Colors.orange[700],
+                              size: 24,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
@@ -632,7 +654,10 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF009E60).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF009E60), width: 2),
+                    border: Border.all(
+                      color: const Color(0xFF009E60),
+                      width: 2,
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -721,18 +746,9 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
     );
   }

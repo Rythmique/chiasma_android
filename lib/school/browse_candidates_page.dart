@@ -34,18 +34,26 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
   List<UserModel> _filterCandidates(List<UserModel> candidates) {
     return candidates.where((candidate) {
       // Filtre par recherche (nom)
-      final matchesSearch = _searchQuery.isEmpty ||
+      final matchesSearch =
+          _searchQuery.isEmpty ||
           candidate.nom.toLowerCase().contains(_searchQuery.toLowerCase());
 
       // Filtre par zone
-      final matchesZone = _selectedZone.isEmpty ||
-          candidate.zoneActuelle.toLowerCase().contains(_selectedZone.toLowerCase()) ||
-          candidate.zonesSouhaitees.any((zone) =>
-            zone.toLowerCase().contains(_selectedZone.toLowerCase()));
+      final matchesZone =
+          _selectedZone.isEmpty ||
+          candidate.zoneActuelle.toLowerCase().contains(
+            _selectedZone.toLowerCase(),
+          ) ||
+          candidate.zonesSouhaitees.any(
+            (zone) => zone.toLowerCase().contains(_selectedZone.toLowerCase()),
+          );
 
       // Filtre par fonction
-      final matchesFonction = _selectedFonction.isEmpty ||
-          candidate.fonction.toLowerCase().contains(_selectedFonction.toLowerCase());
+      final matchesFonction =
+          _selectedFonction.isEmpty ||
+          candidate.fonction.toLowerCase().contains(
+            _selectedFonction.toLowerCase(),
+          );
 
       return matchesSearch && matchesZone && matchesFonction;
     }).toList();
@@ -251,16 +259,16 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
                 final schoolUser = schoolSnapshot.data;
 
                 return StreamBuilder<List<UserModel>>(
-                  stream: _firestoreService.getUsersByAccountType('teacher_candidate'),
+                  stream: _firestoreService.getUsersByAccountType(
+                    'teacher_candidate',
+                  ),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
 
                     if (snapshot.hasError) {
-                      return Center(
-                        child: Text('Erreur: ${snapshot.error}'),
-                      );
+                      return Center(child: Text('Erreur: ${snapshot.error}'));
                     }
 
                     final allCandidates = snapshot.data ?? [];
@@ -273,7 +281,8 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
                     return ListView.separated(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: filteredCandidates.length,
-                      separatorBuilder: (context, index) => const Divider(height: 1),
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1),
                       itemBuilder: (context, index) {
                         final candidate = filteredCandidates[index];
                         return _buildCandidateCard(candidate, schoolUser);
@@ -294,11 +303,7 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.people_outline,
-            size: 80,
-            color: Colors.grey[300],
-          ),
+          Icon(Icons.people_outline, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
           Text(
             'Aucun candidat trouvé',
@@ -306,13 +311,15 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            _searchQuery.isNotEmpty || _selectedZone.isNotEmpty || _selectedFonction.isNotEmpty
+            _searchQuery.isNotEmpty ||
+                    _selectedZone.isNotEmpty ||
+                    _selectedFonction.isNotEmpty
                 ? 'Essayez de modifier vos filtres'
                 : 'Aucun candidat disponible pour le moment',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
           ),
         ],
       ),
@@ -320,8 +327,8 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
   }
 
   Widget _buildCandidateCard(UserModel candidate, UserModel? schoolUser) {
-    // Les écoles NON vérifiées ne peuvent PAS envoyer de messages (peu importe le quota)
-    final bool canSendMessage = schoolUser != null &&
+    final bool canSendMessage =
+        schoolUser != null &&
         schoolUser.isVerified &&
         !schoolUser.isVerificationExpired;
 
@@ -330,182 +337,181 @@ class _BrowseCandidatesPageState extends State<BrowseCandidatesPage> {
       elevation: 2,
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
-        leading: Stack(
-          children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
-              child: Text(
-                candidate.nom
-                    .split(' ')
-                    .map((word) => word.isNotEmpty ? word[0] : '')
-                    .take(2)
-                    .join()
-                    .toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFFF77F00),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-            ),
-            if (candidate.isOnline)
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                ),
-              ),
-          ],
-        ),
+        leading: _buildCandidateAvatar(candidate),
         title: Text(
           candidate.nom,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.work_outline, size: 14, color: Color(0xFF009E60)),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    candidate.fonction,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF009E60),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    candidate.zoneActuelle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (candidate.zonesSouhaitees.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.place_outlined, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      'Souhaite: ${candidate.zonesSouhaitees.take(2).join(', ')}${candidate.zonesSouhaitees.length > 2 ? '...' : ''}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.message_outlined,
-                color: canSendMessage ? const Color(0xFFF77F00) : Colors.grey,
-              ),
-              onPressed: canSendMessage
-                  ? () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatPage(
-                            contactName: candidate.nom,
-                            contactFunction: candidate.fonction,
-                            isOnline: candidate.isOnline,
-                            contactUserId: candidate.uid,
-                          ),
-                        ),
-                      );
-                    }
-                  : () {
-                      // Afficher le dialogue d'abonnement
-                      SubscriptionRequiredDialog.show(context, 'school');
-                    },
-              tooltip: canSendMessage ? 'Envoyer un message' : 'Abonnement requis',
-            ),
-            const Icon(Icons.chevron_right, color: Colors.grey),
-          ],
-        ),
-        onTap: () async {
-          final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-          if (currentUserId == null) return;
-
-          final navigator = Navigator.of(context);
-          final messenger = ScaffoldMessenger.of(context);
-
-          // Consommer un quota pour voir le profil du candidat
-          final result = await SubscriptionService().consumeCandidateViewQuota(currentUserId);
-
-          if (!context.mounted) return;
-
-          if (result.needsSubscription) {
-            // Afficher le dialogue d'abonnement
-            // ignore: use_build_context_synchronously
-            SubscriptionRequiredDialog.show(context, result.accountType ?? 'school');
-          } else if (result.success) {
-            // Naviguer vers le profil
-            navigator.push(
-              MaterialPageRoute(
-                builder: (context) => ProfileDetailPage(
-                  userId: candidate.uid,
-                ),
-              ),
-            );
-
-            // Afficher le quota restant si pas illimité
-            if (result.quotaRemaining >= 0) {
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text('Vues de candidats restantes: ${result.quotaRemaining}'),
-                  duration: const Duration(seconds: 2),
-                  backgroundColor: const Color(0xFF009E60),
-                ),
-              );
-            }
-          } else {
-            // Erreur
-            messenger.showSnackBar(
-              SnackBar(
-                content: Text(result.message),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        },
+        subtitle: _buildCandidateInfo(candidate),
+        trailing: _buildCandidateActions(candidate, canSendMessage),
+        onTap: () => _handleCandidateTap(candidate),
       ),
     );
+  }
+
+  Widget _buildCandidateAvatar(UserModel candidate) {
+    return Stack(
+      children: [
+        CircleAvatar(
+          radius: 30,
+          backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
+          child: Text(
+            candidate.nom
+                .split(' ')
+                .map((word) => word.isNotEmpty ? word[0] : '')
+                .take(2)
+                .join()
+                .toUpperCase(),
+            style: const TextStyle(
+              color: Color(0xFFF77F00),
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+        ),
+        if (candidate.isOnline)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCandidateInfo(UserModel candidate) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        _buildInfoRow(
+          Icons.work_outline,
+          candidate.fonction,
+          const Color(0xFF009E60),
+        ),
+        const SizedBox(height: 4),
+        _buildInfoRow(
+          Icons.location_on_outlined,
+          candidate.zoneActuelle,
+          Colors.grey,
+        ),
+        if (candidate.zonesSouhaitees.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          _buildInfoRow(
+            Icons.place_outlined,
+            'Souhaite: ${candidate.zonesSouhaitees.take(2).join(', ')}${candidate.zonesSouhaitees.length > 2 ? '...' : ''}',
+            Colors.grey,
+            isItalic: true,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(
+    IconData icon,
+    String text,
+    Color? iconColor, {
+    bool isItalic = false,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: iconColor),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: isItalic ? 12 : 13,
+              color: iconColor is Color
+                  ? (iconColor == Colors.grey ? Colors.grey[700] : iconColor)
+                  : Colors.grey[700],
+              fontStyle: isItalic ? FontStyle.italic : FontStyle.normal,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCandidateActions(UserModel candidate, bool canSendMessage) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: Icon(
+            Icons.message_outlined,
+            color: canSendMessage ? const Color(0xFFF77F00) : Colors.grey,
+          ),
+          onPressed: canSendMessage
+              ? () => _navigateToChat(candidate)
+              : () => SubscriptionRequiredDialog.show(context, 'school'),
+          tooltip: canSendMessage ? 'Envoyer un message' : 'Abonnement requis',
+        ),
+        const Icon(Icons.chevron_right, color: Colors.grey),
+      ],
+    );
+  }
+
+  void _navigateToChat(UserModel candidate) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatPage(
+          contactName: candidate.nom,
+          contactFunction: candidate.fonction,
+          isOnline: candidate.isOnline,
+          contactUserId: candidate.uid,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleCandidateTap(UserModel candidate) async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await SubscriptionService().consumeCandidateViewQuota(
+      currentUserId,
+    );
+
+    if (!context.mounted) return;
+
+    if (result.needsSubscription) {
+      // ignore: use_build_context_synchronously
+      SubscriptionRequiredDialog.show(context, result.accountType ?? 'school');
+    } else if (result.success) {
+      navigator.push(
+        MaterialPageRoute(
+          builder: (context) => ProfileDetailPage(userId: candidate.uid),
+        ),
+      );
+
+      if (result.quotaRemaining >= 0) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Vues de candidats restantes: ${result.quotaRemaining}',
+            ),
+            duration: const Duration(seconds: 2),
+            backgroundColor: const Color(0xFF009E60),
+          ),
+        );
+      }
+    } else {
+      messenger.showSnackBar(
+        SnackBar(content: Text(result.message), backgroundColor: Colors.red),
+      );
+    }
   }
 }

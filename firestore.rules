@@ -98,8 +98,11 @@ service cloud.firestore {
               || request.resource.data.isAdmin == false)
           // L'utilisateur ne peut PAS s'auto-vérifier
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isVerified']))
-          // L'utilisateur ne peut PAS modifier directement les quotas (géré par Cloud Functions/Transactions)
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['freeQuotaUsed', 'freeQuotaLimit', 'verificationExpiresAt']))
+          // L'utilisateur ne peut PAS modifier la limite de quota (freeQuotaLimit)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['freeQuotaLimit', 'verificationExpiresAt']))
+          // Si freeQuotaUsed est modifié, autoriser uniquement l'incrémentation (via transactions)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['freeQuotaUsed'])
+              || request.resource.data.freeQuotaUsed >= resource.data.freeQuotaUsed)
         ))
         // Admin peut TOUT modifier
         || isAdmin();

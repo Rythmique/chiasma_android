@@ -22,7 +22,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   final FirestoreService _firestoreService = FirestoreService();
   final JobsService _jobsService = JobsService();
   final SubscriptionService _subscriptionService = SubscriptionService();
-  final AccessRestrictionsService _restrictionsService = AccessRestrictionsService();
+  final AccessRestrictionsService _restrictionsService =
+      AccessRestrictionsService();
   int _selectedTab = 0;
 
   // Variables pour la pagination des utilisateurs
@@ -50,7 +51,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   void _onUserScroll() {
     if (_selectedTab != 1) return; // Uniquement pour l'onglet Utilisateurs
 
-    if (_userScrollController.position.pixels >= _userScrollController.position.maxScrollExtent * 0.8) {
+    if (_userScrollController.position.pixels >=
+        _userScrollController.position.maxScrollExtent * 0.8) {
       if (!_isLoadingMore && _hasMoreUsers) {
         _loadMoreUsers();
       }
@@ -76,11 +78,15 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       if (mounted) {
         setState(() {
           _allUsers = result['users'];
+          // Trier par expiration de vérification (expirés/proches expiration en premier)
+          _sortUsersByVerificationExpiration();
           _lastUserDocument = result['lastDocument'];
           _hasMoreUsers = result['users'].length >= _userPageSize;
           _isLoadingUsers = false;
 
-          debugPrint('📊 [Admin] Première page chargée: ${_allUsers.length} utilisateurs');
+          debugPrint(
+            '📊 [Admin] Première page chargée: ${_allUsers.length} utilisateurs',
+          );
         });
       }
     } catch (e) {
@@ -111,11 +117,15 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       if (mounted) {
         setState(() {
           _allUsers.addAll(result['users']);
+          // Trier par expiration de vérification après chaque ajout
+          _sortUsersByVerificationExpiration();
           _lastUserDocument = result['lastDocument'];
           _hasMoreUsers = result['users'].length >= _userPageSize;
           _isLoadingMore = false;
 
-          debugPrint('📊 [Admin] Page suivante chargée: +${result['users'].length} (Total: ${_allUsers.length})');
+          debugPrint(
+            '📊 [Admin] Page suivante chargée: +${result['users'].length} (Total: ${_allUsers.length})',
+          );
         });
       }
     } catch (e) {
@@ -127,6 +137,42 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         });
       }
     }
+  }
+
+  // Trier les utilisateurs par expiration de vérification
+  // Priorité: 1) Expirés, 2) Proche expiration (< 7 jours), 3) Autres
+  void _sortUsersByVerificationExpiration() {
+    _allUsers.sort((a, b) {
+      final now = DateTime.now();
+
+      // Calculer les jours avant expiration pour chaque utilisateur
+      int getDaysUntilExpiration(UserModel user) {
+        if (user.verificationExpiresAt == null) {
+          return 999999; // Non vérifié = dernier
+        }
+        final diff = user.verificationExpiresAt!.difference(now);
+        return diff.inDays;
+      }
+
+      final aDays = getDaysUntilExpiration(a);
+      final bDays = getDaysUntilExpiration(b);
+
+      // 1. Utilisateurs avec vérification expirée (jours négatifs) en premier
+      if (aDays < 0 && bDays >= 0) return -1;
+      if (bDays < 0 && aDays >= 0) return 1;
+
+      // 2. Si les deux sont expirés, trier par date d'expiration (plus ancien en premier)
+      if (aDays < 0 && bDays < 0) {
+        return aDays.compareTo(bDays);
+      }
+
+      // 3. Utilisateurs proches de l'expiration (< 7 jours) avant les autres
+      if (aDays < 7 && bDays >= 7) return -1;
+      if (bDays < 7 && aDays >= 7) return 1;
+
+      // 4. Si les deux sont dans la même catégorie, trier par jours restants (moins de jours en premier)
+      return aDays.compareTo(bDays);
+    });
   }
 
   @override
@@ -153,48 +199,24 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   ),
                 ),
                 Expanded(
-                  child: _buildTabButton(
-                    'Utilisateurs',
-                    Icons.people,
-                    1,
-                  ),
+                  child: _buildTabButton('Utilisateurs', Icons.people, 1),
                 ),
                 Expanded(
-                  child: _buildTabButton(
-                    'Statistiques',
-                    Icons.analytics,
-                    2,
-                  ),
+                  child: _buildTabButton('Statistiques', Icons.analytics, 2),
+                ),
+                Expanded(child: _buildTabButton('Annonces', Icons.campaign, 3)),
+                Expanded(
+                  child: _buildTabButton('Signalements', Icons.bug_report, 4),
                 ),
                 Expanded(
-                  child: _buildTabButton(
-                    'Annonces',
-                    Icons.campaign,
-                    3,
-                  ),
-                ),
-                Expanded(
-                  child: _buildTabButton(
-                    'Signalements',
-                    Icons.bug_report,
-                    4,
-                  ),
-                ),
-                Expanded(
-                  child: _buildTabButton(
-                    'Paramètres',
-                    Icons.settings,
-                    5,
-                  ),
+                  child: _buildTabButton('Paramètres', Icons.settings, 5),
                 ),
               ],
             ),
           ),
 
           // Contenu selon l'onglet sélectionné
-          Expanded(
-            child: _buildTabContent(),
-          ),
+          Expanded(child: _buildTabContent()),
         ],
       ),
     );
@@ -202,12 +224,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
   Widget _buildTabButton(String label, IconData icon, int index) {
     final isSelected = _selectedTab == index;
+    final color = isSelected
+        ? Colors.white
+        : Colors.white.withValues(alpha: 0.6);
+
     return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedTab = index;
-        });
-      },
+      onTap: () => setState(() => _selectedTab = index),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
@@ -221,16 +243,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.6),
-              size: 24,
-            ),
+            Icon(icon, color: color, size: 24),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.6),
+                color: color,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
@@ -267,41 +285,23 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(
-              color: Color(0xFFF77F00),
-            ),
+            child: CircularProgressIndicator(color: Color(0xFFF77F00)),
           );
         }
 
         if (snapshot.hasError) {
-          return Center(
-            child: Text('Erreur: ${snapshot.error}'),
-          );
+          return Center(child: Text('Erreur: ${snapshot.error}'));
         }
 
         final allUsers = snapshot.data ?? [];
-        final unverifiedUsers = allUsers.where((user) => !user.isVerified).toList();
+        final unverifiedUsers = allUsers
+            .where((user) => !user.isVerified)
+            .toList();
 
         if (unverifiedUsers.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.check_circle_outline,
-                  size: 80,
-                  color: Colors.grey[300],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Aucune vérification en attente',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
+          return _buildEmptyState(
+            Icons.check_circle_outline,
+            'Aucune vérification en attente',
           );
         }
 
@@ -321,9 +321,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -334,7 +332,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               children: [
                 CircleAvatar(
                   radius: 25,
-                  backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
+                  backgroundColor: const Color(
+                    0xFFF77F00,
+                  ).withValues(alpha: 0.2),
                   child: Text(
                     _getInitials(user.nom),
                     style: const TextStyle(
@@ -358,10 +358,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                       const SizedBox(height: 2),
                       Text(
                         user.fonction,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -379,11 +376,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.pending,
-                        size: 14,
-                        color: Colors.orange,
-                      ),
+                      const Icon(Icons.pending, size: 14, color: Colors.orange),
                       const SizedBox(width: 4),
                       const Text(
                         'En attente',
@@ -405,7 +398,11 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             _buildDetailRow(Icons.email, 'Email', user.email),
             if (user.telephones.isNotEmpty)
               _buildDetailRow(Icons.phone, 'Téléphone', user.telephones.first),
-            _buildDetailRow(Icons.location_on, 'Zone actuelle', user.zoneActuelle),
+            _buildDetailRow(
+              Icons.location_on,
+              'Zone actuelle',
+              user.zoneActuelle,
+            ),
             if (user.dren != null)
               _buildDetailRow(Icons.account_balance, 'DREN', user.dren!),
 
@@ -417,35 +414,21 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: _buildActionButton(
+                    label: 'Rejeter',
+                    icon: Icons.close,
                     onPressed: () => _rejectVerification(user),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    icon: const Icon(Icons.close, size: 18),
-                    label: const Text('Rejeter'),
+                    color: Colors.red,
+                    isOutlined: true,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: _buildActionButton(
+                    label: 'Approuver',
+                    icon: Icons.check,
                     onPressed: () => _approveVerification(user),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF009E60),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
-                    icon: const Icon(Icons.check, size: 18),
-                    label: const Text('Approuver'),
+                    color: const Color(0xFF009E60),
                   ),
                 ),
               ],
@@ -475,10 +458,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -495,9 +475,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
     if (_isLoadingUsers && _allUsers.isEmpty) {
       return const Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFFF77F00),
-        ),
+        child: CircularProgressIndicator(color: Color(0xFFF77F00)),
       );
     }
 
@@ -510,10 +488,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           decoration: BoxDecoration(
             color: const Color(0xFFF77F00).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0xFFF77F00),
-              width: 2,
-            ),
+            border: Border.all(color: const Color(0xFFF77F00), width: 2),
           ),
           child: Row(
             children: [
@@ -535,7 +510,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           child: ListView.builder(
             controller: _userScrollController,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _allUsers.length + (_isLoadingMore ? 1 : 0) + (!_isLoadingMore && !_hasMoreUsers ? 1 : 0),
+            itemCount:
+                _allUsers.length +
+                (_isLoadingMore ? 1 : 0) +
+                (!_isLoadingMore && !_hasMoreUsers ? 1 : 0),
             itemBuilder: (context, index) {
               // Afficher les utilisateurs
               if (index < _allUsers.length) {
@@ -548,9 +526,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 return const Padding(
                   padding: EdgeInsets.all(16),
                   child: Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFFF77F00),
-                    ),
+                    child: CircularProgressIndicator(color: Color(0xFFF77F00)),
                   ),
                 );
               }
@@ -562,10 +538,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   child: Center(
                     child: Text(
                       'Tous les utilisateurs ont été chargés',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
                     ),
                   ),
                 );
@@ -606,44 +579,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             Row(
               children: [
                 if (user.isVerified)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text(
-                      'Vérifié',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Color(0xFF009E60),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                  _buildStatusBadge('Vérifié', const Color(0xFF009E60)),
                 if (user.isAdmin) ...[
                   const SizedBox(width: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.purple[50],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text(
-                      'Admin',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.purple,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                  _buildStatusBadge('Admin', Colors.purple),
                 ],
               ],
             ),
@@ -654,7 +593,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   Icon(
                     Icons.schedule,
                     size: 12,
-                    color: user.daysUntilExpiration != null && user.daysUntilExpiration! < 7
+                    color:
+                        user.daysUntilExpiration != null &&
+                            user.daysUntilExpiration! < 7
                         ? Colors.red
                         : Colors.grey[600],
                   ),
@@ -663,7 +604,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                     'Expire: ${_formatDate(user.verificationExpiresAt!)}',
                     style: TextStyle(
                       fontSize: 11,
-                      color: user.daysUntilExpiration != null && user.daysUntilExpiration! < 7
+                      color:
+                          user.daysUntilExpiration != null &&
+                              user.daysUntilExpiration! < 7
                           ? Colors.red
                           : Colors.grey[600],
                     ),
@@ -675,7 +618,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: user.daysUntilExpiration! < 7 ? Colors.red : Colors.grey[600],
+                        color: user.daysUntilExpiration! < 7
+                            ? Colors.red
+                            : Colors.grey[600],
                       ),
                     ),
                   ],
@@ -717,7 +662,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             PopupMenuItem(
               child: ListTile(
                 leading: Icon(
-                  user.isAdmin ? Icons.remove_moderator : Icons.admin_panel_settings,
+                  user.isAdmin
+                      ? Icons.remove_moderator
+                      : Icons.admin_panel_settings,
                   size: 20,
                 ),
                 title: Text(
@@ -740,16 +687,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(
-              color: Color(0xFFF77F00),
-            ),
+            child: CircularProgressIndicator(color: Color(0xFFF77F00)),
           );
         }
 
         if (snapshot.hasError) {
-          return Center(
-            child: Text('Erreur: ${snapshot.error}'),
-          );
+          return Center(child: Text('Erreur: ${snapshot.error}'));
         }
 
         final users = snapshot.data ?? [];
@@ -759,9 +702,15 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         final onlineCount = users.where((u) => u.isOnline).length;
 
         // Statistiques par type de compte
-        final teacherTransferCount = users.where((u) => u.accountType == 'teacher_transfer').length;
-        final teacherCandidateCount = users.where((u) => u.accountType == 'teacher_candidate').length;
-        final schoolCount = users.where((u) => u.accountType == 'school').length;
+        final teacherTransferCount = users
+            .where((u) => u.accountType == 'teacher_transfer')
+            .length;
+        final teacherCandidateCount = users
+            .where((u) => u.accountType == 'teacher_candidate')
+            .length;
+        final schoolCount = users
+            .where((u) => u.accountType == 'school')
+            .length;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -770,10 +719,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             children: [
               const Text(
                 'Vue d\'ensemble',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               _buildStatCard(
@@ -809,10 +755,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               const SizedBox(height: 24),
               const Text(
                 'Par type de compte',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               _buildStatCard(
@@ -836,10 +779,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               const SizedBox(height: 24),
               const Text(
                 'Système de recrutement',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               StreamBuilder<List<JobApplicationModel>>(
@@ -873,7 +813,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -895,10 +840,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 children: [
                   Text(
                     label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -917,10 +859,106 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
+  // Méthodes utilitaires
+  Widget _buildEmptyState(IconData icon, String message, {String? subtitle}) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 80, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String label, Color color, {IconData? icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 10, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color color,
+    bool isOutlined = false,
+  }) {
+    if (isOutlined) {
+      return OutlinedButton.icon(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+      );
+    }
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        elevation: 0,
+      ),
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+    );
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : const Color(0xFF009E60),
+      ),
+    );
+  }
+
   String _getInitials(String name) {
     final words = name.split(' ').where((word) => word.isNotEmpty).toList();
     if (words.isEmpty) return '??';
-    if (words.length == 1 && words[0].isNotEmpty) return words[0][0].toUpperCase();
+    if (words.length == 1 && words[0].isNotEmpty)
+      return words[0][0].toUpperCase();
     if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
       return (words[0][0] + words[1][0]).toUpperCase();
     }
@@ -928,37 +966,20 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   }
 
   Future<void> _approveVerification(UserModel user) async {
-    // Afficher le dialogue de sélection de durée
     final duration = await showDialog<String>(
       context: context,
       builder: (context) => _buildDurationSelectionDialog(user),
     );
 
-    if (duration == null) return; // L'utilisateur a annulé
+    if (duration == null) return;
 
     try {
-      // Activer l'abonnement avec la durée sélectionnée
       await _subscriptionService.activateSubscription(user.uid, duration);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${user.nom} a été vérifié pour ${SubscriptionService.getDurationLabel(duration)}',
-            ),
-            backgroundColor: const Color(0xFF009E60),
-          ),
-        );
-      }
+      _showSnackBar(
+        '${user.nom} a été vérifié pour ${SubscriptionService.getDurationLabel(duration)}',
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _showSnackBar('Erreur: $e', isError: true);
     }
   }
 
@@ -1035,42 +1056,22 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   }
 
   Future<void> _rejectVerification(UserModel user) async {
-    // Pour l'instant, on ne fait que montrer un message
-    // Vous pouvez ajouter une logique de suppression ou de notification
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Vérification de ${user.nom} rejetée'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    _showSnackBar('Vérification de ${user.nom} rejetée', isError: true);
   }
 
   Future<void> _toggleVerification(UserModel user) async {
     try {
-      await _firestoreService.updateUserVerificationStatus(user.uid, !user.isVerified);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              user.isVerified
-                  ? 'Vérification retirée pour ${user.nom}'
-                  : '${user.nom} a été vérifié',
-            ),
-            backgroundColor: const Color(0xFF009E60),
-          ),
-        );
-      }
+      await _firestoreService.updateUserVerificationStatus(
+        user.uid,
+        !user.isVerified,
+      );
+      _showSnackBar(
+        user.isVerified
+            ? 'Vérification retirée pour ${user.nom}'
+            : '${user.nom} a été vérifié',
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _showSnackBar('Erreur: $e', isError: true);
     }
   }
 
@@ -1133,7 +1134,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     try {
       // Calculer la nouvelle date d'expiration
       final currentExpiration = user.verificationExpiresAt ?? DateTime.now();
-      final newExpiration = _calculateNewExpiration(currentExpiration, additionalDuration);
+      final newExpiration = _calculateNewExpiration(
+        currentExpiration,
+        additionalDuration,
+      );
 
       // Mettre à jour la vérification avec la nouvelle date
       await _subscriptionService.extendSubscription(
@@ -1143,25 +1147,13 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Vérification de ${user.nom} étendue de ${SubscriptionService.getDurationLabel(additionalDuration)}\nNouvelle expiration: ${_formatDate(newExpiration)}',
-            ),
-            backgroundColor: const Color(0xFF009E60),
-            duration: const Duration(seconds: 4),
-          ),
+        _showSnackBar(
+          'Vérification de ${user.nom} étendue de ${SubscriptionService.getDurationLabel(additionalDuration)}\n'
+          'Nouvelle expiration: ${_formatDate(newExpiration)}',
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _showSnackBar('Erreur: $e', isError: true);
     }
   }
 
@@ -1182,7 +1174,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     }).toList();
   }
 
-  DateTime _calculateNewExpiration(DateTime currentExpiration, String duration) {
+  DateTime _calculateNewExpiration(
+    DateTime currentExpiration,
+    String duration,
+  ) {
     switch (duration) {
       case '1_week':
         return currentExpiration.add(const Duration(days: 7));
@@ -1217,8 +1212,18 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
 
   String _formatDate(DateTime date) {
     final months = [
-      'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
-      'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'
+      'janv.',
+      'févr.',
+      'mars',
+      'avr.',
+      'mai',
+      'juin',
+      'juil.',
+      'août',
+      'sept.',
+      'oct.',
+      'nov.',
+      'déc.',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
@@ -1226,27 +1231,13 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   Future<void> _toggleAdmin(UserModel user) async {
     try {
       await _firestoreService.updateUserAdminStatus(user.uid, !user.isAdmin);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              user.isAdmin
-                  ? '${user.nom} n\'est plus administrateur'
-                  : '${user.nom} est maintenant administrateur',
-            ),
-            backgroundColor: const Color(0xFF009E60),
-          ),
-        );
-      }
+      _showSnackBar(
+        user.isAdmin
+            ? '${user.nom} n\'est plus administrateur'
+            : '${user.nom} est maintenant administrateur',
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _showSnackBar('Erreur: $e', isError: true);
     }
   }
 
@@ -1275,30 +1266,19 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         final reports = snapshot.data ?? [];
 
         if (reports.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.check_circle, size: 80, color: Colors.green),
-                SizedBox(height: 16),
-                Text(
-                  'Aucun signalement',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'Tous les problèmes ont été résolus !',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ],
-            ),
+          return _buildEmptyState(
+            Icons.check_circle,
+            'Aucun signalement',
+            subtitle: 'Tous les problèmes ont été résolus !',
           );
         }
 
         // Compter les signalements par statut
         final newCount = reports.where((r) => r['status'] == 'new').length;
         final readCount = reports.where((r) => r['status'] == 'read').length;
-        final resolvedCount = reports.where((r) => r['status'] == 'resolved').length;
+        final resolvedCount = reports
+            .where((r) => r['status'] == 'resolved')
+            .length;
 
         return Column(
           children: [
@@ -1348,7 +1328,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
-  Widget _buildReportStatCard(String label, int count, Color color, IconData icon) {
+  Widget _buildReportStatCard(
+    String label,
+    int count,
+    Color color,
+    IconData icon,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -1367,10 +1352,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),
@@ -1503,7 +1485,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                     Expanded(
                       child: Text(
                         userEmail,
-                        style: const TextStyle(fontSize: 13, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
                   ],
@@ -1517,7 +1502,11 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                       Expanded(
                         child: Text(
                           'ID: $userId',
-                          style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'monospace'),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                            fontFamily: 'monospace',
+                          ),
                         ),
                       ),
                     ],
@@ -1542,7 +1531,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                     ],
                     if (status != 'resolved') ...[
                       ElevatedButton.icon(
-                        onPressed: () => _updateReportStatus(reportId, 'resolved'),
+                        onPressed: () =>
+                            _updateReportStatus(reportId, 'resolved'),
                         icon: const Icon(Icons.check_circle, size: 18),
                         label: const Text('Marquer comme résolu'),
                         style: ElevatedButton.styleFrom(
@@ -1591,24 +1581,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         reportId: reportId,
         status: status,
       );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Statut mis à jour: ${status == 'read' ? 'Lu' : 'Résolu'}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      _showSnackBar('Statut mis à jour: ${status == 'read' ? 'Lu' : 'Résolu'}');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      _showSnackBar('Erreur: $e', isError: true);
     }
   }
 
@@ -1618,7 +1593,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Supprimer le signalement'),
-        content: const Text('Êtes-vous sûr de vouloir supprimer ce signalement ?'),
+        content: const Text(
+          'Êtes-vous sûr de vouloir supprimer ce signalement ?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1636,24 +1613,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     if (confirm == true) {
       try {
         await _firestoreService.deleteProblemReport(reportId);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Signalement supprimé'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        _showSnackBar('Signalement supprimé');
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erreur: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        _showSnackBar('Erreur: $e', isError: true);
       }
     }
   }
@@ -1685,11 +1647,13 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
           );
         }
 
-        final restrictions = snapshot.data ?? {
-          'teacher_transfer': true,
-          'teacher_candidate': true,
-          'school': true,
-        };
+        final restrictions =
+            snapshot.data ??
+            {
+              'teacher_transfer': true,
+              'teacher_candidate': true,
+              'school': true,
+            };
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -1726,10 +1690,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                         SizedBox(height: 4),
                         Text(
                           'Gérer les restrictions par type de compte',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                       ],
                     ),
@@ -1770,7 +1731,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               // Toggle pour Enseignants (Permutation)
               _buildRestrictionCard(
                 title: 'Enseignants (Permutation)',
-                subtitle: 'Contrôle d\'accès pour les enseignants cherchant à permuter',
+                subtitle:
+                    'Contrôle d\'accès pour les enseignants cherchant à permuter',
                 icon: Icons.swap_horiz,
                 iconColor: const Color(0xFFF77F00),
                 enabled: restrictions['teacher_transfer'] ?? true,
@@ -1783,7 +1745,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               // Toggle pour Candidats Enseignants
               _buildRestrictionCard(
                 title: 'Candidats Enseignants',
-                subtitle: 'Contrôle d\'accès pour les candidats cherchant un emploi',
+                subtitle:
+                    'Contrôle d\'accès pour les candidats cherchant un emploi',
                 icon: Icons.person_add,
                 iconColor: const Color(0xFF009E60),
                 enabled: restrictions['teacher_candidate'] ?? true,
@@ -1811,10 +1774,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      Colors.deepOrange.shade50,
-                      Colors.orange.shade50,
-                    ],
+                    colors: [Colors.deepOrange.shade50, Colors.orange.shade50],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.deepOrange.shade200),
@@ -2003,10 +1963,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
                   ],
                 ),
@@ -2079,9 +2036,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         backgroundColor: color,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -2137,7 +2092,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     }
 
     try {
-      throw Exception('🔥 Test Exception depuis Admin Panel - ${DateTime.now()}');
+      throw Exception(
+        '🔥 Test Exception depuis Admin Panel - ${DateTime.now()}',
+      );
     } catch (error, stackTrace) {
       FirebaseCrashlytics.instance.recordError(error, stackTrace, fatal: false);
 
@@ -2159,7 +2116,9 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       return;
     }
 
-    FirebaseCrashlytics.instance.log('📝 Message de test depuis Admin Panel - ${DateTime.now()}');
+    FirebaseCrashlytics.instance.log(
+      '📝 Message de test depuis Admin Panel - ${DateTime.now()}',
+    );
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2204,7 +2163,12 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     }
   }
 
-  Widget _buildLegendItem(IconData icon, Color color, String title, String description) {
+  Widget _buildLegendItem(
+    IconData icon,
+    Color color,
+    String title,
+    String description,
+  ) {
     return Row(
       children: [
         Icon(icon, color: color, size: 20),
@@ -2222,10 +2186,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
               ),
               Text(
                 description,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
               ),
             ],
           ),
@@ -2238,7 +2199,6 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   Future<void> _updateRestriction(String accountType, bool enabled) async {
     try {
       await _restrictionsService.updateRestrictions(accountType, enabled);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2253,15 +2213,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+      _showSnackBar('Erreur: $e', isError: true);
     }
   }
 

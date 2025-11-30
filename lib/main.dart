@@ -11,6 +11,7 @@ import 'package:myapp/services/app_update_service.dart';
 import 'package:myapp/services/update_checker_service.dart';
 import 'package:myapp/services/cache_service.dart';
 import 'package:myapp/services/algolia_service.dart';
+import 'package:myapp/services/analytics_service.dart';
 import 'package:myapp/config/algolia_config.dart';
 import 'firebase_options.dart';
 
@@ -51,7 +52,9 @@ void main() async {
 
   // Initialiser Firebase - c'est la SEULE initialisation bloquante nécessaire
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     debugPrint('✅ Firebase initialized');
   } catch (e) {
     debugPrint('❌ Firebase initialization failed: $e');
@@ -209,7 +212,9 @@ class _AppInitializerState extends State<AppInitializer> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _errorMessage.isNotEmpty ? _errorMessage : 'Erreur inconnue',
+                    _errorMessage.isNotEmpty
+                        ? _errorMessage
+                        : 'Erreur inconnue',
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
@@ -239,11 +244,7 @@ class _AppInitializerState extends State<AppInitializer> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Logo simplifié (pas de BoxDecoration complexe)
-            Icon(
-              Icons.swap_horiz_rounded,
-              size: 80,
-              color: Color(0xFFF77F00),
-            ),
+            Icon(Icons.swap_horiz_rounded, size: 80, color: Color(0xFFF77F00)),
             SizedBox(height: 24),
             Text(
               'CHIASMA',
@@ -273,6 +274,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'CHIASMA',
+      navigatorObservers: [AnalyticsService().observer],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFFF77F00), // Orange ivoirien
@@ -314,7 +316,10 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Color(0xFFF77F00), width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
       ),
       home: const AppInitializer(),

@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class UserModel {
   final String uid;
   final String email;
-  final String accountType;             // 'teacher_transfer', 'teacher_candidate', 'school'
+  final String accountType; // 'teacher_transfer', 'teacher_candidate', 'school'
   final String matricule;
   final String nom;
   final List<String> telephones;
@@ -17,21 +17,23 @@ class UserModel {
   final bool isOnline;
   final bool isVerified;
   final bool isAdmin;
-  final bool showContactInfo;            // Afficher les coordonnées (pour les écoles)
-  final int profileViewsCount;           // Nombre de vues du profil (pour les candidats)
-  final String? fcmToken;                // Token FCM pour les notifications push
+  final bool showContactInfo; // Afficher les coordonnées (pour les écoles)
+  final int profileViewsCount; // Nombre de vues du profil (pour les candidats)
+  final String? fcmToken; // Token FCM pour les notifications push
 
   // Système de quotas et abonnements
-  final int freeQuotaUsed;               // Quota gratuit utilisé
-  final int freeQuotaLimit;              // Limite de quota gratuit selon le type de compte
+  final int freeQuotaUsed; // Quota gratuit utilisé
+  final int freeQuotaLimit; // Limite de quota gratuit selon le type de compte
   final DateTime? verificationExpiresAt; // Date d'expiration de la vérification
-  final String? subscriptionDuration;    // Durée choisie: '1_week', '1_month', '3_months', '6_months', '12_months'
-  final DateTime? lastQuotaResetDate;    // Date du dernier reset de quota
+  final String?
+  subscriptionDuration; // Durée choisie: '1_week', '1_month', '3_months', '6_months', '12_months'
+  final DateTime? lastQuotaResetDate; // Date du dernier reset de quota
 
   UserModel({
     required this.uid,
     required this.email,
-    this.accountType = 'teacher_transfer', // Par défaut pour compatibilité avec comptes existants
+    this.accountType =
+        'teacher_transfer', // Par défaut pour compatibilité avec comptes existants
     required this.matricule,
     required this.nom,
     required this.telephones,
@@ -45,11 +47,12 @@ class UserModel {
     this.isOnline = false,
     this.isVerified = false,
     this.isAdmin = false,
-    this.showContactInfo = true,        // Par défaut, les écoles affichent leurs coordonnées
-    this.profileViewsCount = 0,         // Par défaut 0 vue
-    this.fcmToken,                      // Token FCM pour notifications push
-    this.freeQuotaUsed = 0,            // Par défaut 0 quota utilisé
-    int? freeQuotaLimit,               // Calculé selon le type de compte si non fourni
+    this.showContactInfo =
+        true, // Par défaut, les écoles affichent leurs coordonnées
+    this.profileViewsCount = 0, // Par défaut 0 vue
+    this.fcmToken, // Token FCM pour notifications push
+    this.freeQuotaUsed = 0, // Par défaut 0 quota utilisé
+    int? freeQuotaLimit, // Calculé selon le type de compte si non fourni
     this.verificationExpiresAt,
     this.subscriptionDuration,
     this.lastQuotaResetDate,
@@ -59,11 +62,11 @@ class UserModel {
   static int _getDefaultQuotaLimit(String accountType) {
     switch (accountType) {
       case 'teacher_transfer':
-        return 5;  // 5 consultations gratuites
+        return 5; // 5 consultations gratuites
       case 'teacher_candidate':
-        return 2;  // 2 candidatures gratuites
+        return 2; // 2 candidatures gratuites
       case 'school':
-        return 1;  // 1 offre d'emploi gratuite
+        return 1; // 1 offre d'emploi gratuite
       default:
         return 0;
     }
@@ -83,7 +86,7 @@ class UserModel {
   // - Il a un abonnement actif ET non expiré OU
   // - Il a encore du quota gratuit disponible
   bool get hasAccess =>
-    (isVerified && !isVerificationExpired) || !isFreeQuotaExhausted;
+      (isVerified && !isVerificationExpired) || !isFreeQuotaExhausted;
 
   // Calculer le nombre de jours restants avant expiration
   int? get daysUntilExpiration {
@@ -91,6 +94,30 @@ class UserModel {
     final now = DateTime.now();
     if (now.isAfter(verificationExpiresAt!)) return 0;
     return verificationExpiresAt!.difference(now).inDays;
+  }
+
+  // Helper pour convertir DateTime nullable en Timestamp nullable
+  static Timestamp? _dateToTimestamp(DateTime? date) =>
+      date != null ? Timestamp.fromDate(date) : null;
+
+  // Helper pour convertir Timestamp nullable en DateTime nullable
+  static DateTime? _timestampToDate(dynamic timestamp) {
+    if (timestamp == null) return null;
+    try {
+      return (timestamp as Timestamp).toDate();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Helper pour convertir Timestamp en DateTime avec fallback
+  static DateTime _timestampToDateSafe(dynamic timestamp, DateTime fallback) {
+    if (timestamp == null) return fallback;
+    try {
+      return (timestamp as Timestamp).toDate();
+    } catch (e) {
+      return fallback;
+    }
   }
 
   // Convertir en Map pour Firestore
@@ -117,65 +144,23 @@ class UserModel {
       'fcmToken': fcmToken,
       'freeQuotaUsed': freeQuotaUsed,
       'freeQuotaLimit': freeQuotaLimit,
-      'verificationExpiresAt': verificationExpiresAt != null
-          ? Timestamp.fromDate(verificationExpiresAt!)
-          : null,
+      'verificationExpiresAt': _dateToTimestamp(verificationExpiresAt),
       'subscriptionDuration': subscriptionDuration,
-      'lastQuotaResetDate': lastQuotaResetDate != null
-          ? Timestamp.fromDate(lastQuotaResetDate!)
-          : null,
+      'lastQuotaResetDate': _dateToTimestamp(lastQuotaResetDate),
     };
   }
 
   // Créer à partir d'un document Firestore
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-
-    // Gestion robuste des timestamps (peuvent être null)
     DateTime now = DateTime.now();
-    DateTime createdAt = now;
-    DateTime updatedAt = now;
-
-    try {
-      if (data['createdAt'] != null) {
-        createdAt = (data['createdAt'] as Timestamp).toDate();
-      }
-    } catch (e) {
-      // Si erreur de conversion, utiliser la date actuelle
-      createdAt = now;
-    }
-
-    try {
-      if (data['updatedAt'] != null) {
-        updatedAt = (data['updatedAt'] as Timestamp).toDate();
-      }
-    } catch (e) {
-      // Si erreur de conversion, utiliser la date actuelle
-      updatedAt = now;
-    }
-
-    DateTime? verificationExpiresAt;
-    try {
-      if (data['verificationExpiresAt'] != null) {
-        verificationExpiresAt = (data['verificationExpiresAt'] as Timestamp).toDate();
-      }
-    } catch (e) {
-      verificationExpiresAt = null;
-    }
-
-    DateTime? lastQuotaResetDate;
-    try {
-      if (data['lastQuotaResetDate'] != null) {
-        lastQuotaResetDate = (data['lastQuotaResetDate'] as Timestamp).toDate();
-      }
-    } catch (e) {
-      lastQuotaResetDate = null;
-    }
 
     return UserModel(
       uid: doc.id,
       email: data['email'] ?? '',
-      accountType: data['accountType'] ?? 'teacher_transfer', // Par défaut pour compatibilité
+      accountType:
+          data['accountType'] ??
+          'teacher_transfer', // Par défaut pour compatibilité
       matricule: data['matricule'] ?? '',
       nom: data['nom'] ?? '',
       telephones: List<String>.from(data['telephones'] ?? []),
@@ -184,19 +169,21 @@ class UserModel {
       dren: data['dren'],
       infosZoneActuelle: data['infosZoneActuelle'] ?? '',
       zonesSouhaitees: List<String>.from(data['zonesSouhaitees'] ?? []),
-      createdAt: createdAt,
-      updatedAt: updatedAt,
+      createdAt: _timestampToDateSafe(data['createdAt'], now),
+      updatedAt: _timestampToDateSafe(data['updatedAt'], now),
       isOnline: data['isOnline'] ?? false,
       isVerified: data['isVerified'] ?? false,
       isAdmin: data['isAdmin'] ?? false,
-      showContactInfo: data['showContactInfo'] ?? true, // Par défaut true pour compatibilité
-      profileViewsCount: data['profileViewsCount'] ?? 0, // Par défaut 0 pour compatibilité
+      showContactInfo:
+          data['showContactInfo'] ?? true, // Par défaut true pour compatibilité
+      profileViewsCount:
+          data['profileViewsCount'] ?? 0, // Par défaut 0 pour compatibilité
       fcmToken: data['fcmToken'],
       freeQuotaUsed: data['freeQuotaUsed'] ?? 0,
       freeQuotaLimit: data['freeQuotaLimit'],
-      verificationExpiresAt: verificationExpiresAt,
+      verificationExpiresAt: _timestampToDate(data['verificationExpiresAt']),
       subscriptionDuration: data['subscriptionDuration'],
-      lastQuotaResetDate: lastQuotaResetDate,
+      lastQuotaResetDate: _timestampToDate(data['lastQuotaResetDate']),
     );
   }
 
@@ -249,7 +236,8 @@ class UserModel {
       fcmToken: fcmToken ?? this.fcmToken,
       freeQuotaUsed: freeQuotaUsed ?? this.freeQuotaUsed,
       freeQuotaLimit: freeQuotaLimit ?? this.freeQuotaLimit,
-      verificationExpiresAt: verificationExpiresAt ?? this.verificationExpiresAt,
+      verificationExpiresAt:
+          verificationExpiresAt ?? this.verificationExpiresAt,
       subscriptionDuration: subscriptionDuration ?? this.subscriptionDuration,
       lastQuotaResetDate: lastQuotaResetDate ?? this.lastQuotaResetDate,
     );

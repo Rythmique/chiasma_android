@@ -35,7 +35,8 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
     if (user == null) return;
 
     // Vérifier si l'utilisateur peut créer une offre
-    final bool canCreateOffer = user.isVerified || user.freeQuotaUsed < user.freeQuotaLimit;
+    final bool canCreateOffer =
+        user.isVerified || user.freeQuotaUsed < user.freeQuotaLimit;
 
     if (!context.mounted) return;
 
@@ -48,9 +49,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
     // Naviguer vers la page de création
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const CreateJobOfferPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const CreateJobOfferPage()),
     );
   }
 
@@ -58,9 +57,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
   Widget build(BuildContext context) {
     if (_schoolId == null) {
       return const Scaffold(
-        body: Center(
-          child: Text('Erreur: utilisateur non connecté'),
-        ),
+        body: Center(child: Text('Erreur: utilisateur non connecté')),
       );
     }
 
@@ -114,37 +111,37 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
             child: StreamBuilder<List<JobOfferModel>>(
               stream: _jobsService.streamJobOffersBySchoolId(_schoolId),
               builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text('Erreur: ${snapshot.error}'),
-                ],
-              ),
-            );
-          }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error, size: 64, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text('Erreur: ${snapshot.error}'),
+                      ],
+                    ),
+                  );
+                }
 
-          final offers = snapshot.data ?? [];
+                final offers = snapshot.data ?? [];
 
-          if (offers.isEmpty) {
-            return _buildEmptyView(context);
-          }
+                if (offers.isEmpty) {
+                  return _buildEmptyView(context);
+                }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: offers.length,
-            itemBuilder: (context, index) {
-              return _buildOfferCard(offers[index]);
-            },
-          );
-        },
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: offers.length,
+                  itemBuilder: (context, index) {
+                    return _buildOfferCard(offers[index]);
+                  },
+                );
+              },
             ),
           ),
         ],
@@ -165,11 +162,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.work_off_outlined,
-              size: 100,
-              color: Colors.grey[300],
-            ),
+            Icon(Icons.work_off_outlined, size: 100, color: Colors.grey[300]),
             const SizedBox(height: 24),
             Text(
               'Aucune offre publiée',
@@ -196,7 +189,8 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
   /// Carte d'une offre
   Widget _buildOfferCard(JobOfferModel offer) {
     final isActive = offer.status == 'open';
-    final expirationDate = offer.expiresAt ?? DateTime.now().add(const Duration(days: 30));
+    final expirationDate =
+        offer.expiresAt ?? DateTime.now().add(const Duration(days: 30));
     final daysRemaining = expirationDate.difference(DateTime.now()).inDays;
     final isExpiringSoon = daysRemaining <= 7;
 
@@ -207,140 +201,153 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header avec statut
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    offer.poste,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isActive ? Colors.green[100] : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    isActive ? 'Ouverte' : 'Fermée',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: isActive ? Colors.green[900] : Colors.grey[700],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            _buildOfferHeader(offer, isActive),
             const SizedBox(height: 8),
-
-            // Type de contrat
-            Row(
-              children: [
-                Icon(Icons.work_outline, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  offer.typeContrat,
-                  style: TextStyle(color: Colors.grey[700]),
-                ),
-              ],
-            ),
+            _buildOfferContractType(offer),
             const SizedBox(height: 4),
-
-            // Matières
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: offer.matieres.take(3).map((matiere) {
-                return Chip(
-                  label: Text(matiere),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  labelStyle: const TextStyle(fontSize: 11),
-                  visualDensity: VisualDensity.compact,
-                );
-              }).toList(),
-            ),
+            _buildOfferSubjects(offer),
             const SizedBox(height: 12),
-
-            // Statistiques
-            Row(
-              children: [
-                Icon(Icons.visibility, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  '${offer.viewsCount} vues',
-                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                ),
-                const SizedBox(width: 16),
-                Icon(Icons.people, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  '${offer.applicantsCount} candidats',
-                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                ),
-                const Spacer(),
-                if (isExpiringSoon && isActive)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[100],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '$daysRemaining j restants',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.orange[900],
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            _buildOfferStats(offer, isExpiringSoon, isActive, daysRemaining),
             const SizedBox(height: 12),
-
-            // Actions
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _showOfferDetails(offer),
-                    icon: const Icon(Icons.visibility, size: 18),
-                    label: const Text('Détails'),
-                    style: OutlinedButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: offer.applicantsCount > 0
-                        ? () => _viewApplications(offer)
-                        : null,
-                    icon: const Icon(Icons.people, size: 18),
-                    label: Text('${offer.applicantsCount}'),
-                    style: ElevatedButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      backgroundColor: offer.applicantsCount > 0
-                          ? const Color(0xFF009E60)
-                          : Colors.grey,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.more_vert),
-                  onPressed: () => _showOfferMenu(offer),
-                ),
-              ],
-            ),
+            _buildOfferActions(offer),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildOfferHeader(JobOfferModel offer, bool isActive) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            offer.poste,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: isActive ? Colors.green[100] : Colors.grey[200],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            isActive ? 'Ouverte' : 'Fermée',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: isActive ? Colors.green[900] : Colors.grey[700],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOfferContractType(JobOfferModel offer) {
+    return Row(
+      children: [
+        Icon(Icons.work_outline, size: 16, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Text(offer.typeContrat, style: TextStyle(color: Colors.grey[700])),
+      ],
+    );
+  }
+
+  Widget _buildOfferSubjects(JobOfferModel offer) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: offer.matieres.take(3).map((matiere) {
+        return Chip(
+          label: Text(matiere),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          labelStyle: const TextStyle(fontSize: 11),
+          visualDensity: VisualDensity.compact,
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildOfferStats(
+    JobOfferModel offer,
+    bool isExpiringSoon,
+    bool isActive,
+    int daysRemaining,
+  ) {
+    return Row(
+      children: [
+        Icon(Icons.visibility, size: 16, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Text(
+          '${offer.viewsCount} vues',
+          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+        ),
+        const SizedBox(width: 16),
+        Icon(Icons.people, size: 16, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Text(
+          '${offer.applicantsCount} candidats',
+          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+        ),
+        const Spacer(),
+        if (isExpiringSoon && isActive)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange[100],
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '$daysRemaining j restants',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.orange[900],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOfferActions(JobOfferModel offer) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => _showOfferDetails(offer),
+            icon: const Icon(Icons.visibility, size: 18),
+            label: const Text('Détails'),
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: offer.applicantsCount > 0
+                ? () => _viewApplications(offer)
+                : null,
+            icon: const Icon(Icons.people, size: 18),
+            label: Text('${offer.applicantsCount}'),
+            style: ElevatedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              backgroundColor: offer.applicantsCount > 0
+                  ? const Color(0xFF009E60)
+                  : Colors.grey,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: const Icon(Icons.more_vert),
+          onPressed: () => _showOfferMenu(offer),
+        ),
+      ],
     );
   }
 
@@ -387,8 +394,8 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
               Text(
                 offer.poste,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -402,7 +409,8 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
               const SizedBox(height: 16),
               _buildDetailSection('Type de contrat', offer.typeContrat),
               const SizedBox(height: 16),
-              if (offer.description.isNotEmpty && offer.description != 'Aucune description')
+              if (offer.description.isNotEmpty &&
+                  offer.description != 'Aucune description')
                 _buildDetailSection('Description', offer.description),
             ],
           ),
@@ -441,9 +449,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              newStatus == 'open'
-                  ? 'Offre activée'
-                  : 'Offre suspendue',
+              newStatus == 'open' ? 'Offre activée' : 'Offre suspendue',
             ),
           ),
         );
@@ -451,10 +457,7 @@ class _MyJobOffersPageState extends State<MyJobOffersPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     }

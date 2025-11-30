@@ -25,6 +25,12 @@ class ZoneSearchField extends StatefulWidget {
 }
 
 class _ZoneSearchFieldState extends State<ZoneSearchField> {
+  static const _orangeColor = Color(0xFFF77F00);
+  static const _borderRadius = 12.0;
+  static const _maxSuggestions = 10;
+  static const _overlayOffset = Offset(0, 5);
+  static const _maxOverlayHeight = 300.0;
+
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   List<String> _suggestions = [];
@@ -55,11 +61,12 @@ class _ZoneSearchFieldState extends State<ZoneSearchField> {
   void _onSearchChanged() {
     final query = _controller.text;
     setState(() {
-      if (query.isEmpty) {
-        _suggestions = ZonesCoteIvoire.zones.take(10).toList();
-      } else {
-        _suggestions = ZonesCoteIvoire.rechercher(query).take(10).toList();
-      }
+      _suggestions =
+          (query.isEmpty
+                  ? ZonesCoteIvoire.zones
+                  : ZonesCoteIvoire.rechercher(query))
+              .take(_maxSuggestions)
+              .toList();
     });
     _updateOverlay();
   }
@@ -92,8 +99,8 @@ class _ZoneSearchFieldState extends State<ZoneSearchField> {
   }
 
   OverlayEntry _createOverlayEntry() {
-    RenderBox renderBox = context.findRenderObject() as RenderBox;
-    var size = renderBox.size;
+    final renderBox = context.findRenderObject() as RenderBox;
+    final size = renderBox.size;
 
     return OverlayEntry(
       builder: (context) => Positioned(
@@ -101,79 +108,77 @@ class _ZoneSearchFieldState extends State<ZoneSearchField> {
         child: CompositedTransformFollower(
           link: _layerLink,
           showWhenUnlinked: false,
-          offset: Offset(0, size.height + 5),
+          offset: Offset(0, size.height + _overlayOffset.dy),
           child: Material(
             elevation: 4,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(_borderRadius),
             child: _suggestions.isEmpty
-                ? Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: const Text(
-                      'Aucune zone trouvée',
-                      style: TextStyle(color: Colors.grey),
-                      textAlign: TextAlign.center,
-                    ),
-                  )
-                : Container(
-                    constraints: const BoxConstraints(maxHeight: 300),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: ListView.separated(
-                      padding: EdgeInsets.zero,
-                      shrinkWrap: true,
-                      itemCount: _suggestions.length,
-                      separatorBuilder: (context, index) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final zone = _suggestions[index];
-                        final parts = zone.split(', ');
-                        final ville = parts.isNotEmpty ? parts[0] : zone;
-                        final departement = parts.length > 1 ? parts[1] : '';
-                        final region = parts.length > 2 ? parts[2] : '';
-
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            ville,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          subtitle: Text(
-                            departement.isNotEmpty
-                                ? '$departement, $region'
-                                : region,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          leading: Icon(
-                            Icons.location_on,
-                            color: const Color(0xFFF77F00),
-                            size: 20,
-                          ),
-                          onTap: () {
-                            _controller.text = zone;
-                            widget.onZoneSelected(zone);
-                            _focusNode.unfocus();
-                            _removeOverlay();
-                          },
-                        );
-                      },
-                    ),
-                  ),
+                ? _buildEmptyState()
+                : _buildSuggestionsList(),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _buildContainerDecoration(),
+      child: const Text(
+        'Aucune zone trouvée',
+        style: TextStyle(color: Colors.grey),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildSuggestionsList() {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: _maxOverlayHeight),
+      decoration: _buildContainerDecoration(),
+      child: ListView.separated(
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
+        itemCount: _suggestions.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) =>
+            _buildSuggestionTile(_suggestions[index]),
+      ),
+    );
+  }
+
+  BoxDecoration _buildContainerDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(_borderRadius),
+      border: Border.all(color: Colors.grey.shade300),
+    );
+  }
+
+  Widget _buildSuggestionTile(String zone) {
+    final parts = zone.split(', ');
+    final ville = parts.isNotEmpty ? parts[0] : zone;
+    final departement = parts.length > 1 ? parts[1] : '';
+    final region = parts.length > 2 ? parts[2] : '';
+
+    return ListTile(
+      dense: true,
+      title: Text(
+        ville,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+      ),
+      subtitle: Text(
+        departement.isNotEmpty ? '$departement, $region' : region,
+        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+      ),
+      leading: const Icon(Icons.location_on, color: _orangeColor, size: 20),
+      onTap: () {
+        _controller.text = zone;
+        widget.onZoneSelected(zone);
+        _focusNode.unfocus();
+        _removeOverlay();
+      },
     );
   }
 
@@ -187,7 +192,7 @@ class _ZoneSearchFieldState extends State<ZoneSearchField> {
         decoration: InputDecoration(
           labelText: widget.labelText,
           hintText: widget.hintText,
-          prefixIcon: Icon(widget.icon, color: const Color(0xFFF77F00)),
+          prefixIcon: Icon(widget.icon, color: _orangeColor),
           suffixIcon: _controller.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear, size: 20),
@@ -199,29 +204,21 @@ class _ZoneSearchFieldState extends State<ZoneSearchField> {
               : const Icon(Icons.search, size: 20),
           filled: true,
           fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFF77F00), width: 2),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.red),
-          ),
-          focusedErrorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.red, width: 2),
-          ),
+          border: _buildInputBorder(Colors.grey.shade300),
+          enabledBorder: _buildInputBorder(Colors.grey.shade300),
+          focusedBorder: _buildInputBorder(_orangeColor, width: 2),
+          errorBorder: _buildInputBorder(Colors.red),
+          focusedErrorBorder: _buildInputBorder(Colors.red, width: 2),
         ),
         validator: widget.validator,
       ),
+    );
+  }
+
+  OutlineInputBorder _buildInputBorder(Color color, {double width = 1}) {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(_borderRadius),
+      borderSide: BorderSide(color: color, width: width),
     );
   }
 }

@@ -3,34 +3,35 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Modèle pour une candidature d'enseignant
 class JobApplicationModel {
   final String id;
-  final String userId;              // Référence au candidat
+  final String userId; // Référence au candidat
   final String nom;
   final String email;
   final List<String> telephones;
 
   // Informations professionnelles
-  final List<String> matieres;      // Matières enseignées (ex: Mathématiques, Physique)
-  final List<String> niveaux;       // Niveaux (ex: 6ème, 5ème, Terminale)
-  final List<String> diplomes;      // Diplômes obtenus
-  final String experience;          // Années d'expérience (ex: "5 ans", "Débutant")
+  final List<String>
+  matieres; // Matières enseignées (ex: Mathématiques, Physique)
+  final List<String> niveaux; // Niveaux (ex: 6ème, 5ème, Terminale)
+  final List<String> diplomes; // Diplômes obtenus
+  final String experience; // Années d'expérience (ex: "5 ans", "Débutant")
 
   // Localisation et disponibilité
   final List<String> zonesSouhaitees; // Villes/zones souhaitées
-  final String disponibilite;       // "Immédiate", "Dans 1 mois", etc.
+  final String disponibilite; // "Immédiate", "Dans 1 mois", etc.
 
   // Documents (optionnels)
-  final String? cvUrl;              // URL du CV uploadé
+  final String? cvUrl; // URL du CV uploadé
   final String? lettreMotivationUrl; // URL de la lettre
-  final String? photoUrl;           // Photo du candidat
+  final String? photoUrl; // Photo du candidat
 
   // Métadonnées
   final DateTime createdAt;
   final DateTime updatedAt;
-  final String status;              // 'active', 'hired', 'inactive'
+  final String status; // 'active', 'hired', 'inactive'
 
   // Statistiques
-  final int viewsCount;             // Nombre de vues par recruteurs
-  final int contactsCount;          // Nombre de contacts reçus
+  final int viewsCount; // Nombre de vues par recruteurs
+  final int contactsCount; // Nombre de contacts reçus
 
   JobApplicationModel({
     required this.id,

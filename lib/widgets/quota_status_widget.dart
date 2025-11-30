@@ -3,68 +3,66 @@ import 'package:myapp/models/user_model.dart';
 import 'package:myapp/services/access_restrictions_service.dart';
 
 class QuotaStatusWidget extends StatelessWidget {
-  final UserModel user;
-  final AccessRestrictionsService _restrictionsService = AccessRestrictionsService();
+  static const _greenColor = Color(0xFF009E60);
+  static const _borderRadius = 12.0;
 
-  QuotaStatusWidget({
-    super.key,
-    required this.user,
-  });
+  final UserModel user;
+  final AccessRestrictionsService _restrictionsService =
+      AccessRestrictionsService();
+
+  QuotaStatusWidget({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
-    // Écouter les restrictions en temps réel
     return StreamBuilder<Map<String, bool>>(
       stream: _restrictionsService.getRestrictionsStream(),
-      builder: (context, restrictionsSnapshot) {
-        // Récupérer les restrictions (valeurs par défaut si erreur)
-        final restrictions = restrictionsSnapshot.data ?? {
-          'teacher_transfer': true,
-          'teacher_candidate': true,
-          'school': true,
-        };
-
-        // Si les restrictions sont désactivées pour ce type de compte, ne rien afficher
+      builder: (context, snapshot) {
+        final restrictions = snapshot.data ?? _getDefaultRestrictions();
         final restrictionsEnabled = restrictions[user.accountType] ?? true;
-        if (!restrictionsEnabled) {
-          return const SizedBox.shrink();
-        }
 
-        // Sinon, afficher le widget normalement
-        return _buildQuotaWidget();
+        return restrictionsEnabled
+            ? _buildQuotaWidget()
+            : const SizedBox.shrink();
       },
     );
   }
 
-  Widget _buildQuotaWidget() {
-    final quotaUsed = user.freeQuotaUsed;
-    final quotaLimit = user.freeQuotaLimit;
-    final quotaRemaining = quotaLimit - quotaUsed;
-    final percentage = quotaLimit > 0 ? quotaUsed / quotaLimit : 0.0;
+  Map<String, bool> _getDefaultRestrictions() {
+    return {
+      'teacher_transfer': true,
+      'teacher_candidate': true,
+      'school': true,
+    };
+  }
 
-    // Ne pas afficher si l'utilisateur a un abonnement actif ET n'a pas épuisé son quota
-    if (user.isVerified && !user.isVerificationExpired && !user.isFreeQuotaExhausted) {
+  Widget _buildQuotaWidget() {
+    // Pour teacher_transfer: masquer le widget complètement si vérifié (peu importe le quota)
+    if (user.accountType == 'teacher_transfer' &&
+        user.isVerified &&
+        !user.isVerificationExpired) {
       return const SizedBox.shrink();
     }
 
-    // Déterminer la couleur selon le quota restant
-    Color color;
-    if (quotaRemaining == 0) {
-      color = Colors.red;
-    } else if (quotaRemaining <= 1) {
-      color = Colors.orange;
-    } else {
-      color = const Color(0xFF009E60);
+    // Pour les autres types de compte: masquer si vérifié ET quota non épuisé
+    if (user.isVerified &&
+        !user.isVerificationExpired &&
+        !user.isFreeQuotaExhausted) {
+      return const SizedBox.shrink();
     }
 
-    String actionLabel = _getActionLabel(user.accountType);
+    final quotaRemaining = user.freeQuotaLimit - user.freeQuotaUsed;
+    final percentage = user.freeQuotaLimit > 0
+        ? user.freeQuotaUsed / user.freeQuotaLimit
+        : 0.0;
+    final color = _getQuotaColor(quotaRemaining);
+    final actionLabel = _getActionLabel(user.accountType);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(_borderRadius),
         border: Border.all(color: Colors.grey[300]!),
         boxShadow: [
           BoxShadow(
@@ -77,69 +75,74 @@ class QuotaStatusWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.stars,
-                color: color,
-                size: 24,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Quota gratuit',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$quotaRemaining / $quotaLimit',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          _buildHeader(color, quotaRemaining),
           const SizedBox(height: 12),
-
-          // Barre de progression
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: percentage,
-              backgroundColor: Colors.grey[200],
-              valueColor: AlwaysStoppedAnimation<Color>(color),
-              minHeight: 8,
-            ),
-          ),
+          _buildProgressBar(percentage, color),
           const SizedBox(height: 8),
-
-          Text(
-            quotaRemaining > 0
-                ? 'Il vous reste $quotaRemaining $actionLabel'
-                : 'Quota épuisé - Prenez un abonnement pour continuer',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[700],
-            ),
-          ),
+          _buildStatusText(quotaRemaining, actionLabel),
         ],
       ),
+    );
+  }
+
+  Color _getQuotaColor(int remaining) {
+    if (remaining == 0) return Colors.red;
+    if (remaining <= 1) return Colors.orange;
+    return _greenColor;
+  }
+
+  Widget _buildHeader(Color color, int quotaRemaining) {
+    return Row(
+      children: [
+        Icon(Icons.stars, color: color, size: 24),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Quota gratuit',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(_borderRadius),
+          ),
+          child: Text(
+            '$quotaRemaining / ${user.freeQuotaLimit}',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressBar(double percentage, Color color) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: LinearProgressIndicator(
+        value: percentage,
+        backgroundColor: Colors.grey[200],
+        valueColor: AlwaysStoppedAnimation<Color>(color),
+        minHeight: 8,
+      ),
+    );
+  }
+
+  Widget _buildStatusText(int quotaRemaining, String actionLabel) {
+    return Text(
+      quotaRemaining > 0
+          ? 'Il vous reste $quotaRemaining $actionLabel'
+          : 'Quota épuisé - Prenez un abonnement pour continuer',
+      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
     );
   }
 

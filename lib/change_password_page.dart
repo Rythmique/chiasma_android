@@ -108,10 +108,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           errorMessage = 'Le mot de passe actuel est incorrect';
           break;
         case 'weak-password':
-          errorMessage = 'Le nouveau mot de passe est trop faible (min. 6 caractères)';
+          errorMessage =
+              'Le nouveau mot de passe est trop faible (min. 6 caractères)';
           break;
         case 'requires-recent-login':
-          errorMessage = 'Veuillez vous reconnecter pour changer votre mot de passe';
+          errorMessage =
+              'Veuillez vous reconnecter pour changer votre mot de passe';
           break;
         case 'too-many-requests':
           errorMessage = 'Trop de tentatives. Veuillez réessayer plus tard';
@@ -179,8 +181,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 'Sécurisez votre compte',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -317,7 +319,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     _buildSecurityTip('Utilisez au moins 8 caractères'),
                     _buildSecurityTip('Mélangez lettres, chiffres et symboles'),
                     _buildSecurityTip('Évitez les informations personnelles'),
-                    _buildSecurityTip('N\'utilisez pas le même mot de passe partout'),
+                    _buildSecurityTip(
+                      'N\'utilisez pas le même mot de passe partout',
+                    ),
                   ],
                 ),
               ),
@@ -340,7 +344,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       )
                     : const Text(
                         'Changer le mot de passe',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
             ],

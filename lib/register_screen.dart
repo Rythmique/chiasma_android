@@ -33,7 +33,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
 
   // Contrôleurs pour les numéros de téléphone (max 3)
-  final List<TextEditingController> _phoneControllers = [TextEditingController()];
+  final List<TextEditingController> _phoneControllers = [
+    TextEditingController(),
+  ];
 
   // Zones (stockées comme String, pas TextEditingController)
   String _zoneActuelle = '';
@@ -107,10 +109,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     Text(
                       'Recherchez et sélectionnez une zone souhaitée',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 16),
                     ZoneSearchField(
@@ -132,9 +131,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: const Text('Annuler'),
                 ),
                 ElevatedButton(
-                  onPressed: selectedZone.isEmpty ||
-                             selectedZone == _zoneActuelle ||
-                             _zonesSouhaitees.contains(selectedZone)
+                  onPressed:
+                      selectedZone.isEmpty ||
+                          selectedZone == _zoneActuelle ||
+                          _zonesSouhaitees.contains(selectedZone)
                       ? null
                       : () {
                           setState(() {
@@ -204,7 +204,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         telephones: telephones,
         fonction: _fonctionController.text.trim(),
         zoneActuelle: _zoneActuelle,
-        dren: _drenController.text.trim().isEmpty ? null : _drenController.text.trim(),
+        dren: _drenController.text.trim().isEmpty
+            ? null
+            : _drenController.text.trim(),
         infosZoneActuelle: _infosZoneController.text.trim(),
         zonesSouhaitees: _zonesSouhaitees,
       );
@@ -303,7 +305,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFFF77F00).withValues(alpha: 0.3),
+                                      color: const Color(
+                                        0xFFF77F00,
+                                      ).withValues(alpha: 0.3),
                                       blurRadius: 20,
                                       offset: const Offset(0, 10),
                                     ),
@@ -346,7 +350,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   letterSpacing: 1,
                                   shadows: [
                                     Shadow(
-                                      color: const Color(0xFFF77F00).withValues(alpha: 0.3),
+                                      color: const Color(
+                                        0xFFF77F00,
+                                      ).withValues(alpha: 0.3),
                                       offset: const Offset(0, 3),
                                       blurRadius: 8,
                                     ),
@@ -374,7 +380,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.08),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.08,
+                                      ),
                                       blurRadius: 30,
                                       offset: const Offset(0, 10),
                                     ),
@@ -383,18 +391,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 child: Padding(
                                   padding: const EdgeInsets.all(24.0),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
                                     children: [
                                       // Barre décorative avec couleurs du drapeau
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           Container(
                                             width: 30,
                                             height: 4,
                                             decoration: BoxDecoration(
                                               color: const Color(0xFFF77F00),
-                                              borderRadius: BorderRadius.circular(2),
+                                              borderRadius:
+                                                  BorderRadius.circular(2),
                                             ),
                                           ),
                                           const SizedBox(width: 4),
@@ -403,7 +414,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             height: 4,
                                             decoration: BoxDecoration(
                                               color: Colors.grey[300],
-                                              borderRadius: BorderRadius.circular(2),
+                                              borderRadius:
+                                                  BorderRadius.circular(2),
                                             ),
                                           ),
                                           const SizedBox(width: 4),
@@ -412,7 +424,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             height: 4,
                                             decoration: BoxDecoration(
                                               color: const Color(0xFF009E60),
-                                              borderRadius: BorderRadius.circular(2),
+                                              borderRadius:
+                                                  BorderRadius.circular(2),
                                             ),
                                           ),
                                         ],
@@ -425,7 +438,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         decoration: const InputDecoration(
                                           labelText: 'Nom complet',
                                           hintText: 'Entrez votre nom complet',
-                                          prefixIcon: Icon(Icons.person_outline, color: Color(0xFFF77F00)),
+                                          prefixIcon: Icon(
+                                            Icons.person_outline,
+                                            color: Color(0xFFF77F00),
+                                          ),
                                         ),
                                         keyboardType: TextInputType.name,
                                         enabled: !_isLoading,
@@ -447,7 +463,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         decoration: const InputDecoration(
                                           labelText: 'Numéro de matricule',
                                           hintText: '123456A',
-                                          prefixIcon: Icon(Icons.badge_outlined, color: Color(0xFFF77F00)),
+                                          prefixIcon: Icon(
+                                            Icons.badge_outlined,
+                                            color: Color(0xFFF77F00),
+                                          ),
                                         ),
                                         keyboardType: TextInputType.text,
                                         enabled: !_isLoading,
@@ -460,7 +479,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             return 'Veuillez entrer votre matricule';
                                           }
                                           // Validation stricte: 6 chiffres + 1 lettre
-                                          final matriculeRegex = RegExp(r'^\d{6}[A-Z]$');
+                                          final matriculeRegex = RegExp(
+                                            r'^\d{6}[A-Z]$',
+                                          );
                                           if (!matriculeRegex.hasMatch(value)) {
                                             return 'Format: 6 chiffres + 1 lettre (ex: 123456A)';
                                           }
@@ -475,9 +496,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         decoration: const InputDecoration(
                                           labelText: 'Adresse email',
                                           hintText: 'exemple@email.ci',
-                                          prefixIcon: Icon(Icons.email_outlined, color: Color(0xFFF77F00)),
+                                          prefixIcon: Icon(
+                                            Icons.email_outlined,
+                                            color: Color(0xFFF77F00),
+                                          ),
                                         ),
-                                        keyboardType: TextInputType.emailAddress,
+                                        keyboardType:
+                                            TextInputType.emailAddress,
                                         enabled: !_isLoading,
                                         validator: (value) {
                                           if (value == null || value.isEmpty) {
@@ -511,30 +536,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       const SizedBox(height: 12),
 
                                       // Liste des champs téléphone
-                                      ..._phoneControllers.asMap().entries.map((entry) {
+                                      ..._phoneControllers.asMap().entries.map((
+                                        entry,
+                                      ) {
                                         int index = entry.key;
                                         return Padding(
-                                          padding: const EdgeInsets.only(bottom: 12.0),
+                                          padding: const EdgeInsets.only(
+                                            bottom: 12.0,
+                                          ),
                                           child: Row(
                                             children: [
                                               Expanded(
                                                 child: TextFormField(
                                                   controller: entry.value,
                                                   decoration: InputDecoration(
-                                                    labelText: 'Téléphone ${index + 1}',
+                                                    labelText:
+                                                        'Téléphone ${index + 1}',
                                                     hintText: '1234561234',
-                                                    prefixIcon: const Icon(Icons.phone_outlined, color: Color(0xFFF77F00)),
+                                                    prefixIcon: const Icon(
+                                                      Icons.phone_outlined,
+                                                      color: Color(0xFFF77F00),
+                                                    ),
                                                   ),
-                                                  keyboardType: TextInputType.number,
+                                                  keyboardType:
+                                                      TextInputType.number,
                                                   inputFormatters: [
-                                                    FilteringTextInputFormatter.digitsOnly,
-                                                    LengthLimitingTextInputFormatter(10),
+                                                    FilteringTextInputFormatter
+                                                        .digitsOnly,
+                                                    LengthLimitingTextInputFormatter(
+                                                      10,
+                                                    ),
                                                   ],
                                                   validator: (value) {
-                                                    if (index == 0 && (value == null || value.isEmpty)) {
+                                                    if (index == 0 &&
+                                                        (value == null ||
+                                                            value.isEmpty)) {
                                                       return 'Au moins un numéro est requis';
                                                     }
-                                                    if (value != null && value.isNotEmpty && value.length != 10) {
+                                                    if (value != null &&
+                                                        value.isNotEmpty &&
+                                                        value.length != 10) {
                                                       return 'Exactement 10 chiffres requis';
                                                     }
                                                     return null;
@@ -543,8 +584,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                               ),
                                               if (_phoneControllers.length > 1)
                                                 IconButton(
-                                                  icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                                                  onPressed: () => _removePhoneField(index),
+                                                  icon: const Icon(
+                                                    Icons.remove_circle_outline,
+                                                    color: Colors.red,
+                                                  ),
+                                                  onPressed: () =>
+                                                      _removePhoneField(index),
                                                 ),
                                             ],
                                           ),
@@ -556,10 +601,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           alignment: Alignment.centerLeft,
                                           child: TextButton.icon(
                                             onPressed: _addPhoneField,
-                                            icon: const Icon(Icons.add_circle_outline),
-                                            label: const Text('Ajouter un numéro'),
+                                            icon: const Icon(
+                                              Icons.add_circle_outline,
+                                            ),
+                                            label: const Text(
+                                              'Ajouter un numéro',
+                                            ),
                                             style: TextButton.styleFrom(
-                                              foregroundColor: const Color(0xFF009E60),
+                                              foregroundColor: const Color(
+                                                0xFF009E60,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -571,7 +622,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         decoration: const InputDecoration(
                                           labelText: 'Fonction',
                                           hintText: 'Votre fonction actuelle',
-                                          prefixIcon: Icon(Icons.work_outline, color: Color(0xFFF77F00)),
+                                          prefixIcon: Icon(
+                                            Icons.work_outline,
+                                            color: Color(0xFFF77F00),
+                                          ),
                                         ),
                                         keyboardType: TextInputType.text,
                                         enabled: !_isLoading,
@@ -588,7 +642,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       ZoneSearchField(
                                         initialValue: _zoneActuelle,
                                         labelText: 'Zone actuelle',
-                                        hintText: 'Recherchez votre zone de travail actuelle...',
+                                        hintText:
+                                            'Recherchez votre zone de travail actuelle...',
                                         icon: Icons.location_on_outlined,
                                         onZoneSelected: (zone) {
                                           setState(() {
@@ -609,11 +664,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         controller: _drenController,
                                         decoration: InputDecoration(
                                           labelText: 'DREN (optionnel)',
-                                          hintText: 'Direction Régionale de l\'Éducation Nationale',
-                                          prefixIcon: const Icon(Icons.account_balance_outlined, color: Color(0xFFF77F00)),
+                                          hintText:
+                                              'Direction Régionale de l\'Éducation Nationale',
+                                          prefixIcon: const Icon(
+                                            Icons.account_balance_outlined,
+                                            color: Color(0xFFF77F00),
+                                          ),
                                           suffixIcon: Tooltip(
                                             message: 'Champ optionnel',
-                                            child: Icon(Icons.info_outline, color: Colors.grey[400], size: 20),
+                                            child: Icon(
+                                              Icons.info_outline,
+                                              color: Colors.grey[400],
+                                              size: 20,
+                                            ),
                                           ),
                                         ),
                                         keyboardType: TextInputType.text,
@@ -625,9 +688,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       TextFormField(
                                         controller: _infosZoneController,
                                         decoration: const InputDecoration(
-                                          labelText: 'Informations sur votre zone actuelle',
-                                          hintText: 'Ex: Proximité des commerces, écoles, centres de santé, accès routier, conditions de vie, etc. (min. 50 caractères)',
-                                          prefixIcon: Icon(Icons.description_outlined, color: Color(0xFFF77F00)),
+                                          labelText:
+                                              'Informations sur votre zone actuelle',
+                                          hintText:
+                                              'Ex: Proximité des commerces, écoles, centres de santé, accès routier, conditions de vie, etc. (min. 50 caractères)',
+                                          prefixIcon: Icon(
+                                            Icons.description_outlined,
+                                            color: Color(0xFFF77F00),
+                                          ),
                                           alignLabelWithHint: true,
                                         ),
                                         keyboardType: TextInputType.multiline,
@@ -647,10 +715,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                       // Section Zones souhaitées
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
                                         children: [
                                           Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 'Zones souhaitées',
@@ -665,7 +735,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                                 '${_zonesSouhaitees.length}/5 zones',
                                                 style: TextStyle(
                                                   fontSize: 12,
-                                                  color: _zonesSouhaitees.length >= 5
+                                                  color:
+                                                      _zonesSouhaitees.length >=
+                                                          5
                                                       ? Colors.red
                                                       : const Color(0xFF009E60),
                                                   fontWeight: FontWeight.w500,
@@ -674,12 +746,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             ],
                                           ),
                                           TextButton.icon(
-                                            onPressed: _zonesSouhaitees.length >= 5 ? null : _addZoneSouhaitee,
-                                            icon: const Icon(Icons.add, size: 18),
+                                            onPressed:
+                                                _zonesSouhaitees.length >= 5
+                                                ? null
+                                                : _addZoneSouhaitee,
+                                            icon: const Icon(
+                                              Icons.add,
+                                              size: 18,
+                                            ),
                                             label: const Text('Ajouter'),
                                             style: TextButton.styleFrom(
-                                              foregroundColor: const Color(0xFF009E60),
-                                              disabledForegroundColor: Colors.grey[400],
+                                              foregroundColor: const Color(
+                                                0xFF009E60,
+                                              ),
+                                              disabledForegroundColor:
+                                                  Colors.grey[400],
                                             ),
                                           ),
                                         ],
@@ -692,12 +773,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           padding: const EdgeInsets.all(16),
                                           decoration: BoxDecoration(
                                             color: Colors.grey[100],
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: Colors.grey[300]!),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.grey[300]!,
+                                            ),
                                           ),
                                           child: Row(
                                             children: [
-                                              Icon(Icons.info_outline, size: 20, color: Colors.grey[600]),
+                                              Icon(
+                                                Icons.info_outline,
+                                                size: 20,
+                                                color: Colors.grey[600],
+                                              ),
                                               const SizedBox(width: 12),
                                               Expanded(
                                                 child: Text(
@@ -712,46 +801,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           ),
                                         )
                                       else
-                                        ..._zonesSouhaitees.asMap().entries.map((entry) {
-                                          final index = entry.key;
-                                          final zone = entry.value;
-                                          return Container(
-                                            margin: const EdgeInsets.only(bottom: 8),
-                                            padding: const EdgeInsets.all(12),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF009E60).withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(
-                                                color: const Color(0xFF009E60).withValues(alpha: 0.3),
+                                        ..._zonesSouhaitees.asMap().entries.map(
+                                          (entry) {
+                                            final index = entry.key;
+                                            final zone = entry.value;
+                                            return Container(
+                                              margin: const EdgeInsets.only(
+                                                bottom: 8,
                                               ),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.location_on,
-                                                  color: Color(0xFF009E60),
-                                                  size: 20,
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: const Color(
+                                                  0xFF009E60,
+                                                ).withValues(alpha: 0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFF009E60,
+                                                  ).withValues(alpha: 0.3),
                                                 ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Text(
-                                                    zone,
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight: FontWeight.w500,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.location_on,
+                                                    color: Color(0xFF009E60),
+                                                    size: 20,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Text(
+                                                      zone,
+                                                      style: const TextStyle(
+                                                        fontSize: 14,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.close, size: 20),
-                                                  color: Colors.red,
-                                                  onPressed: () => _removeZoneSouhaitee(index),
-                                                  tooltip: 'Supprimer',
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        }),
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.close,
+                                                      size: 20,
+                                                    ),
+                                                    color: Colors.red,
+                                                    onPressed: () =>
+                                                        _removeZoneSouhaitee(
+                                                          index,
+                                                        ),
+                                                    tooltip: 'Supprimer',
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
                                       const SizedBox(height: 20),
 
                                       // Champ Mot de passe
@@ -762,12 +867,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           hintText: '••••••••',
                                           suffixIcon: IconButton(
                                             icon: Icon(
-                                              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                              _obscurePassword
+                                                  ? Icons.visibility_outlined
+                                                  : Icons
+                                                        .visibility_off_outlined,
                                               color: Colors.grey[600],
                                             ),
                                             onPressed: () {
                                               setState(() {
-                                                _obscurePassword = !_obscurePassword;
+                                                _obscurePassword =
+                                                    !_obscurePassword;
                                               });
                                             },
                                           ),
@@ -788,16 +897,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       // Champ Confirmation mot de passe
                                       TextFormField(
                                         decoration: InputDecoration(
-                                          labelText: 'Confirmer le mot de passe',
+                                          labelText:
+                                              'Confirmer le mot de passe',
                                           hintText: '••••••••',
                                           suffixIcon: IconButton(
                                             icon: Icon(
-                                              _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                              _obscureConfirmPassword
+                                                  ? Icons.visibility_outlined
+                                                  : Icons
+                                                        .visibility_off_outlined,
                                               color: Colors.grey[600],
                                             ),
                                             onPressed: () {
                                               setState(() {
-                                                _obscureConfirmPassword = !_obscureConfirmPassword;
+                                                _obscureConfirmPassword =
+                                                    !_obscureConfirmPassword;
                                               });
                                             },
                                           ),
@@ -807,7 +921,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           if (value == null || value.isEmpty) {
                                             return 'Veuillez confirmer votre mot de passe';
                                           }
-                                          if (value != _passwordController.text) {
+                                          if (value !=
+                                              _passwordController.text) {
                                             return 'Les mots de passe ne correspondent pas';
                                           }
                                           return null;
@@ -817,13 +932,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                       // Bouton d'inscription
                                       ElevatedButton(
-                                        onPressed: _isLoading ? null : _handleRegister,
+                                        onPressed: _isLoading
+                                            ? null
+                                            : _handleRegister,
                                         style: ElevatedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(vertical: 18),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 18,
                                           ),
-                                          backgroundColor: const Color(0xFFF77F00),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          backgroundColor: const Color(
+                                            0xFFF77F00,
+                                          ),
                                           foregroundColor: Colors.white,
                                         ),
                                         child: _isLoading
@@ -832,7 +955,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                                 width: 20,
                                                 child: CircularProgressIndicator(
                                                   strokeWidth: 2,
-                                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Colors.white),
                                                 ),
                                               )
                                             : const Text(
@@ -848,18 +974,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                       // Lien vers connexion
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           Text(
                                             'Déjà un compte ? ',
-                                            style: TextStyle(color: Colors.grey[600]),
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                            ),
                                           ),
                                           TextButton(
-                                            onPressed: () => Navigator.pop(context),
+                                            onPressed: () =>
+                                                Navigator.pop(context),
                                             style: TextButton.styleFrom(
                                               padding: EdgeInsets.zero,
                                               minimumSize: const Size(0, 0),
-                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
                                             ),
                                             child: const Text(
                                               'Se connecter',

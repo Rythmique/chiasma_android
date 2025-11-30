@@ -19,8 +19,8 @@ class AlgoliaConfig {
   /// Vérifier si Algolia est configuré
   static bool get isConfigured {
     return applicationId != 'YOUR_APPLICATION_ID_HERE' &&
-           searchApiKey != 'YOUR_SEARCH_API_KEY_HERE' &&
-           applicationId.isNotEmpty &&
-           searchApiKey.isNotEmpty;
+        searchApiKey != 'YOUR_SEARCH_API_KEY_HERE' &&
+        applicationId.isNotEmpty &&
+        searchApiKey.isNotEmpty;
   }
 }

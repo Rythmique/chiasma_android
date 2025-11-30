@@ -1,48 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:in_app_update/in_app_update.dart';
 
-/// Service de gestion des mises à jour de l'application
-///
-/// Utilise le package in_app_update pour détecter et installer
-/// automatiquement les mises à jour disponibles sur le Play Store
 class AppUpdateService {
-  /// Vérifier et afficher les mises à jour disponibles
-  ///
-  /// Cette méthode doit être appelée au démarrage de l'application
-  /// Elle propose deux types de mise à jour :
-  /// - Flexible : L'utilisateur peut continuer à utiliser l'app
-  /// - Immédiate : L'utilisateur doit mettre à jour avant de continuer
+  static const _orangeColor = Color(0xFFF77F00);
+  static const _greenColor = Color(0xFF009E60);
+
   static Future<void> checkForUpdate(BuildContext context) async {
     try {
-      // Vérifier la disponibilité d'une mise à jour
       final AppUpdateInfo updateInfo = await InAppUpdate.checkForUpdate();
 
       if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
-        // Déterminer le type de mise à jour en fonction de la priorité
-        // staleDays indique depuis combien de jours la mise à jour est disponible
-        final shouldForceUpdate = updateInfo.immediateUpdateAllowed &&
+        final shouldForceUpdate =
+            updateInfo.immediateUpdateAllowed &&
             (updateInfo.availableVersionCode ?? 0) >
                 (updateInfo.clientVersionStalenessDays ?? 0) + 2;
 
         if (shouldForceUpdate) {
-          // Mise à jour immédiate obligatoire
           await _performImmediateUpdate();
         } else if (updateInfo.flexibleUpdateAllowed && context.mounted) {
-          // Mise à jour flexible (non bloquante)
-          // ignore: use_build_context_synchronously
           await _performFlexibleUpdate(context);
         }
       }
     } catch (e) {
-      // En cas d'erreur, on continue silencieusement
-      // (par exemple, en mode debug ou si le Play Store n'est pas disponible)
       debugPrint('Erreur lors de la vérification de mise à jour: $e');
     }
   }
 
-  /// Effectuer une mise à jour immédiate
-  ///
-  /// L'utilisateur est bloqué jusqu'à ce que la mise à jour soit installée
   static Future<void> _performImmediateUpdate() async {
     try {
       await InAppUpdate.performImmediateUpdate();
@@ -51,19 +34,11 @@ class AppUpdateService {
     }
   }
 
-  /// Effectuer une mise à jour flexible
-  ///
-  /// L'utilisateur peut continuer à utiliser l'app pendant le téléchargement
-  /// Un dialogue s'affichera pour installer la mise à jour une fois téléchargée
   static Future<void> _performFlexibleUpdate(BuildContext context) async {
     try {
-      // Démarrer la mise à jour flexible
       final result = await InAppUpdate.startFlexibleUpdate();
 
-      // Une fois le téléchargement terminé, afficher un dialogue
-      // pour installer la mise à jour
       if (result == AppUpdateResult.success && context.mounted) {
-        // ignore: use_build_context_synchronously
         _showUpdateDialog(context);
       }
     } catch (e) {
@@ -71,7 +46,6 @@ class AppUpdateService {
     }
   }
 
-  /// Afficher un dialogue pour installer la mise à jour téléchargée
   static void _showUpdateDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -79,7 +53,7 @@ class AppUpdateService {
       builder: (context) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.system_update, color: Color(0xFFF77F00)),
+            Icon(Icons.system_update, color: _orangeColor),
             SizedBox(width: 12),
             Text('Mise à jour disponible'),
           ],
@@ -98,9 +72,7 @@ class AppUpdateService {
               Navigator.pop(context);
               InAppUpdate.completeFlexibleUpdate();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF009E60),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: _greenColor),
             child: const Text('Installer'),
           ),
         ],
@@ -108,10 +80,6 @@ class AppUpdateService {
     );
   }
 
-  /// Vérifier manuellement les mises à jour
-  ///
-  /// Cette méthode peut être appelée depuis les paramètres de l'app
-  /// pour permettre à l'utilisateur de vérifier manuellement
   static Future<void> checkForUpdateManually(BuildContext context) async {
     try {
       final AppUpdateInfo updateInfo = await InAppUpdate.checkForUpdate();
@@ -119,30 +87,24 @@ class AppUpdateService {
       if (!context.mounted) return;
 
       if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
-        // Afficher un dialogue pour proposer la mise à jour
         _showManualUpdateDialog(context, updateInfo);
       } else {
-        // Aucune mise à jour disponible
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Vous utilisez déjà la dernière version'),
-            backgroundColor: Color(0xFF009E60),
+            backgroundColor: _greenColor,
           ),
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  /// Afficher un dialogue pour la vérification manuelle
   static void _showManualUpdateDialog(
     BuildContext context,
     AppUpdateInfo updateInfo,
@@ -152,7 +114,7 @@ class AppUpdateService {
       builder: (context) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.system_update, color: Color(0xFFF77F00)),
+            Icon(Icons.system_update, color: _orangeColor),
             SizedBox(width: 12),
             Text('Nouvelle version'),
           ],
@@ -189,9 +151,7 @@ class AppUpdateService {
                 _performFlexibleUpdate(context);
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF009E60),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: _greenColor),
             child: const Text('Mettre à jour'),
           ),
         ],

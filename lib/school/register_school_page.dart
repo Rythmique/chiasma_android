@@ -26,7 +26,9 @@ class _RegisterSchoolPageState extends State<RegisterSchoolPage> {
   final _nomContactController = TextEditingController();
 
   // Contrôleurs pour téléphones (max 3)
-  final List<TextEditingController> _phoneControllers = [TextEditingController()];
+  final List<TextEditingController> _phoneControllers = [
+    TextEditingController(),
+  ];
 
   // Type d'établissement
   String _typeEtablissement = 'Privé';
@@ -75,6 +77,38 @@ class _RegisterSchoolPageState extends State<RegisterSchoolPage> {
     }
   }
 
+  Widget _buildPhoneField(int index, TextEditingController controller) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: controller,
+              decoration: InputDecoration(
+                labelText: 'Téléphone ${index + 1}',
+                prefixIcon: const Icon(Icons.phone),
+                border: const OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.phone,
+              validator: (value) {
+                if (index == 0 && (value == null || value.trim().isEmpty)) {
+                  return 'Au moins un numéro requis';
+                }
+                return null;
+              },
+            ),
+          ),
+          if (_phoneControllers.length > 1)
+            IconButton(
+              icon: const Icon(Icons.remove_circle, color: Colors.red),
+              onPressed: () => _removePhoneField(index),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -83,7 +117,9 @@ class _RegisterSchoolPageState extends State<RegisterSchoolPage> {
     if (_niveauxSelectionnes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Veuillez sélectionner au moins un niveau d\'enseignement'),
+          content: Text(
+            'Veuillez sélectionner au moins un niveau d\'enseignement',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -110,10 +146,12 @@ class _RegisterSchoolPageState extends State<RegisterSchoolPage> {
         nom: _nomEtablissementController.text.trim(),
         telephones: telephones,
         fonction: _typeEtablissement, // Utiliser pour stocker le type
-        zoneActuelle: '${_communeController.text.trim()}, ${_villeController.text.trim()}',
+        zoneActuelle:
+            '${_communeController.text.trim()}, ${_villeController.text.trim()}',
         dren: null,
         infosZoneActuelle: _adresseController.text.trim(),
-        zonesSouhaitees: _niveauxSelectionnes, // Utiliser pour stocker les niveaux
+        zonesSouhaitees:
+            _niveauxSelectionnes, // Utiliser pour stocker les niveaux
       );
 
       if (mounted) {
@@ -175,8 +213,8 @@ class _RegisterSchoolPageState extends State<RegisterSchoolPage> {
                 'Créer un compte établissement',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -214,9 +252,13 @@ class _RegisterSchoolPageState extends State<RegisterSchoolPage> {
                   DropdownMenuItem(value: 'Privé', child: Text('Privé')),
                   DropdownMenuItem(value: 'Public', child: Text('Public')),
                   DropdownMenuItem(
-                      value: 'Confessionnel', child: Text('Confessionnel')),
+                    value: 'Confessionnel',
+                    child: Text('Confessionnel'),
+                  ),
                   DropdownMenuItem(
-                      value: 'International', child: Text('International')),
+                    value: 'International',
+                    child: Text('International'),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -334,40 +376,9 @@ class _RegisterSchoolPageState extends State<RegisterSchoolPage> {
                 style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
               ),
               const SizedBox(height: 8),
-              ..._phoneControllers.asMap().entries.map((entry) {
-                int index = entry.key;
-                TextEditingController controller = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: controller,
-                          decoration: InputDecoration(
-                            labelText: 'Téléphone ${index + 1}',
-                            prefixIcon: const Icon(Icons.phone),
-                            border: const OutlineInputBorder(),
-                          ),
-                          keyboardType: TextInputType.phone,
-                          validator: (value) {
-                            if (index == 0 &&
-                                (value == null || value.trim().isEmpty)) {
-                              return 'Au moins un numéro requis';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                      if (_phoneControllers.length > 1)
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle, color: Colors.red),
-                          onPressed: () => _removePhoneField(index),
-                        ),
-                    ],
-                  ),
-                );
-              }),
+              ..._phoneControllers.asMap().entries.map(
+                (entry) => _buildPhoneField(entry.key, entry.value),
+              ),
               if (_phoneControllers.length < 3)
                 TextButton.icon(
                   onPressed: _addPhoneField,
@@ -407,7 +418,9 @@ class _RegisterSchoolPageState extends State<RegisterSchoolPage> {
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                      _obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
                     ),
                     onPressed: () {
                       setState(() {
@@ -445,7 +458,10 @@ class _RegisterSchoolPageState extends State<RegisterSchoolPage> {
                       )
                     : const Text(
                         'Créer mon compte',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
               ),
               const SizedBox(height: 16),

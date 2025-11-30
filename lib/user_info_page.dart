@@ -20,9 +20,7 @@ class _UserInfoPageState extends State<UserInfoPage> {
   Future<void> _navigateToEditProfile() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const EditProfilePage(),
-      ),
+      MaterialPageRoute(builder: (context) => const EditProfilePage()),
     );
 
     // Si le profil a été modifié, rafraîchir la page
@@ -44,9 +42,7 @@ class _UserInfoPageState extends State<UserInfoPage> {
           backgroundColor: const Color(0xFFF77F00),
           foregroundColor: Colors.white,
         ),
-        body: const Center(
-          child: Text('Aucun utilisateur connecté'),
-        ),
+        body: const Center(child: Text('Aucun utilisateur connecté')),
       );
     }
 
@@ -64,14 +60,14 @@ class _UserInfoPageState extends State<UserInfoPage> {
         ],
       ),
       body: FutureBuilder<UserModel?>(
-        key: ValueKey(_refreshKey), // Utiliser la clé pour forcer le rafraîchissement
+        key: ValueKey(
+          _refreshKey,
+        ), // Utiliser la clé pour forcer le rafraîchissement
         future: FirestoreService().getUser(currentUser.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFFF77F00),
-              ),
+              child: CircularProgressIndicator(color: Color(0xFFF77F00)),
             );
           }
 
@@ -275,7 +271,9 @@ class _UserInfoPageState extends State<UserInfoPage> {
                       _buildSectionTitle('Zones souhaitées'),
                       const SizedBox(height: 8),
                       _buildInfoCard([
-                        ...userData.zonesSouhaitees.asMap().entries.map((entry) {
+                        ...userData.zonesSouhaitees.asMap().entries.map((
+                          entry,
+                        ) {
                           return _buildInfoRow(
                             Icons.location_searching,
                             'Zone ${entry.key + 1}',
@@ -453,7 +451,7 @@ class _UserInfoPageState extends State<UserInfoPage> {
       'sep',
       'oct',
       'nov',
-      'déc'
+      'déc',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year} à ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }

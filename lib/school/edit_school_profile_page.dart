@@ -15,7 +15,8 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   UserModel? _schoolInfo;
-  bool _showContactInfo = true; // Afficher les coordonnées aux candidats abonnés
+  bool _showContactInfo =
+      true; // Afficher les coordonnées aux candidats abonnés
 
   // Contrôleurs
   final _nomController = TextEditingController();
@@ -116,10 +117,7 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -127,6 +125,30 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Widget _buildInfoBox(String text) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -156,8 +178,8 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
                       'Informations de l\'établissement',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -244,12 +266,18 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
                               : 'Vos coordonnées restent privées, seule la messagerie est disponible',
                           style: TextStyle(
                             fontSize: 13,
-                            color: _showContactInfo ? Colors.green[700] : Colors.orange[700],
+                            color: _showContactInfo
+                                ? Colors.green[700]
+                                : Colors.orange[700],
                           ),
                         ),
                         secondary: Icon(
-                          _showContactInfo ? Icons.visibility : Icons.visibility_off,
-                          color: _showContactInfo ? Colors.green : Colors.orange,
+                          _showContactInfo
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          color: _showContactInfo
+                              ? Colors.green
+                              : Colors.orange,
                         ),
                         value: _showContactInfo,
                         activeTrackColor: const Color(0xFF009E60),
@@ -263,29 +291,8 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
                     const SizedBox(height: 8),
 
                     // Note d'information
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue[200]!),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Cette option permet aux candidats abonnés de voir vos coordonnées dans vos offres d\'emploi. Sinon, ils devront utiliser la messagerie intégrée.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.blue[900],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    _buildInfoBox(
+                      'Cette option permet aux candidats abonnés de voir vos coordonnées dans vos offres d\'emploi. Sinon, ils devront utiliser la messagerie intégrée.',
                     ),
                     const SizedBox(height: 24),
 
@@ -312,7 +319,9 @@ class _EditSchoolProfilePageState extends State<EditSchoolProfilePage> {
                                 ],
                               ),
                               const Divider(),
-                              Text('Type de compte: ${_schoolInfo!.accountType}'),
+                              Text(
+                                'Type de compte: ${_schoolInfo!.accountType}',
+                              ),
                               // Matricule masqué : ne jamais afficher (école n'a pas de matricule)
                             ],
                           ),

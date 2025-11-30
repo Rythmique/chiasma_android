@@ -37,9 +37,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
           backgroundColor: const Color(0xFFF77F00),
           foregroundColor: Colors.white,
         ),
-        body: const Center(
-          child: Text('Erreur: utilisateur non connecté'),
-        ),
+        body: const Center(child: Text('Erreur: utilisateur non connecté')),
       );
     }
 
@@ -58,22 +56,10 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
               });
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'all',
-                child: Text('Toutes'),
-              ),
-              const PopupMenuItem(
-                value: 'pending',
-                child: Text('En attente'),
-              ),
-              const PopupMenuItem(
-                value: 'accepted',
-                child: Text('Acceptées'),
-              ),
-              const PopupMenuItem(
-                value: 'rejected',
-                child: Text('Refusées'),
-              ),
+              const PopupMenuItem(value: 'all', child: Text('Toutes')),
+              const PopupMenuItem(value: 'pending', child: Text('En attente')),
+              const PopupMenuItem(value: 'accepted', child: Text('Acceptées')),
+              const PopupMenuItem(value: 'rejected', child: Text('Refusées')),
             ],
           ),
         ],
@@ -104,8 +90,8 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
           final filteredApplications = _selectedFilter == 'all'
               ? allApplications
               : allApplications
-                  .where((app) => app.status == _selectedFilter)
-                  .toList();
+                    .where((app) => app.status == _selectedFilter)
+                    .toList();
 
           if (filteredApplications.isEmpty) {
             return _buildEmptyView();
@@ -152,16 +138,9 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.work_off_outlined,
-              size: 100,
-              color: Colors.grey[300],
-            ),
+            Icon(Icons.work_off_outlined, size: 100, color: Colors.grey[300]),
             const SizedBox(height: 24),
-            Text(
-              message,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text(message, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             Text(
               subtitle,
@@ -230,7 +209,11 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(Icons.business, size: 14, color: Colors.grey[600]),
+                            Icon(
+                              Icons.business,
+                              size: 14,
+                              color: Colors.grey[600],
+                            ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
@@ -247,7 +230,10 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -305,7 +291,11 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.celebration, size: 20, color: Colors.green[700]),
+                      Icon(
+                        Icons.celebration,
+                        size: 20,
+                        color: Colors.green[700],
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -383,7 +373,8 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
     if (user == null) return;
 
     // Vérifier si l'utilisateur peut envoyer des messages
-    final bool canSendMessage = user.isVerified || user.freeQuotaUsed < user.freeQuotaLimit;
+    final bool canSendMessage =
+        user.isVerified || user.freeQuotaUsed < user.freeQuotaLimit;
 
     if (!mounted) return;
 
@@ -437,7 +428,9 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Candidature retirée avec succès. Vous pouvez postuler à nouveau.'),
+              content: Text(
+                'Candidature retirée avec succès. Vous pouvez postuler à nouveau.',
+              ),
               backgroundColor: Color(0xFF009E60),
               duration: Duration(seconds: 3),
             ),
@@ -446,10 +439,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erreur: $e'),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
           );
         }
       }
@@ -493,10 +483,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erreur: $e'),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
           );
         }
       }

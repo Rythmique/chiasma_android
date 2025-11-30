@@ -4,17 +4,19 @@ import 'package:flutter/material.dart';
 /// Modèle pour une annonce
 class AnnouncementModel {
   final String id;
-  final String title;              // Titre de l'annonce
-  final String message;            // Contenu du message
-  final String type;               // Type: 'info', 'warning', 'success', 'error'
-  final List<String> targetAccounts; // Types de comptes ciblés: 'teacher_transfer', 'teacher_candidate', 'school', 'all'
+  final String title; // Titre de l'annonce
+  final String message; // Contenu du message
+  final String type; // Type: 'info', 'warning', 'success', 'error'
+  final List<String>
+  targetAccounts; // Types de comptes ciblés: 'teacher_transfer', 'teacher_candidate', 'school', 'all'
   final DateTime createdAt;
-  final DateTime? expiresAt;       // Date d'expiration (optionnel)
-  final bool isActive;             // Actif ou non
-  final String? actionUrl;         // URL d'action (optionnel)
-  final String? actionLabel;       // Libellé du bouton d'action (optionnel)
-  final String createdBy;          // ID de l'admin qui a créé l'annonce
-  final int priority;              // Priorité d'affichage (0 = faible, 1 = normal, 2 = élevé, 3 = urgent)
+  final DateTime? expiresAt; // Date d'expiration (optionnel)
+  final bool isActive; // Actif ou non
+  final String? actionUrl; // URL d'action (optionnel)
+  final String? actionLabel; // Libellé du bouton d'action (optionnel)
+  final String createdBy; // ID de l'admin qui a créé l'annonce
+  final int
+  priority; // Priorité d'affichage (0 = faible, 1 = normal, 2 = élevé, 3 = urgent)
 
   AnnouncementModel({
     required this.id,
@@ -31,6 +33,10 @@ class AnnouncementModel {
     this.priority = 1,
   });
 
+  // Helper pour convertir DateTime nullable en Timestamp nullable
+  static Timestamp? _dateToTimestamp(DateTime? date) =>
+      date != null ? Timestamp.fromDate(date) : null;
+
   /// Convertir en Map pour Firestore
   Map<String, dynamic> toMap() {
     return {
@@ -39,7 +45,7 @@ class AnnouncementModel {
       'type': type,
       'targetAccounts': targetAccounts,
       'createdAt': Timestamp.fromDate(createdAt),
-      'expiresAt': expiresAt != null ? Timestamp.fromDate(expiresAt!) : null,
+      'expiresAt': _dateToTimestamp(expiresAt),
       'isActive': isActive,
       'actionUrl': actionUrl,
       'actionLabel': actionLabel,
@@ -109,37 +115,27 @@ class AnnouncementModel {
   /// Vérifier si l'annonce est visible
   bool get isVisible => isActive && !isExpired;
 
-  /// Obtenir la couleur selon le type
-  static int getColorForType(String type) {
+  // Helper pour obtenir config selon le type (couleur et icône)
+  static (int, IconData) _getTypeConfig(String type) {
     switch (type) {
       case 'info':
-        return 0xFF2196F3; // Bleu
+        return (0xFF2196F3, Icons.info); // Bleu
       case 'warning':
-        return 0xFFFFA726; // Orange
+        return (0xFFFFA726, Icons.warning); // Orange
       case 'success':
-        return 0xFF66BB6A; // Vert
+        return (0xFF66BB6A, Icons.check_circle); // Vert
       case 'error':
-        return 0xFFEF5350; // Rouge
+        return (0xFFEF5350, Icons.error); // Rouge
       default:
-        return 0xFF2196F3;
+        return (0xFF2196F3, Icons.info);
     }
   }
 
+  /// Obtenir la couleur selon le type
+  static int getColorForType(String type) => _getTypeConfig(type).$1;
+
   /// Obtenir l'icône selon le type
-  static IconData getIconDataForType(String type) {
-    switch (type) {
-      case 'info':
-        return Icons.info;
-      case 'warning':
-        return Icons.warning;
-      case 'success':
-        return Icons.check_circle;
-      case 'error':
-        return Icons.error;
-      default:
-        return Icons.info;
-    }
-  }
+  static IconData getIconDataForType(String type) => _getTypeConfig(type).$2;
 
   /// Obtenir le libellé de priorité
   String get priorityLabel {

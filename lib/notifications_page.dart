@@ -20,7 +20,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
   final TextEditingController _searchController = TextEditingController();
 
-  String _selectedFilter = 'all'; // all, unread, message, application, offer, favorite, system
+  String _selectedFilter =
+      'all'; // all, unread, message, application, offer, favorite, system
   String _searchQuery = '';
 
   @override
@@ -37,7 +38,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   /// Filtrer les notifications selon le filtre sélectionné et la recherche
-  List<NotificationModel> _filterNotifications(List<NotificationModel> notifications) {
+  List<NotificationModel> _filterNotifications(
+    List<NotificationModel> notifications,
+  ) {
     var filtered = notifications;
 
     // Filtrer par type
@@ -97,7 +100,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 if (!mounted) return;
                 scaffoldMessenger.showSnackBar(
                   const SnackBar(
-                    content: Text('Toutes les notifications sont marquées comme lues'),
+                    content: Text(
+                      'Toutes les notifications sont marquées comme lues',
+                    ),
                     backgroundColor: Color(0xFF009E60),
                   ),
                 );
@@ -122,7 +127,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   context: context,
                   builder: (context) => AlertDialog(
                     title: const Text('Supprimer toutes les notifications'),
-                    content: const Text('Êtes-vous sûr de vouloir supprimer toutes vos notifications ?'),
+                    content: const Text(
+                      'Êtes-vous sûr de vouloir supprimer toutes vos notifications ?',
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
@@ -130,7 +137,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+                        child: const Text(
+                          'Supprimer',
+                          style: TextStyle(color: Colors.red),
+                        ),
                       ),
                     ],
                   ),
@@ -138,11 +148,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
                 if (confirm == true) {
                   try {
-                    await _notificationService.deleteAllNotifications(currentUser.uid);
+                    await _notificationService.deleteAllNotifications(
+                      currentUser.uid,
+                    );
                     if (!mounted) return;
                     scaffoldMessenger.showSnackBar(
                       const SnackBar(
-                        content: Text('Toutes les notifications ont été supprimées'),
+                        content: Text(
+                          'Toutes les notifications ont été supprimées',
+                        ),
                         backgroundColor: Color(0xFF009E60),
                       ),
                     );
@@ -201,7 +215,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 ),
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
               onChanged: (value) {
                 setState(() {
@@ -220,7 +237,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               children: [
                 _buildFilterChip('Tout', 'all', Icons.inbox),
-                _buildFilterChip('Non lus', 'unread', Icons.circle_notifications),
+                _buildFilterChip(
+                  'Non lus',
+                  'unread',
+                  Icons.circle_notifications,
+                ),
                 _buildFilterChip('Messages', 'message', Icons.message),
                 _buildFilterChip('Candidatures', 'application', Icons.work),
                 _buildFilterChip('Offres', 'offer', Icons.business_center),
@@ -235,13 +256,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
           // Liste des notifications
           Expanded(
             child: StreamBuilder<List<NotificationModel>>(
-              stream: _notificationService.streamUserNotifications(currentUser.uid),
+              stream: _notificationService.streamUserNotifications(
+                currentUser.uid,
+              ),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFFF77F00),
-                    ),
+                    child: CircularProgressIndicator(color: Color(0xFFF77F00)),
                   );
                 }
 
@@ -250,7 +271,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
                         const SizedBox(height: 16),
                         Text('Erreur: ${snapshot.error}'),
                       ],
@@ -415,10 +440,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         } catch (e) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erreur: $e'),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
           );
         }
       },
@@ -428,7 +450,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
-            color: notification.isRead ? Colors.grey.shade200 : color.withValues(alpha: 0.3),
+            color: notification.isRead
+                ? Colors.grey.shade200
+                : color.withValues(alpha: 0.3),
             width: notification.isRead ? 1 : 2,
           ),
         ),
@@ -468,8 +492,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 final profileId = notification.data?['profileId'] as String?;
                 final name = notification.data?['name'] as String?;
                 final fonction = notification.data?['fonction'] as String?;
-                final zoneActuelle = notification.data?['zoneActuelle'] as String?;
-                final zoneSouhaitee = notification.data?['zoneSouhaitee'] as String?;
+                final zoneActuelle =
+                    notification.data?['zoneActuelle'] as String?;
+                final zoneSouhaitee =
+                    notification.data?['zoneSouhaitee'] as String?;
                 final isOnline = notification.data?['isOnline'] as bool?;
 
                 if (profileId != null &&
@@ -481,9 +507,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ProfileDetailPage(
-                        userId: profileId,
-                      ),
+                      builder: (context) =>
+                          ProfileDetailPage(userId: profileId),
                     ),
                   );
                 } else {
@@ -500,11 +525,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
               case 'message':
                 // Navigation vers la page de chat si les données du contact sont fournies
                 final contactId = notification.data?['contactId'] as String?;
-                final contactName = notification.data?['contactName'] as String?;
-                final contactFunction = notification.data?['contactFunction'] as String?;
-                final isOnline = notification.data?['isOnline'] as bool? ?? false;
+                final contactName =
+                    notification.data?['contactName'] as String?;
+                final contactFunction =
+                    notification.data?['contactFunction'] as String?;
+                final isOnline =
+                    notification.data?['isOnline'] as bool? ?? false;
 
-                if (contactId != null && contactName != null && contactFunction != null) {
+                if (contactId != null &&
+                    contactName != null &&
+                    contactFunction != null) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -522,7 +552,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   // On affiche un message pour aller dans l'onglet Messages
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Veuillez consulter l\'onglet Messages pour voir vos conversations'),
+                      content: Text(
+                        'Veuillez consulter l\'onglet Messages pour voir vos conversations',
+                      ),
                       backgroundColor: Color(0xFF2196F3),
                       duration: Duration(seconds: 3),
                     ),
@@ -542,7 +574,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: notification.isRead ? Colors.white : color.withValues(alpha: 0.05),
+              color: notification.isRead
+                  ? Colors.white
+                  : color.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -570,7 +604,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               notification.title,
                               style: TextStyle(
                                 fontSize: 15,
-                                fontWeight: notification.isRead ? FontWeight.w600 : FontWeight.bold,
+                                fontWeight: notification.isRead
+                                    ? FontWeight.w600
+                                    : FontWeight.bold,
                                 color: Colors.grey[800],
                               ),
                             ),
@@ -598,10 +634,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       const SizedBox(height: 8),
                       Text(
                         timeago.format(notification.createdAt, locale: 'fr'),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                       ),
                     ],
                   ),

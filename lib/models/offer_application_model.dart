@@ -3,28 +3,28 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Modèle pour une candidature à une offre d'emploi spécifique
 class OfferApplicationModel {
   final String id;
-  final String offerId;            // ID de l'offre d'emploi
-  final String userId;             // ID du candidat
-  final String candidateName;      // Nom du candidat
-  final String candidateEmail;     // Email du candidat
+  final String offerId; // ID de l'offre d'emploi
+  final String userId; // ID du candidat
+  final String candidateName; // Nom du candidat
+  final String candidateEmail; // Email du candidat
   final List<String> candidatePhones; // Téléphones du candidat
 
   // Informations de candidature
-  final String? coverLetter;       // Lettre de motivation (optionnelle)
-  final String? cvUrl;             // URL du CV (optionnel)
+  final String? coverLetter; // Lettre de motivation (optionnelle)
+  final String? cvUrl; // URL du CV (optionnel)
 
   // Statut
-  final String status;             // 'pending', 'accepted', 'rejected', 'withdrawn'
+  final String status; // 'pending', 'accepted', 'rejected', 'withdrawn'
 
   // Métadonnées
   final DateTime createdAt;
   final DateTime? updatedAt;
-  final int viewsCount;            // Nombre de fois que l'école a vu cette candidature
+  final int viewsCount; // Nombre de fois que l'école a vu cette candidature
 
   // Informations de l'offre (dénormalisées pour faciliter l'affichage)
-  final String jobTitle;           // Titre du poste
-  final String schoolName;         // Nom de l'établissement
-  final String schoolId;           // ID de l'établissement
+  final String jobTitle; // Titre du poste
+  final String schoolName; // Nom de l'établissement
+  final String schoolId; // ID de l'établissement
 
   OfferApplicationModel({
     required this.id,
@@ -44,6 +44,10 @@ class OfferApplicationModel {
     required this.schoolId,
   });
 
+  // Helper pour convertir DateTime nullable en Timestamp nullable
+  static Timestamp? _dateToTimestamp(DateTime? date) =>
+      date != null ? Timestamp.fromDate(date) : null;
+
   // Convertir en Map pour Firestore
   Map<String, dynamic> toMap() {
     return {
@@ -56,7 +60,7 @@ class OfferApplicationModel {
       'cvUrl': cvUrl,
       'status': status,
       'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+      'updatedAt': _dateToTimestamp(updatedAt),
       'viewsCount': viewsCount,
       'jobTitle': jobTitle,
       'schoolName': schoolName,

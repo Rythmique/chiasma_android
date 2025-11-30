@@ -50,9 +50,7 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
         backgroundColor: const Color(0xFFF77F00),
         foregroundColor: Colors.white,
         elevation: 0,
-        actions: const [
-          NotificationBellIcon(),
-        ],
+        actions: const [NotificationBellIcon()],
       ),
       body: Column(
         children: [
@@ -158,9 +156,7 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFFF77F00),
-                    ),
+                    child: CircularProgressIndicator(color: Color(0xFFF77F00)),
                   );
                 }
 
@@ -169,7 +165,11 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red,
+                        ),
                         const SizedBox(height: 16),
                         Text('Erreur: ${snapshot.error}'),
                         const SizedBox(height: 16),
@@ -190,8 +190,12 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
                   if (_searchQuery.isNotEmpty) {
                     final matchesSearch =
                         offer.poste.toLowerCase().contains(_searchQuery) ||
-                        offer.nomEtablissement.toLowerCase().contains(_searchQuery) ||
-                        offer.matieresString.toLowerCase().contains(_searchQuery) ||
+                        offer.nomEtablissement.toLowerCase().contains(
+                          _searchQuery,
+                        ) ||
+                        offer.matieresString.toLowerCase().contains(
+                          _searchQuery,
+                        ) ||
                         offer.ville.toLowerCase().contains(_searchQuery);
                     if (!matchesSearch) return false;
                   }
@@ -202,7 +206,8 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
                   }
 
                   // Filtre type de contrat
-                  if (_selectedTypeContrat != null && offer.typeContrat != _selectedTypeContrat) {
+                  if (_selectedTypeContrat != null &&
+                      offer.typeContrat != _selectedTypeContrat) {
                     return false;
                   }
 
@@ -217,7 +222,9 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            _searchQuery.isNotEmpty || _selectedVille != null || _selectedTypeContrat != null
+                            _searchQuery.isNotEmpty ||
+                                    _selectedVille != null ||
+                                    _selectedTypeContrat != null
                                 ? Icons.search_off
                                 : Icons.work_outline,
                             size: 80,
@@ -225,7 +232,9 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            _searchQuery.isNotEmpty || _selectedVille != null || _selectedTypeContrat != null
+                            _searchQuery.isNotEmpty ||
+                                    _selectedVille != null ||
+                                    _selectedTypeContrat != null
                                 ? 'Aucune offre ne correspond à vos critères'
                                 : 'Aucune offre disponible pour le moment',
                             style: const TextStyle(
@@ -236,13 +245,17 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            _searchQuery.isNotEmpty || _selectedVille != null || _selectedTypeContrat != null
+                            _searchQuery.isNotEmpty ||
+                                    _selectedVille != null ||
+                                    _selectedTypeContrat != null
                                 ? 'Essayez de modifier vos filtres'
                                 : 'Revenez plus tard pour découvrir de nouvelles opportunités',
                             style: TextStyle(color: Colors.grey[600]),
                             textAlign: TextAlign.center,
                           ),
-                          if (_searchQuery.isNotEmpty || _selectedVille != null || _selectedTypeContrat != null) ...[
+                          if (_searchQuery.isNotEmpty ||
+                              _selectedVille != null ||
+                              _selectedTypeContrat != null) ...[
                             const SizedBox(height: 16),
                             TextButton.icon(
                               onPressed: () {
@@ -317,9 +330,7 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -376,7 +387,10 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF009E60).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -410,33 +424,42 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: offer.matieres.take(3).map((matiere) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        matiere,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    );
-                  }).toList()
-                    ..addAll([
-                      if (offer.matieres.length > 3)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  children:
+                      offer.matieres.take(3).map((matiere) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            '+${offer.matieres.length - 3}',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            matiere,
+                            style: const TextStyle(fontSize: 12),
                           ),
-                        ),
-                    ]),
+                        );
+                      }).toList()..addAll([
+                        if (offer.matieres.length > 3)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '+${offer.matieres.length - 3}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ]),
                 ),
               const SizedBox(height: 12),
 
@@ -570,7 +593,9 @@ class _JobOffersListPageState extends State<JobOffersListPage> {
               selected: isSelected,
               onTap: () {
                 setState(() {
-                  _selectedTypeContrat = contrat == 'Tous contrats' ? null : contrat;
+                  _selectedTypeContrat = contrat == 'Tous contrats'
+                      ? null
+                      : contrat;
                 });
                 Navigator.pop(context);
               },

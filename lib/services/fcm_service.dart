@@ -7,13 +7,15 @@ import 'package:myapp/services/firestore_service.dart';
 class FCMService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FirestoreService _firestoreService = FirestoreService();
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
 
   // Canal de notification pour Android
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'high_importance_channel',
     'Notifications importantes',
-    description: 'Ce canal est utilisé pour les notifications importantes de Chiasma',
+    description:
+        'Ce canal est utilisé pour les notifications importantes de Chiasma',
     importance: Importance.high,
     playSound: true,
     enableVibration: true,
@@ -44,7 +46,8 @@ class FCMService {
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         debugPrint('Utilisateur a accepté les notifications');
-      } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
+      } else if (settings.authorizationStatus ==
+          AuthorizationStatus.provisional) {
         debugPrint('Utilisateur a accepté les notifications provisoires');
       } else {
         debugPrint('Utilisateur a refusé les notifications');
@@ -80,9 +83,8 @@ class FCMService {
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-    );
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
 
     await _localNotifications.initialize(
       initializationSettings,
@@ -98,8 +100,10 @@ class FCMService {
   /// Créer le canal de notification pour Android 8+
   Future<void> _createNotificationChannel() async {
     final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        _localNotifications.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+        _localNotifications
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
 
     await androidImplementation?.createNotificationChannel(_channel);
     debugPrint('✅ Canal de notification créé: ${_channel.id}');
@@ -108,17 +112,22 @@ class FCMService {
   /// Demander la permission POST_NOTIFICATIONS pour Android 13+
   Future<void> _requestAndroidNotificationPermission() async {
     final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        _localNotifications.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+        _localNotifications
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
 
-    final bool? granted = await androidImplementation?.requestNotificationsPermission();
+    final bool? granted = await androidImplementation
+        ?.requestNotificationsPermission();
 
     if (granted == true) {
       debugPrint('✅ Permission POST_NOTIFICATIONS accordée (Android 13+)');
     } else if (granted == false) {
       debugPrint('❌ Permission POST_NOTIFICATIONS refusée (Android 13+)');
     } else {
-      debugPrint('⚠️ Permission POST_NOTIFICATIONS non applicable (Android < 13)');
+      debugPrint(
+        '⚠️ Permission POST_NOTIFICATIONS non applicable (Android < 13)',
+      );
     }
   }
 
@@ -129,10 +138,12 @@ class FCMService {
     String? payload,
   }) async {
     try {
-      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      const AndroidNotificationDetails
+      androidDetails = AndroidNotificationDetails(
         'high_importance_channel',
         'Notifications importantes',
-        channelDescription: 'Ce canal est utilisé pour les notifications importantes de Chiasma',
+        channelDescription:
+            'Ce canal est utilisé pour les notifications importantes de Chiasma',
         importance: Importance.max,
         priority: Priority.high,
         playSound: true,
@@ -149,7 +160,8 @@ class FCMService {
       );
 
       await _localNotifications.show(
-        DateTime.now().millisecondsSinceEpoch ~/ 1000, // ID unique basé sur le timestamp
+        DateTime.now().millisecondsSinceEpoch ~/
+            1000, // ID unique basé sur le timestamp
         title,
         body,
         platformDetails,
@@ -176,7 +188,9 @@ class FCMService {
   void _setupMessageHandlers() {
     // Handler pour les notifications quand l'app est au premier plan
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('📬 Message reçu au premier plan: ${message.notification?.title}');
+      debugPrint(
+        '📬 Message reçu au premier plan: ${message.notification?.title}',
+      );
 
       if (message.notification != null) {
         debugPrint('Titre: ${message.notification!.title}');
@@ -193,14 +207,18 @@ class FCMService {
 
     // Handler pour les notifications quand l'app est en arrière-plan et qu'on clique dessus
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      debugPrint('Notification cliquée (app en arrière-plan): ${message.notification?.title}');
+      debugPrint(
+        'Notification cliquée (app en arrière-plan): ${message.notification?.title}',
+      );
       _handleNotificationTap(message);
     });
 
     // Vérifier si l'app a été ouverte depuis une notification
     _messaging.getInitialMessage().then((RemoteMessage? message) {
       if (message != null) {
-        debugPrint('App ouverte depuis une notification: ${message.notification?.title}');
+        debugPrint(
+          'App ouverte depuis une notification: ${message.notification?.title}',
+        );
         _handleNotificationTap(message);
       }
     });

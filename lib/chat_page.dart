@@ -9,6 +9,7 @@ import 'services/storage_service.dart';
 import 'services/analytics_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'widgets/subscription_required_dialog.dart';
+import 'profile_detail_page.dart';
 
 class ChatPage extends StatefulWidget {
   final String contactName;
@@ -103,7 +104,8 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty || _conversationId == null) return;
+    if (_messageController.text.trim().isEmpty || _conversationId == null)
+      return;
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
@@ -132,15 +134,16 @@ class _ChatPageState extends State<ChatPage> {
 
       String conversationType = 'unknown';
       if (currentUserData != null && contactData != null) {
-        conversationType = '${currentUserData.accountType}_to_${contactData.accountType}';
+        conversationType =
+            '${currentUserData.accountType}_to_${contactData.accountType}';
       }
 
       await _analytics.logSendMessage(conversationType);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de l\'envoi: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur lors de l\'envoi: $e')));
       }
     }
   }
@@ -264,9 +267,9 @@ class _ChatPageState extends State<ChatPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de l\'envoi: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur lors de l\'envoi: $e')));
       }
     } finally {
       if (mounted) {
@@ -321,35 +324,51 @@ class _ChatPageState extends State<ChatPage> {
         foregroundColor: Colors.white,
         title: Row(
           children: [
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Colors.white,
-                  child: Text(
-                    widget.contactName.substring(0, 2).toUpperCase(),
-                    style: const TextStyle(
-                      color: Color(0xFFF77F00),
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
+            GestureDetector(
+              onTap: () {
+                if (widget.contactUserId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          ProfileDetailPage(userId: widget.contactUserId!),
                     ),
-                  ),
-                ),
-                if (widget.isOnline)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFF77F00), width: 2),
+                  );
+                }
+              },
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.white,
+                    child: Text(
+                      widget.contactName.substring(0, 2).toUpperCase(),
+                      style: const TextStyle(
+                        color: Color(0xFFF77F00),
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-              ],
+                  if (widget.isOnline)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFFF77F00),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -413,23 +432,34 @@ class _ChatPageState extends State<ChatPage> {
                       }
 
                       final messages = snapshot.data?.docs ?? [];
-                      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+                      final currentUserId =
+                          FirebaseAuth.instance.currentUser?.uid;
 
                       if (messages.isEmpty) {
                         return Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[300]),
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 64,
+                                color: Colors.grey[300],
+                              ),
                               const SizedBox(height: 16),
                               Text(
                                 'Aucun message',
-                                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey[600],
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 'Commencez la conversation',
-                                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[500],
+                                ),
                               ),
                             ],
                           ),
@@ -442,11 +472,14 @@ class _ChatPageState extends State<ChatPage> {
                         itemCount: messages.length,
                         itemBuilder: (context, index) {
                           final messageDoc = messages[index];
-                          final messageData = messageDoc.data() as Map<String, dynamic>;
+                          final messageData =
+                              messageDoc.data() as Map<String, dynamic>;
                           final senderId = messageData['senderId'] as String;
                           final text = messageData['message'] as String? ?? '';
-                          final timestamp = messageData['timestamp'] as Timestamp?;
-                          final hasFile = messageData['hasFile'] as bool? ?? false;
+                          final timestamp =
+                              messageData['timestamp'] as Timestamp?;
+                          final hasFile =
+                              messageData['hasFile'] as bool? ?? false;
                           final fileUrl = messageData['fileUrl'] as String?;
                           final fileName = messageData['fileName'] as String?;
                           final fileSize = messageData['fileSize'] as int?;
@@ -534,7 +567,10 @@ class _ChatPageState extends State<ChatPage> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.attach_file, color: Color(0xFFF77F00)),
+                    icon: const Icon(
+                      Icons.attach_file,
+                      color: Color(0xFFF77F00),
+                    ),
                     onPressed: _isUploadingFile ? null : _showFileOptions,
                   ),
                   Expanded(
@@ -598,9 +634,7 @@ class _ChatPageState extends State<ChatPage> {
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         decoration: BoxDecoration(
-          color: isSentByMe
-              ? const Color(0xFFF77F00)
-              : Colors.grey[200],
+          color: isSentByMe ? const Color(0xFFF77F00) : Colors.grey[200],
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -676,7 +710,12 @@ class _ChatPageState extends State<ChatPage> {
                   width: 200,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
-                    return _buildFileIcon(fileName, fileSize, fileType, isSentByMe);
+                    return _buildFileIcon(
+                      fileName,
+                      fileSize,
+                      fileType,
+                      isSentByMe,
+                    );
                   },
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
@@ -687,7 +726,7 @@ class _ChatPageState extends State<ChatPage> {
                         child: CircularProgressIndicator(
                           value: loadingProgress.expectedTotalBytes != null
                               ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
+                                    loadingProgress.expectedTotalBytes!
                               : null,
                         ),
                       ),
@@ -701,7 +740,12 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   // Widget pour afficher l'icône d'un fichier
-  Widget _buildFileIcon(String fileName, int fileSize, String fileType, bool isSentByMe) {
+  Widget _buildFileIcon(
+    String fileName,
+    int fileSize,
+    String fileType,
+    bool isSentByMe,
+  ) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -839,8 +883,16 @@ class _ChatPageState extends State<ChatPage> {
               leading: const Icon(Icons.person, color: Color(0xFFF77F00)),
               title: const Text('Voir le profil'),
               onTap: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
+                Navigator.pop(context); // Fermer le bottom sheet
+                if (widget.contactUserId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          ProfileDetailPage(userId: widget.contactUserId!),
+                    ),
+                  );
+                }
               },
             ),
             ListTile(

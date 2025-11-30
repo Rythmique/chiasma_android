@@ -32,10 +32,7 @@ class AlgoliaService {
     }
 
     try {
-      _client = SearchClient(
-        appId: applicationId,
-        apiKey: apiKey,
-      );
+      _client = SearchClient(appId: applicationId, apiKey: apiKey);
       _isInitialized = true;
 
       debugPrint('✅ AlgoliaService initialized successfully');
@@ -97,7 +94,9 @@ class AlgoliaService {
         }
       }
 
-      debugPrint('🔍 Algolia search users: query="$query", filters=${filters.join(' AND ')}');
+      debugPrint(
+        '🔍 Algolia search users: query="$query", filters=${filters.join(' AND ')}',
+      );
 
       final response = await _client!.searchSingleIndex(
         indexName: 'users',
@@ -132,12 +131,7 @@ class AlgoliaService {
       };
     } catch (e) {
       debugPrint('❌ Error searching users in Algolia: $e');
-      return {
-        'hits': [],
-        'nbHits': 0,
-        'query': query,
-        'error': e.toString(),
-      };
+      return {'hits': [], 'nbHits': 0, 'query': query, 'error': e.toString()};
     }
   }
 
@@ -155,11 +149,7 @@ class AlgoliaService {
     // Vérifier que le client est initialisé
     if (_client == null || !_isInitialized) {
       debugPrint('⚠️ AlgoliaService not initialized');
-      return {
-        'hits': [],
-        'nbHits': 0,
-        'error': 'Service not initialized',
-      };
+      return {'hits': [], 'nbHits': 0, 'error': 'Service not initialized'};
     }
 
     try {
@@ -174,10 +164,7 @@ class AlgoliaService {
 
       final response = await _client!.searchSingleIndex(
         indexName: 'users',
-        searchParams: SearchParamsObject(
-          filters: filters,
-          hitsPerPage: limit,
-        ),
+        searchParams: SearchParamsObject(filters: filters, hitsPerPage: limit),
       );
 
       debugPrint('✅ Algolia found ${response.hits.length} mutual matches');
@@ -188,11 +175,7 @@ class AlgoliaService {
       };
     } catch (e) {
       debugPrint('❌ Error searching mutual matches in Algolia: $e');
-      return {
-        'hits': [],
-        'nbHits': 0,
-        'error': e.toString(),
-      };
+      return {'hits': [], 'nbHits': 0, 'error': e.toString()};
     }
   }
 
@@ -233,7 +216,9 @@ class AlgoliaService {
         filters.add('typeContrat:"$typeContrat"');
       }
 
-      debugPrint('🔍 Algolia search jobs: query="$query", filters=${filters.join(' AND ')}');
+      debugPrint(
+        '🔍 Algolia search jobs: query="$query", filters=${filters.join(' AND ')}',
+      );
 
       final response = await _client!.searchSingleIndex(
         indexName: 'job_offers',
@@ -266,12 +251,7 @@ class AlgoliaService {
       };
     } catch (e) {
       debugPrint('❌ Error searching job offers in Algolia: $e');
-      return {
-        'hits': [],
-        'nbHits': 0,
-        'query': query,
-        'error': e.toString(),
-      };
+      return {'hits': [], 'nbHits': 0, 'query': query, 'error': e.toString()};
     }
   }
 
@@ -312,7 +292,8 @@ class AlgoliaService {
         if (nom != null && nom.toLowerCase().contains(query.toLowerCase())) {
           suggestions.add(nom);
         }
-        if (prenom != null && prenom.toLowerCase().contains(query.toLowerCase())) {
+        if (prenom != null &&
+            prenom.toLowerCase().contains(query.toLowerCase())) {
           suggestions.add(prenom);
         }
       }

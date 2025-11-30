@@ -27,9 +27,7 @@ class _SchoolFavoritesPageState extends State<SchoolFavoritesPage> {
           backgroundColor: const Color(0xFFF77F00),
           foregroundColor: Colors.white,
         ),
-        body: const Center(
-          child: Text('Erreur: utilisateur non connecté'),
-        ),
+        body: const Center(child: Text('Erreur: utilisateur non connecté')),
       );
     }
 
@@ -92,11 +90,7 @@ class _SchoolFavoritesPageState extends State<SchoolFavoritesPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.favorite_border,
-              size: 100,
-              color: Colors.grey[300],
-            ),
+            Icon(Icons.favorite_border, size: 100, color: Colors.grey[300]),
             const SizedBox(height: 24),
             Text(
               'Aucun favori',
@@ -116,8 +110,8 @@ class _SchoolFavoritesPageState extends State<SchoolFavoritesPage> {
 
   /// Carte d'un candidat favori
   Widget _buildCandidateCard(UserModel candidate, UserModel? schoolUser) {
-    // Vérifier si l'école peut envoyer des messages
-    final canSendMessage = schoolUser != null &&
+    final canSendMessage =
+        schoolUser != null &&
         schoolUser.isVerified &&
         !schoolUser.isVerificationExpired;
 
@@ -128,135 +122,134 @@ class _SchoolFavoritesPageState extends State<SchoolFavoritesPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header avec nom et statut en ligne
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: const Color(0xFFF77F00),
-                  child: Text(
-                    candidate.nom
-                        .split(' ')
-                        .map((word) => word.isNotEmpty ? word[0] : '')
-                        .take(2)
-                        .join()
-                        .toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        candidate.nom,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.subject, size: 14, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              candidate.fonction,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[700],
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.favorite,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                ),
-              ],
-            ),
+            _buildCandidateHeader(candidate),
             const SizedBox(height: 12),
-
-            // Zones souhaitées
             if (candidate.zonesSouhaitees.isNotEmpty) ...[
+              _buildZonesRow(candidate),
+              const SizedBox(height: 8),
+            ],
+            _buildActionButtons(candidate, canSendMessage),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCandidateHeader(UserModel candidate) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 30,
+          backgroundColor: const Color(0xFFF77F00),
+          child: Text(
+            candidate.nom
+                .split(' ')
+                .map((word) => word.isNotEmpty ? word[0] : '')
+                .take(2)
+                .join()
+                .toUpperCase(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                candidate.nom,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                  Icon(Icons.subject, size: 14, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      candidate.zonesSouhaitees.take(3).join(' • '),
-                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                      candidate.fonction,
+                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
             ],
-
-            // Boutons d'action
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _viewProfile(candidate),
-                    icon: const Icon(Icons.person, size: 18),
-                    label: const Text('Profil'),
-                    style: OutlinedButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: canSendMessage
-                        ? () => _contactCandidate(candidate)
-                        : () {
-                            // Afficher le dialogue d'abonnement pour les écoles non vérifiées
-                            SubscriptionRequiredDialog.show(context, 'school');
-                          },
-                    icon: const Icon(Icons.message, size: 18),
-                    label: const Text('Contacter'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: canSendMessage ? const Color(0xFF009E60) : Colors.grey,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () => _removeFavorite(candidate),
-                  tooltip: 'Retirer des favoris',
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
-      ),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.red[50],
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.favorite, color: Colors.red, size: 20),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildZonesRow(UserModel candidate) {
+    return Row(
+      children: [
+        Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            candidate.zonesSouhaitees.take(3).join(' • '),
+            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons(UserModel candidate, bool canSendMessage) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => _viewProfile(candidate),
+            icon: const Icon(Icons.person, size: 18),
+            label: const Text('Profil'),
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: canSendMessage
+                ? () => _contactCandidate(candidate)
+                : () => SubscriptionRequiredDialog.show(context, 'school'),
+            icon: const Icon(Icons.message, size: 18),
+            label: const Text('Contacter'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: canSendMessage
+                  ? const Color(0xFF009E60)
+                  : Colors.grey,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          onPressed: () => _removeFavorite(candidate),
+          tooltip: 'Retirer des favoris',
+        ),
+      ],
     );
   }
 
@@ -301,7 +294,10 @@ class _SchoolFavoritesPageState extends State<SchoolFavoritesPage> {
               label: 'Annuler',
               onPressed: () async {
                 // Rajouter aux favoris
-                await _firestoreService.addFavorite(_currentUserId, candidate.uid);
+                await _firestoreService.addFavorite(
+                  _currentUserId,
+                  candidate.uid,
+                );
               },
             ),
           ),
@@ -310,10 +306,7 @@ class _SchoolFavoritesPageState extends State<SchoolFavoritesPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     }

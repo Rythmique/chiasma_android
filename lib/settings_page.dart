@@ -24,7 +24,8 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _messageNotifications = true;
   bool _matchNotifications = true;
   final FirestoreService _firestoreService = FirestoreService();
-  final NotificationSettingsService _notificationService = NotificationSettingsService();
+  final NotificationSettingsService _notificationService =
+      NotificationSettingsService();
   UserModel? _currentUserData;
   bool _isLoadingUserData = true;
   String _cacheSize = 'Calcul...';
@@ -42,7 +43,10 @@ class _SettingsPageState extends State<SettingsPage> {
     int size = 0;
     try {
       if (await directory.exists()) {
-        await for (var entity in directory.list(recursive: true, followLinks: false)) {
+        await for (var entity in directory.list(
+          recursive: true,
+          followLinks: false,
+        )) {
           if (entity is File) {
             size += await entity.length();
           }
@@ -133,12 +137,18 @@ class _SettingsPageState extends State<SettingsPage> {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null) {
       try {
-        final settings = await _notificationService.getUserSettings(currentUser.uid);
+        final settings = await _notificationService.getUserSettings(
+          currentUser.uid,
+        );
         if (mounted) {
           setState(() {
             _messageNotifications = settings.messages;
-            _matchNotifications = settings.newJobOffers || settings.applicationStatus || settings.jobRecommendations;
-            _notificationsEnabled = _messageNotifications || _matchNotifications;
+            _matchNotifications =
+                settings.newJobOffers ||
+                settings.applicationStatus ||
+                settings.jobRecommendations;
+            _notificationsEnabled =
+                _messageNotifications || _matchNotifications;
           });
         }
       } catch (e) {
@@ -173,7 +183,9 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         children: [
           // Section Administration (visible uniquement pour les admins)
-          if (!_isLoadingUserData && _currentUserData != null && _currentUserData!.isAdmin) ...[
+          if (!_isLoadingUserData &&
+              _currentUserData != null &&
+              _currentUserData!.isAdmin) ...[
             _buildSectionHeader('Administration'),
             _buildSettingsTile(
               icon: Icons.admin_panel_settings,
@@ -298,7 +310,9 @@ class _SettingsPageState extends State<SettingsPage> {
               // Ne fait rien - fonctionnalité désactivée
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Notifications par email - Fonctionnalité à venir'),
+                  content: Text(
+                    'Notifications par email - Fonctionnalité à venir',
+                  ),
                   duration: Duration(seconds: 2),
                 ),
               );
@@ -451,10 +465,7 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: const Icon(Icons.logout),
               label: const Text(
                 'Déconnexion',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -497,19 +508,15 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       title: Text(
         title,
-        style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-        ),
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(
-          fontSize: 13,
-          color: Colors.grey[600],
-        ),
+        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
       ),
-      trailing: trailing ?? Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+      trailing:
+          trailing ??
+          Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
       onTap: onTap,
     );
   }
@@ -526,7 +533,9 @@ class _SettingsPageState extends State<SettingsPage> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: const Color(0xFFF77F00).withValues(alpha: enabled ? 0.1 : 0.05),
+          color: const Color(
+            0xFFF77F00,
+          ).withValues(alpha: enabled ? 0.1 : 0.05),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(
@@ -608,7 +617,9 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text('Données et stockage'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -619,7 +630,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(
                     'Cache:',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[800]),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
                   ),
                   Text(
                     _cacheSize,
@@ -633,7 +648,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(
                     'Données app:',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[800]),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
                   ),
                   Text(
                     _dataSize,
@@ -688,10 +707,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     SnackBar(
                       content: Text(
                         success
-                          ? 'Cache effacé avec succès !'
-                          : 'Erreur lors de l\'effacement du cache',
+                            ? 'Cache effacé avec succès !'
+                            : 'Erreur lors de l\'effacement du cache',
                       ),
-                      backgroundColor: success ? const Color(0xFF009E60) : Colors.red,
+                      backgroundColor: success
+                          ? const Color(0xFF009E60)
+                          : Colors.red,
                       duration: const Duration(seconds: 2),
                     ),
                   );
@@ -722,9 +743,7 @@ class _SettingsPageState extends State<SettingsPage> {
           maxLines: 5,
           decoration: InputDecoration(
             hintText: 'Décrivez le problème rencontré...',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
         actions: [
@@ -765,7 +784,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Merci pour votre retour ! Nous examinerons votre signalement.'),
+                        content: Text(
+                          'Merci pour votre retour ! Nous examinerons votre signalement.',
+                        ),
                         backgroundColor: Color(0xFF009E60),
                       ),
                     );
@@ -819,7 +840,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ],
               ),
-              child: const Icon(Icons.swap_horiz, color: Colors.white, size: 28),
+              child: const Icon(
+                Icons.swap_horiz,
+                color: Colors.white,
+                size: 28,
+              ),
             ),
             const SizedBox(width: 12),
             const Column(
@@ -831,7 +856,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 Text(
                   'Version 1.0.0',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal,
+                    color: Colors.grey,
+                  ),
                 ),
               ],
             ),
@@ -851,7 +880,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 child: Text(
                   'Plateforme de permutation et de matching professionnel pour les enseignants de Côte d\'Ivoire.',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[800], height: 1.4),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[800],
+                    height: 1.4,
+                  ),
                   textAlign: TextAlign.justify,
                 ),
               ),
@@ -861,12 +894,20 @@ class _SettingsPageState extends State<SettingsPage> {
               // Objectif
               const Text(
                 'Notre mission',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFFF77F00)),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: Color(0xFFF77F00),
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Faciliter les échanges de postes entre enseignants pour améliorer leur qualité de vie tout en maintenant l\'excellence de l\'enseignement.',
-                style: TextStyle(fontSize: 13, color: Colors.grey[700], height: 1.4),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[700],
+                  height: 1.4,
+                ),
               ),
 
               const SizedBox(height: 16),
@@ -874,14 +915,27 @@ class _SettingsPageState extends State<SettingsPage> {
               // Fonctionnalités principales
               const Text(
                 'Fonctionnalités clés',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFFF77F00)),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: Color(0xFFF77F00),
+                ),
               ),
               const SizedBox(height: 8),
-              _buildFeatureItem(Icons.search, 'Recherche avancée par zone et critères'),
-              _buildFeatureItem(Icons.people, 'Matching intelligent entre profils'),
+              _buildFeatureItem(
+                Icons.search,
+                'Recherche avancée par zone et critères',
+              ),
+              _buildFeatureItem(
+                Icons.people,
+                'Matching intelligent entre profils',
+              ),
               _buildFeatureItem(Icons.chat_bubble, 'Messagerie sécurisée'),
               _buildFeatureItem(Icons.star, 'Gestion des favoris et alertes'),
-              _buildFeatureItem(Icons.verified_user, 'Vérification des profils'),
+              _buildFeatureItem(
+                Icons.verified_user,
+                'Vérification des profils',
+              ),
 
               const SizedBox(height: 16),
 
@@ -906,7 +960,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(width: 4),
                   Text(
                     'www.chiasma.pro',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -938,7 +996,11 @@ class _SettingsPageState extends State<SettingsPage> {
               // Développeur
               Text(
                 'Développé par N\'da',
-                style: TextStyle(fontSize: 11, color: Colors.grey[500], fontStyle: FontStyle.italic),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[500],
+                  fontStyle: FontStyle.italic,
+                ),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -949,7 +1011,9 @@ class _SettingsPageState extends State<SettingsPage> {
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Ouverture des conditions d\'utilisation - Fonctionnalité à venir'),
+                  content: Text(
+                    'Ouverture des conditions d\'utilisation - Fonctionnalité à venir',
+                  ),
                 ),
               );
             },
@@ -960,7 +1024,9 @@ class _SettingsPageState extends State<SettingsPage> {
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Ouverture de la politique de confidentialité - Fonctionnalité à venir'),
+                  content: Text(
+                    'Ouverture de la politique de confidentialité - Fonctionnalité à venir',
+                  ),
                 ),
               );
             },
@@ -1013,14 +1079,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                '/',
-                (route) => false,
-              );
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/', (route) => false);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Déconnexion'),
           ),
         ],

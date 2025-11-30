@@ -67,11 +67,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Récupérer le type de compte de l'utilisateur
       if (mounted && userCredential != null && userCredential.user != null) {
-        final userData = await _firestoreService.getUser(userCredential.user!.uid);
+        final userData = await _firestoreService.getUser(
+          userCredential.user!.uid,
+        );
 
         if (userData != null && mounted) {
           // 📊 Analytics: Tracker la connexion
-          await _analytics.logLogin(matricule.isNotEmpty ? 'email_matricule' : 'email');
+          await _analytics.logLogin(
+            matricule.isNotEmpty ? 'email_matricule' : 'email',
+          );
           await _analytics.setUserId(userCredential.user!.uid);
           await _analytics.setUserProperties(
             accountType: userData.accountType,
@@ -161,7 +165,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFF77F00).withValues(alpha: 0.3),
+                                color: const Color(
+                                  0xFFF77F00,
+                                ).withValues(alpha: 0.3),
                                 blurRadius: 20,
                                 offset: const Offset(0, 10),
                               ),
@@ -204,7 +210,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             letterSpacing: 2,
                             shadows: [
                               Shadow(
-                                color: const Color(0xFFF77F00).withValues(alpha: 0.3),
+                                color: const Color(
+                                  0xFFF77F00,
+                                ).withValues(alpha: 0.3),
                                 offset: const Offset(0, 3),
                                 blurRadius: 8,
                               ),
@@ -292,29 +300,44 @@ class _LoginScreenState extends State<LoginScreen> {
                                 TextFormField(
                                   controller: _matriculeController,
                                   decoration: InputDecoration(
-                                    labelText: 'Numéro de matricule (optionnel)',
+                                    labelText:
+                                        'Numéro de matricule (optionnel)',
                                     hintText: '123456A',
-                                    prefixIcon: const Icon(Icons.badge_outlined, color: Color(0xFFF77F00)),
-                                    helperText: 'Réservé aux enseignants (permutation)',
+                                    prefixIcon: const Icon(
+                                      Icons.badge_outlined,
+                                      color: Color(0xFFF77F00),
+                                    ),
+                                    helperText:
+                                        'Réservé aux enseignants (permutation)',
                                     helperStyle: TextStyle(
                                       color: Colors.grey[600],
                                       fontSize: 11,
                                       fontStyle: FontStyle.italic,
                                     ),
                                     suffixIcon: Tooltip(
-                                      message: 'Les écoles et candidats n\'ont pas besoin de remplir ce champ',
-                                      child: Icon(Icons.info_outline, color: Colors.grey[400], size: 20),
+                                      message:
+                                          'Les écoles et candidats n\'ont pas besoin de remplir ce champ',
+                                      child: Icon(
+                                        Icons.info_outline,
+                                        color: Colors.grey[400],
+                                        size: 20,
+                                      ),
                                     ),
                                   ),
                                   keyboardType: TextInputType.text,
-                                  textCapitalization: TextCapitalization.characters,
+                                  textCapitalization:
+                                      TextCapitalization.characters,
                                   enabled: !_isLoading,
                                   validator: (value) {
                                     // Matricule optionnel - valider seulement si rempli
                                     if (value != null && value.isNotEmpty) {
                                       // Validation: 6 chiffres + 1 lettre (ex: 123456A)
-                                      final matriculeRegex = RegExp(r'^\d{6}[A-Z]$');
-                                      if (!matriculeRegex.hasMatch(value.toUpperCase())) {
+                                      final matriculeRegex = RegExp(
+                                        r'^\d{6}[A-Z]$',
+                                      );
+                                      if (!matriculeRegex.hasMatch(
+                                        value.toUpperCase(),
+                                      )) {
                                         return 'Format du matricule incorrect (exemple: 123456A)';
                                       }
                                     }
@@ -324,15 +347,24 @@ class _LoginScreenState extends State<LoginScreen> {
                                 const SizedBox(height: 8),
                                 // Information contextuelle
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.blue[50],
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.blue[200]!),
+                                    border: Border.all(
+                                      color: Colors.blue[200]!,
+                                    ),
                                   ),
                                   child: Row(
                                     children: [
-                                      Icon(Icons.lightbulb_outline, size: 16, color: Colors.blue[700]),
+                                      Icon(
+                                        Icons.lightbulb_outline,
+                                        size: 16,
+                                        color: Colors.blue[700],
+                                      ),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
@@ -355,7 +387,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   decoration: const InputDecoration(
                                     labelText: 'Adresse email',
                                     hintText: 'exemple@email.ci',
-                                    prefixIcon: Icon(Icons.email_outlined, color: Color(0xFFF77F00)),
+                                    prefixIcon: Icon(
+                                      Icons.email_outlined,
+                                      color: Color(0xFFF77F00),
+                                    ),
                                   ),
                                   keyboardType: TextInputType.emailAddress,
                                   enabled: !_isLoading,
@@ -379,7 +414,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                     hintText: '••••••••',
                                     suffixIcon: IconButton(
                                       icon: Icon(
-                                        _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                        _obscurePassword
+                                            ? Icons.visibility_outlined
+                                            : Icons.visibility_off_outlined,
                                         color: Colors.grey[600],
                                       ),
                                       onPressed: () {
@@ -411,7 +448,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (context) => const ForgotPasswordScreen(),
+                                          builder: (context) =>
+                                              const ForgotPasswordScreen(),
                                         ),
                                       );
                                     },
@@ -430,7 +468,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ElevatedButton(
                                   onPressed: _isLoading ? null : _handleLogin,
                                   style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 18),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 18,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -441,7 +481,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                           width: 20,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
                                           ),
                                         )
                                       : const Text(
@@ -468,14 +511,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (context) => const OnboardingPage(),
+                                            builder: (context) =>
+                                                const OnboardingPage(),
                                           ),
                                         );
                                       },
                                       style: TextButton.styleFrom(
                                         padding: EdgeInsets.zero,
                                         minimumSize: const Size(0, 0),
-                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
                                       ),
                                       child: const Text(
                                         "S'inscrire",

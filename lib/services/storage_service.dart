@@ -52,8 +52,10 @@ class StorageService {
       uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
         final progress = snapshot.bytesTransferred / snapshot.totalBytes;
         onProgress?.call(progress);
-        dev.log('Upload progress: ${(progress * 100).toStringAsFixed(1)}%',
-                name: 'StorageService');
+        dev.log(
+          'Upload progress: ${(progress * 100).toStringAsFixed(1)}%',
+          name: 'StorageService',
+        );
       });
 
       // Attendre la fin de l'upload
@@ -65,7 +67,10 @@ class StorageService {
       // Obtenir la taille du fichier
       final fileSize = await file.length();
 
-      dev.log('File uploaded successfully: $downloadUrl', name: 'StorageService');
+      dev.log(
+        'File uploaded successfully: $downloadUrl',
+        name: 'StorageService',
+      );
 
       return {
         'url': downloadUrl,
