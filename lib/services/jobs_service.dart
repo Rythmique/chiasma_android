@@ -190,10 +190,12 @@ class JobsService {
 
     await _notificationService.sendNotification(
       userId: candidateId,
-      type: 'offer',
+      createdBy: offer.schoolId,
+      type: 'offer_update',
       title: 'Nouvelle offre d\'emploi',
       message:
           '${offer.nomEtablissement} recrute pour un poste de ${offer.poste}$matieresText',
+      relatedId: offerId,
       data: {
         'offerId': offerId,
         'schoolId': offer.schoolId,

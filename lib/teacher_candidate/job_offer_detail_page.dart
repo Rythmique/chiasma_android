@@ -172,7 +172,9 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
         schoolId: widget.offer.schoolId,
       );
 
-      await _jobsService.createOfferApplication(application);
+      final applicationId = await _jobsService.createOfferApplication(
+        application,
+      );
 
       // 📊 Analytics: Track candidature
       await _analytics.logJobApplication(widget.offer.id);
@@ -181,10 +183,12 @@ class _JobOfferDetailPageState extends State<JobOfferDetailPage> {
       try {
         await _notificationService.sendNotification(
           userId: widget.offer.schoolId,
-          type: 'application',
+          createdBy: userId,
+          type: 'new_application',
           title: 'Nouvelle candidature reçue',
           message:
               '${user.nom} a postulé pour le poste de ${widget.offer.poste}',
+          relatedId: applicationId,
           data: {
             'offerId': widget.offer.id,
             'candidateId': userId,

@@ -522,13 +522,15 @@ class _ViewApplicationsPageState extends State<ViewApplicationsPage> {
       if (newStatus == 'accepted' || newStatus == 'rejected') {
         await _notificationService.sendNotification(
           userId: application.userId,
-          type: 'application_status',
+          createdBy: widget.offer.schoolId,
+          type: 'offer_update',
           title: newStatus == 'accepted'
               ? 'Candidature acceptée'
               : 'Candidature refusée',
           message: newStatus == 'accepted'
               ? 'Votre candidature pour le poste de ${application.jobTitle} chez ${application.schoolName} a été acceptée !'
               : 'Votre candidature pour le poste de ${application.jobTitle} chez ${application.schoolName} a été refusée.',
+          relatedId: application.id,
           data: {
             'applicationId': application.id,
             'offerId': application.offerId,

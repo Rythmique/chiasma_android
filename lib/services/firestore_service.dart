@@ -325,7 +325,8 @@ class FirestoreService {
   // Ajouter un favori
   Future<void> addFavorite(String userId, String favoriteUserId) async {
     return FirestoreErrorHandler.handleOperation(() async {
-      await _favoritesCollection.doc('${userId}_$favoriteUserId').set({
+      final favoriteId = '${userId}_$favoriteUserId';
+      await _favoritesCollection.doc(favoriteId).set({
         'userId': userId,
         'favoriteUserId': favoriteUserId,
         'createdAt': FieldValue.serverTimestamp(),
@@ -349,9 +350,11 @@ class FirestoreService {
 
         await _notificationService.sendNotification(
           userId: favoriteUserId,
-          type: 'favorite',
+          createdBy: userId,
+          type: 'new_favorite',
           title: 'Nouveau favori',
           message: notificationMessage,
+          relatedId: favoriteId,
           data: {'userId': userId, 'userName': userName, 'userType': userType},
         );
       } catch (e) {
@@ -626,9 +629,11 @@ class FirestoreService {
 
           await _notificationService.sendNotification(
             userId: receiverId,
+            createdBy: senderId,
             type: 'message',
             title: 'Nouveau message de $senderName',
             message: notificationMessage,
+            relatedId: conversationId,
             data: {
               'conversationId': conversationId,
               'senderId': senderId,

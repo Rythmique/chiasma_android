@@ -10,6 +10,9 @@ class NotificationModel {
   final String message;
   final DateTime createdAt;
   final bool isRead;
+  final String createdBy; // Créateur de la notification (pour sécurité)
+  final String?
+  relatedId; // ID de l'entité liée (offre, candidature, message, etc.)
   final Map<String, dynamic>?
   data; // Données supplémentaires (ex: profileId, offerId, etc.)
 
@@ -20,7 +23,9 @@ class NotificationModel {
     required this.title,
     required this.message,
     required this.createdAt,
+    required this.createdBy,
     this.isRead = false,
+    this.relatedId,
     this.data,
   });
 
@@ -33,6 +38,8 @@ class NotificationModel {
       'message': message,
       'createdAt': Timestamp.fromDate(createdAt),
       'isRead': isRead,
+      'createdBy': createdBy,
+      'relatedId': relatedId,
       'data': data,
     };
   }
@@ -48,6 +55,8 @@ class NotificationModel {
       message: data['message'] ?? '',
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       isRead: data['isRead'] ?? false,
+      createdBy: data['createdBy'] ?? '',
+      relatedId: data['relatedId'],
       data: data['data'] as Map<String, dynamic>?,
     );
   }
@@ -61,6 +70,8 @@ class NotificationModel {
     String? message,
     DateTime? createdAt,
     bool? isRead,
+    String? createdBy,
+    String? relatedId,
     Map<String, dynamic>? data,
   }) {
     return NotificationModel(
@@ -71,6 +82,8 @@ class NotificationModel {
       message: message ?? this.message,
       createdAt: createdAt ?? this.createdAt,
       isRead: isRead ?? this.isRead,
+      createdBy: createdBy ?? this.createdBy,
+      relatedId: relatedId ?? this.relatedId,
       data: data ?? this.data,
     );
   }

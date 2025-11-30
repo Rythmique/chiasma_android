@@ -24,9 +24,11 @@ class NotificationService {
 
   Future<String> sendNotification({
     required String userId,
+    required String createdBy,
     required String type,
     required String title,
     required String message,
+    String? relatedId,
     Map<String, dynamic>? data,
   }) async {
     try {
@@ -43,7 +45,9 @@ class NotificationService {
         title: title,
         message: message,
         createdAt: DateTime.now(),
+        createdBy: createdBy,
         isRead: false,
+        relatedId: relatedId,
         data: data,
       );
 
@@ -56,7 +60,9 @@ class NotificationService {
         title: title,
         message: message,
         createdAt: DateTime.now(),
+        createdBy: createdBy,
         isRead: false,
+        relatedId: relatedId,
         data: data,
       );
       return await createNotification(notification);

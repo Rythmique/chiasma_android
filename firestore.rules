@@ -46,8 +46,24 @@ service cloud.firestore {
 
     // ========== COLLECTION USERS ==========
     match /users/{userId} {
-      // Lecture : tous les utilisateurs authentifiés peuvent lire les profils
-      allow read: if isSignedIn();
+      // Lecture : restreindre l'accès selon le type d'utilisateur et les relations
+      allow read: if isSignedIn() && (
+        // Peut toujours lire son propre profil
+        request.auth.uid == userId
+        // Admin peut tout lire
+        || isAdmin()
+        // Écoles peuvent lire les profils des enseignants (candidats et permutants)
+        || (isSchool() && get(/databases/$(database)/documents/users/$(userId)).data.accountType in ['teacher_transfer', 'teacher_candidate'])
+        // Enseignants peuvent lire les profils des écoles
+        || (isTeacher() && get(/databases/$(database)/documents/users/$(userId)).data.accountType == 'school')
+        // Enseignants peuvent lire les profils d'autres enseignants s'ils ont une relation (favoris, conversation)
+        || (isTeacher() && get(/databases/$(database)/documents/users/$(userId)).data.accountType in ['teacher_transfer', 'teacher_candidate'] &&
+            (exists(/databases/$(database)/documents/favorites/$(request.auth.uid + '_' + userId))
+             || exists(/databases/$(database)/documents/favorites/$(userId + '_' + request.auth.uid))
+             || exists(/databases/$(database)/documents/messages/$(request.auth.uid + '_' + userId))
+             || exists(/databases/$(database)/documents/messages/$(userId + '_' + request.auth.uid)))
+           )
+      );
 
       // Création : Permettre l'inscription pour les nouveaux comptes
       // Cette règle est CRITIQUE pour permettre les inscriptions
@@ -230,11 +246,17 @@ service cloud.firestore {
       // Mise à jour :
       // - École propriétaire ou admin : toutes modifications
       // - Enseignants : uniquement incrémentation des compteurs (viewsCount, applicantsCount)
+      //   avec validation stricte pour empêcher la manipulation
       allow update: if isSignedIn() && (
         resource.data.schoolId == request.auth.uid
         || isAdmin()
         || (isTeacher() &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewsCount', 'applicantsCount'])
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewsCount', 'applicantsCount']) &&
+            // Validation stricte : incrémentation uniquement, pas de décrémentation
+            (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewsCount'])
+              || request.resource.data.viewsCount == resource.data.viewsCount + 1) &&
+            (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['applicantsCount'])
+              || request.resource.data.applicantsCount == resource.data.applicantsCount + 1)
            )
       );
 
@@ -296,9 +318,39 @@ service cloud.firestore {
         || isAdmin()
       );
 
-      // Création : tous les utilisateurs authentifiés (pour notifier d'autres utilisateurs)
+      // Création : validation stricte pour prévenir spam/phishing
       allow create: if isSignedIn()
-        && request.resource.data.keys().hasAll(['userId', 'type', 'title', 'message', 'createdAt']);
+        && request.resource.data.keys().hasAll(['userId', 'type', 'title', 'message', 'createdAt', 'createdBy'])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.userId != request.auth.uid // Impossible de se notifier soi-même
+        && request.resource.data.type in ['profile_view', 'new_application', 'message', 'new_favorite', 'offer_update', 'admin_announcement', 'verification_reminder', 'subscription_update']
+        && (
+          // Admin peut notifier n'importe qui
+          isAdmin()
+          // École peut notifier les enseignants qui ont postulé à ses offres
+          || (isSchool() && request.resource.data.type in ['new_application', 'offer_update'] &&
+              exists(/databases/$(database)/documents/offer_applications/$(request.resource.data.relatedId)) &&
+              get(/databases/$(database)/documents/offer_applications/$(request.resource.data.relatedId)).data.userId == request.resource.data.userId)
+          // Enseignant peut notifier une école pour une candidature
+          || (isTeacher() && request.resource.data.type == 'new_application' &&
+              exists(/databases/$(database)/documents/job_offers/$(request.resource.data.relatedId)) &&
+              get(/databases/$(database)/documents/job_offers/$(request.resource.data.relatedId)).data.schoolId == request.resource.data.userId)
+          // Utilisateurs peuvent notifier leurs contacts (conversation existante)
+          || (request.resource.data.type == 'message' &&
+              exists(/databases/$(database)/documents/messages/$(request.resource.data.relatedId)) &&
+              isParticipant(get(/databases/$(database)/documents/messages/$(request.resource.data.relatedId)).data.participants) &&
+              request.resource.data.userId in get(/databases/$(database)/documents/messages/$(request.resource.data.relatedId)).data.participants)
+          // École peut notifier lors d'une consultation de profil (profile_view enregistrée)
+          || (isSchool() && request.resource.data.type == 'profile_view' &&
+              exists(/databases/$(database)/documents/profile_views/$(request.resource.data.relatedId)) &&
+              get(/databases/$(database)/documents/profile_views/$(request.resource.data.relatedId)).data.viewerId == request.auth.uid &&
+              get(/databases/$(database)/documents/profile_views/$(request.resource.data.relatedId)).data.profileUserId == request.resource.data.userId)
+          // Utilisateur peut notifier lors d'un ajout en favori
+          || (request.resource.data.type == 'new_favorite' &&
+              exists(/databases/$(database)/documents/favorites/$(request.resource.data.relatedId)) &&
+              get(/databases/$(database)/documents/favorites/$(request.resource.data.relatedId)).data.userId == request.auth.uid &&
+              get(/databases/$(database)/documents/favorites/$(request.resource.data.relatedId)).data.favoriteUserId == request.resource.data.userId)
+        );
 
       // Mise à jour : propriétaire ou admin (marquer comme lu)
       allow update: if isSignedIn() && (
