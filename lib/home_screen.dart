@@ -18,6 +18,7 @@ import 'package:myapp/widgets/subscription_status_banner.dart';
 import 'package:myapp/widgets/quota_status_widget.dart';
 import 'package:myapp/widgets/welcome_quota_dialog.dart';
 import 'package:myapp/widgets/subscription_required_dialog.dart';
+import 'package:myapp/widgets/verification_pending_dialog.dart';
 import 'package:myapp/widgets/verified_badge.dart';
 import 'package:myapp/utils/string_utils.dart';
 import 'package:myapp/utils/messaging_restrictions_helper.dart';
@@ -324,10 +325,18 @@ class _SearchPageState extends State<SearchPage> {
       if (!mounted) return;
 
       if (result.needsSubscription) {
-        SubscriptionRequiredDialog.show(
-          context,
-          result.accountType ?? 'teacher_transfer',
-        );
+        // Cas spécifique: enseignant permutation non vérifié + restrictions admin OFF + quota épuisé
+        if (_currentUserModel != null &&
+            _currentUserModel!.accountType == 'teacher_transfer' &&
+            !_currentUserModel!.isVerified &&
+            !_adminRestrictionsEnabled) {
+          VerificationPendingDialog.show(context);
+        } else {
+          SubscriptionRequiredDialog.show(
+            context,
+            result.accountType ?? 'teacher_transfer',
+          );
+        }
       } else if (result.success) {
         navigator.push(
           MaterialPageRoute(
@@ -1428,12 +1437,22 @@ class _SearchPageState extends State<SearchPage> {
                             if (!context.mounted) return;
 
                             if (result.needsSubscription) {
-                              // Afficher le dialogue d'abonnement
-                              // ignore: use_build_context_synchronously
-                              SubscriptionRequiredDialog.show(
-                                context,
-                                result.accountType ?? 'teacher_transfer',
-                              );
+                              // Cas spécifique: enseignant permutation non vérifié + restrictions admin OFF + quota épuisé
+                              if (_currentUserModel != null &&
+                                  _currentUserModel!.accountType ==
+                                      'teacher_transfer' &&
+                                  !_currentUserModel!.isVerified &&
+                                  !_adminRestrictionsEnabled) {
+                                // ignore: use_build_context_synchronously
+                                VerificationPendingDialog.show(context);
+                              } else {
+                                // Afficher le dialogue d'abonnement
+                                // ignore: use_build_context_synchronously
+                                SubscriptionRequiredDialog.show(
+                                  context,
+                                  result.accountType ?? 'teacher_transfer',
+                                );
+                              }
                             } else if (result.success) {
                               // Naviguer vers la page de chat
                               navigator.push(
@@ -1589,10 +1608,18 @@ class _FavoritesPageState extends State<FavoritesPage> {
       if (!mounted) return;
 
       if (result.needsSubscription) {
-        SubscriptionRequiredDialog.show(
-          context,
-          result.accountType ?? 'teacher_transfer',
-        );
+        // Cas spécifique: enseignant permutation non vérifié + restrictions admin OFF + quota épuisé
+        if (_currentUserData != null &&
+            _currentUserData!.accountType == 'teacher_transfer' &&
+            !_currentUserData!.isVerified &&
+            !_adminRestrictionsEnabled) {
+          VerificationPendingDialog.show(context);
+        } else {
+          SubscriptionRequiredDialog.show(
+            context,
+            result.accountType ?? 'teacher_transfer',
+          );
+        }
       } else if (result.success) {
         navigator.push(
           MaterialPageRoute(
@@ -1976,12 +2003,22 @@ class _FavoritesPageState extends State<FavoritesPage> {
                             if (!context.mounted) return;
 
                             if (result.needsSubscription) {
-                              // Afficher le dialogue d'abonnement
-                              // ignore: use_build_context_synchronously
-                              SubscriptionRequiredDialog.show(
-                                context,
-                                result.accountType ?? 'teacher_transfer',
-                              );
+                              // Cas spécifique: enseignant permutation non vérifié + restrictions admin OFF + quota épuisé
+                              if (_currentUserData != null &&
+                                  _currentUserData!.accountType ==
+                                      'teacher_transfer' &&
+                                  !_currentUserData!.isVerified &&
+                                  !_adminRestrictionsEnabled) {
+                                // ignore: use_build_context_synchronously
+                                VerificationPendingDialog.show(context);
+                              } else {
+                                // Afficher le dialogue d'abonnement
+                                // ignore: use_build_context_synchronously
+                                SubscriptionRequiredDialog.show(
+                                  context,
+                                  result.accountType ?? 'teacher_transfer',
+                                );
+                              }
                             } else if (result.success) {
                               // Naviguer vers la page de chat
                               navigator.push(

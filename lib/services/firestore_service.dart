@@ -271,7 +271,7 @@ class FirestoreService {
               initialQuota = 1; // 1 offre gratuite
               break;
             case 'teacher_transfer':
-              initialQuota = 3; // 3 consultations gratuites
+              initialQuota = 5; // 5 consultations gratuites
               break;
             case 'teacher_candidate':
               initialQuota = 2; // 2 candidatures gratuites
