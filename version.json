@@ -1,15 +1,15 @@
 {
-  "version": "1.0.6",
-  "buildNumber": 106,
-  "message": "Nouvelle mise à jour disponible ! Installation Firebase Crashlytics pour monitoring des erreurs.",
-  "forceUpdate": false,
-  "releaseNotes": [
-    "✅ Installation Firebase Crashlytics - Suivi automatique des erreurs",
-    "✅ Monitoring temps réel des crashes en production",
-    "✅ Capture automatique erreurs Flutter + Dart async",
-    "✅ Stack traces complètes pour résolution rapide des bugs",
-    "✅ Métriques de stabilité de l'application"
+  "version": "1.0.3",
+  "buildNumber": 103,
+  "message": "Mise à jour importante disponible ! Correction du téléchargement de fichiers et amélioration des performances.",
+  "forceUpdate": true,
+  "features": [
+    "🔧 Téléchargement de fichiers corrigé (messagerie)",
+    "📎 PDF, Word, Excel maintenant téléchargeables",
+    "✅ Fix appliqué pour École, Candidat, Enseignant",
+    "🔔 Notifications push avec son et vibration",
+    "📚 Niveaux maternelle et primaire disponibles"
   ],
-  "downloadUrl": "https://chiasma.pro/downloads/chiasma-v1.0.6.apk",
-  "releaseDate": "2025-11-22"
+  "releaseDate": "2025-12-02",
+  "downloadUrl": "https://chiasma.pro/telecharger.html"
 }

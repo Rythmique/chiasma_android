@@ -23,7 +23,7 @@ const LATEST_VERSION = {
     "🔔 Notifications push avec son et vibration",
     "📚 Niveaux maternelle et primaire disponibles",
   ],
-  releaseDate: "2025-11-11",
+  releaseDate: "2025-12-02",
   downloadUrl: "https://chiasma.pro/telecharger.html",
 };
 

@@ -653,13 +653,40 @@ class _SearchPageState extends State<SearchPage> {
     return filtered;
   }
 
+  /// Rafraîchir toutes les données de la page
+  Future<void> _refreshData() async {
+    debugPrint('🔄 Rafraîchissement des données...');
+
+    // Réinitialiser la pagination
+    setState(() {
+      _allUsers = [];
+      _lastDocument = null;
+      _hasMoreUsers = true;
+      _isLoadingUsers = true;
+    });
+
+    // Recharger toutes les données en parallèle pour optimiser les performances
+    await Future.wait([
+      _loadUsers(),
+      _loadFavorites(),
+      _loadCurrentUserData(),
+      _loadAdminRestrictions(),
+    ]);
+
+    debugPrint('✅ Rafraîchissement terminé');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
+      body: RefreshIndicator(
+        onRefresh: _refreshData,
+        color: const Color(0xFFF77F00), // Couleur orange pour correspondre au thème
+        backgroundColor: Colors.white,
+        child: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
           // AppBar avec dégradé
           SliverAppBar(
             expandedHeight: 120,
@@ -1168,6 +1195,7 @@ class _SearchPageState extends State<SearchPage> {
 
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
         ],
+        ),
       ),
     );
   }
