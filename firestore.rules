@@ -56,7 +56,9 @@ service cloud.firestore {
         || (isSchool() && get(/databases/$(database)/documents/users/$(userId)).data.accountType in ['teacher_transfer', 'teacher_candidate'])
         // Enseignants peuvent lire les profils des écoles
         || (isTeacher() && get(/databases/$(database)/documents/users/$(userId)).data.accountType == 'school')
-        // Enseignants peuvent lire les profils d'autres enseignants s'ils ont une relation (favoris, conversation)
+        // Enseignants permutation peuvent lire TOUS les profils d'autres enseignants permutation (pour trouver un binôme)
+        || (isTeacher() && getUserAccountType() == 'teacher_transfer' && get(/databases/$(database)/documents/users/$(userId)).data.accountType == 'teacher_transfer')
+        // Autres enseignants peuvent lire les profils d'enseignants s'ils ont une relation (favoris, conversation)
         || (isTeacher() && get(/databases/$(database)/documents/users/$(userId)).data.accountType in ['teacher_transfer', 'teacher_candidate'] &&
             (exists(/databases/$(database)/documents/favorites/$(request.auth.uid + '_' + userId))
              || exists(/databases/$(database)/documents/favorites/$(userId + '_' + request.auth.uid))
