@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'my_application_page.dart';
 import 'my_applications_page.dart';
 import 'job_offers_list_page.dart';
@@ -434,11 +435,26 @@ class CandidateSettingsPage extends StatefulWidget {
 class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
   final FirestoreService _firestoreService = FirestoreService();
   UserModel? _currentUserData;
+  String _appVersion = '...';
 
   @override
   void initState() {
     super.initState();
     _loadCurrentUserData();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = packageInfo.version;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement version: $e');
+    }
   }
 
   Future<void> _loadCurrentUserData() async {
@@ -563,11 +579,11 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
     _showInfoDialog(
       context,
       title: 'À propos de CHIASMA',
-      content: const Column(
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'CHIASMA',
             style: TextStyle(
               fontSize: 24,
@@ -575,28 +591,28 @@ class _CandidateSettingsPageState extends State<CandidateSettingsPage> {
               color: Color(0xFFFF6F00),
             ),
           ),
-          SizedBox(height: 8),
-          Text('Version 1.0.0', style: TextStyle(color: Colors.grey)),
-          SizedBox(height: 16),
-          Text(
+          const SizedBox(height: 8),
+          Text('Version $_appVersion', style: const TextStyle(color: Colors.grey)),
+          const SizedBox(height: 16),
+          const Text(
             'Plateforme de mise en relation entre enseignants et établissements scolaires en Côte d\'Ivoire.',
             style: TextStyle(fontSize: 15),
           ),
-          SizedBox(height: 16),
-          Divider(),
-          SizedBox(height: 8),
-          Text('📧 Contact', style: TextStyle(fontWeight: FontWeight.bold)),
-          Text('support@chiasma.pro'),
-          SizedBox(height: 12),
-          Text('🌐 Site web', style: TextStyle(fontWeight: FontWeight.bold)),
-          Text('www.chiasma.pro'),
-          SizedBox(height: 16),
-          Text(
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 8),
+          const Text('📧 Contact', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('support@chiasma.pro'),
+          const SizedBox(height: 12),
+          const Text('🌐 Site web', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('www.chiasma.pro'),
+          const SizedBox(height: 16),
+          const Text(
             '© 2025 CHIASMA. Tous droits réservés.',
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
-          SizedBox(height: 8),
-          Text(
+          const SizedBox(height: 8),
+          const Text(
             'Développé par N\'da',
             style: TextStyle(
               fontSize: 11,

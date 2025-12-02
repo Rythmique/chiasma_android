@@ -9,6 +9,7 @@ import 'package:myapp/services/notification_settings_service.dart';
 import 'package:myapp/services/update_checker_service.dart';
 import 'package:myapp/models/user_model.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io';
 
 class SettingsPage extends StatefulWidget {
@@ -30,12 +31,27 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isLoadingUserData = true;
   String _cacheSize = 'Calcul...';
   final String _dataSize = 'N/A';
+  String _appVersion = '...';
 
   @override
   void initState() {
     super.initState();
     _loadCurrentUserData();
     _loadNotificationSettings();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = packageInfo.version;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement version: $e');
+    }
   }
 
   /// Calculer la taille d'un répertoire
@@ -428,7 +444,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSettingsTile(
             icon: Icons.info_outline,
             title: 'À propos',
-            subtitle: 'Version 1.0.0',
+            subtitle: 'Version $_appVersion',
             onTap: () {
               _showAboutDialog(context);
             },
@@ -847,16 +863,16 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             const SizedBox(width: 12),
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'CHIASMA',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  'Version 1.0.0',
-                  style: TextStyle(
+                  'Version $_appVersion',
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.normal,
                     color: Colors.grey,
