@@ -20,9 +20,3 @@ export {
   cleanInvalidTokens,
   sendTestNotification,
 } from "./notifications";
-
-// Exporter les fonctions de vérification de version
-export {
-  getAppVersion,
-  checkAppVersion,
-} from "./versionCheck";

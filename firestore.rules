@@ -323,12 +323,26 @@ service cloud.firestore {
         || isAdmin()
       );
 
-      // Création simplifiée : tous les utilisateurs authentifiés peuvent notifier
-      allow create: if isSignedIn()
-        && request.resource.data.keys().hasAll(['userId', 'type', 'title', 'message', 'createdAt', 'createdBy'])
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.userId != request.auth.uid
-        && request.resource.data.type in ['profile_view', 'new_application', 'message', 'new_favorite', 'offer_update', 'admin_announcement', 'verification_reminder', 'subscription_update'];
+      // Création : trois cas autorisés
+      allow create: if isSignedIn() && (
+        // Cas 1 : Utilisateurs authentifiés notifiant d'autres utilisateurs
+        (request.resource.data.keys().hasAll(['userId', 'type', 'title', 'message', 'createdAt', 'createdBy'])
+         && request.resource.data.createdBy == request.auth.uid
+         && request.resource.data.userId != request.auth.uid
+         && request.resource.data.type in ['profile_view', 'new_application', 'message', 'new_favorite', 'offer_update', 'admin_announcement', 'verification_reminder', 'subscription_update'])
+
+        // Cas 2 : Notifications de vérification admin (système automatique)
+        // Créées par FirestoreService lors de l'inscription
+        || (request.resource.data.keys().hasAll(['userId', 'type', 'title', 'message', 'createdAt'])
+            && request.resource.data.type == 'new_verification_request'
+            && request.resource.data.keys().hasAll(['data'])
+            && request.resource.data.data.keys().hasAll(['targetUserId', 'userAccountType', 'userEmail'])
+            // Vérifier que targetUserId correspond à l'utilisateur qui s'inscrit
+            && request.resource.data.data.targetUserId == request.auth.uid
+            // Le destinataire (userId) doit être un admin (vérifié côté serveur)
+            && exists(/databases/$(database)/documents/users/$(request.resource.data.userId))
+            && get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.accountType == 'admin')
+      );
 
       // Mise à jour : propriétaire ou admin (marquer comme lu)
       allow update: if isSignedIn() && (

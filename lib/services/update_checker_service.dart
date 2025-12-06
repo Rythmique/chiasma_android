@@ -5,8 +5,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class UpdateCheckerService {
-  static const String _cloudFunctionUrl =
-      'https://us-central1-chiasma-android.cloudfunctions.net/getAppVersion';
   static const String _versionJsonUrl = 'https://chiasma.pro/version.json';
   static const String _downloadUrl = 'https://chiasma.pro/telecharger.html';
   static const _orangeColor = Color(0xFFF77F00);
@@ -19,14 +17,8 @@ class UpdateCheckerService {
 
       debugPrint('Version actuelle: $currentVersion ($currentBuildNumber)');
 
-      // Essayer d'abord la Cloud Function
-      Map<String, dynamic>? data = await _fetchFromCloudFunction();
-
-      // Si la Cloud Function échoue, essayer version.json
-      if (data == null) {
-        debugPrint('Cloud Function indisponible, essai avec version.json...');
-        data = await _fetchFromVersionJson();
-      }
+      // Essayer d'abord version.json (méthode principale)
+      Map<String, dynamic>? data = await _fetchFromVersionJson();
 
       if (data == null) {
         debugPrint('Impossible de récupérer les informations de version');
@@ -53,25 +45,6 @@ class UpdateCheckerService {
       return {'hasUpdate': false};
     } catch (e) {
       debugPrint('Erreur lors de la vérification de mise à jour: $e');
-      return null;
-    }
-  }
-
-  static Future<Map<String, dynamic>?> _fetchFromCloudFunction() async {
-    try {
-      final response = await http
-          .get(Uri.parse(_cloudFunctionUrl), headers: {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        debugPrint('✓ Version récupérée depuis Cloud Function');
-        return json.decode(response.body) as Map<String, dynamic>;
-      }
-
-      debugPrint('Cloud Function erreur: ${response.statusCode}');
-      return null;
-    } catch (e) {
-      debugPrint('Erreur Cloud Function: $e');
       return null;
     }
   }
