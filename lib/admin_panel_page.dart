@@ -187,32 +187,50 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
       body: Column(
         children: [
           // Onglets de navigation
-          Container(
-            color: const Color(0xFFF77F00),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildTabButton(
-                    'Vérifications',
-                    Icons.verified_user,
-                    0,
-                  ),
+          StreamBuilder<List<UserModel>>(
+            stream: _firestoreService.getAllUsersStream(),
+            builder: (context, snapshot) {
+              final allUsers = snapshot.data ?? [];
+              final now = DateTime.now();
+
+              // Compter les utilisateurs en attente
+              final pendingCount = allUsers.where((user) {
+                if (!user.isVerified) return true;
+                if (user.isVerified && user.verificationExpiresAt != null) {
+                  return user.verificationExpiresAt!.isBefore(now);
+                }
+                return false;
+              }).length;
+
+              return Container(
+                color: const Color(0xFFF77F00),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _buildTabButton(
+                        'Vérifications',
+                        Icons.verified_user,
+                        0,
+                        badgeCount: pendingCount,
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildTabButton('Utilisateurs', Icons.people, 1),
+                    ),
+                    Expanded(
+                      child: _buildTabButton('Statistiques', Icons.analytics, 2),
+                    ),
+                    Expanded(child: _buildTabButton('Annonces', Icons.campaign, 3)),
+                    Expanded(
+                      child: _buildTabButton('Signalements', Icons.bug_report, 4),
+                    ),
+                    Expanded(
+                      child: _buildTabButton('Paramètres', Icons.settings, 5),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: _buildTabButton('Utilisateurs', Icons.people, 1),
-                ),
-                Expanded(
-                  child: _buildTabButton('Statistiques', Icons.analytics, 2),
-                ),
-                Expanded(child: _buildTabButton('Annonces', Icons.campaign, 3)),
-                Expanded(
-                  child: _buildTabButton('Signalements', Icons.bug_report, 4),
-                ),
-                Expanded(
-                  child: _buildTabButton('Paramètres', Icons.settings, 5),
-                ),
-              ],
-            ),
+              );
+            },
           ),
 
           // Contenu selon l'onglet sélectionné
@@ -222,7 +240,7 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     );
   }
 
-  Widget _buildTabButton(String label, IconData icon, int index) {
+  Widget _buildTabButton(String label, IconData icon, int index, {int? badgeCount}) {
     final isSelected = _selectedTab == index;
     final color = isSelected
         ? Colors.white
@@ -243,7 +261,37 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 24),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, color: color, size: 24),
+                if (badgeCount != null && badgeCount > 0)
+                  Positioned(
+                    right: -8,
+                    top: -8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : '$badgeCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 4),
             Text(
               label,
@@ -294,22 +342,34 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         }
 
         final allUsers = snapshot.data ?? [];
-        final unverifiedUsers = allUsers
-            .where((user) => !user.isVerified)
-            .toList();
+        final now = DateTime.now();
 
-        if (unverifiedUsers.isEmpty) {
+        // Utilisateurs non vérifiés OU avec vérification expirée
+        final usersNeedingVerification = allUsers.where((user) {
+          // Non vérifiés
+          if (!user.isVerified) return true;
+
+          // Vérifiés mais expirés
+          if (user.isVerified && user.verificationExpiresAt != null) {
+            return user.verificationExpiresAt!.isBefore(now);
+          }
+
+          return false;
+        }).toList();
+
+        if (usersNeedingVerification.isEmpty) {
           return _buildEmptyState(
             Icons.check_circle_outline,
             'Aucune vérification en attente',
+            subtitle: 'Tous les utilisateurs sont vérifiés et à jour',
           );
         }
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: unverifiedUsers.length,
+          itemCount: usersNeedingVerification.length,
           itemBuilder: (context, index) {
-            final user = unverifiedUsers[index];
+            final user = usersNeedingVerification[index];
             return _buildVerificationCard(user);
           },
         );
@@ -318,6 +378,8 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
   }
 
   Widget _buildVerificationCard(UserModel user) {
+    final waitingInfo = _calculateWaitingTime(user);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -390,6 +452,38 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+
+            // Temps d'attente
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: (waitingInfo['color'] as Color).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: (waitingInfo['color'] as Color).withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    waitingInfo['icon'] as IconData,
+                    size: 16,
+                    color: waitingInfo['color'] as Color,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    waitingInfo['text'] as String,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: waitingInfo['color'] as Color,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -556,6 +650,14 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
+        onTap: () {
+          // Navigation vers le profil détaillé de l'utilisateur
+          Navigator.pushNamed(
+            context,
+            '/profile-detail',
+            arguments: user,
+          );
+        },
         leading: CircleAvatar(
           backgroundColor: const Color(0xFFF77F00).withValues(alpha: 0.2),
           child: Text(
@@ -643,7 +745,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                   title: Text('Étendre vérification'),
                   contentPadding: EdgeInsets.zero,
                 ),
-                onTap: () => _extendVerification(user),
+                onTap: () {
+                  Navigator.pop(context);
+                  Future.microtask(() => _extendVerification(user));
+                },
               ),
             ],
             PopupMenuItem(
@@ -657,7 +762,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 ),
                 contentPadding: EdgeInsets.zero,
               ),
-              onTap: () => _toggleVerification(user),
+              onTap: () {
+                Navigator.pop(context);
+                Future.microtask(() => _toggleVerification(user));
+              },
             ),
             PopupMenuItem(
               child: ListTile(
@@ -672,7 +780,10 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
                 ),
                 contentPadding: EdgeInsets.zero,
               ),
-              onTap: () => _toggleAdmin(user),
+              onTap: () {
+                Navigator.pop(context);
+                Future.microtask(() => _toggleAdmin(user));
+              },
             ),
           ],
         ),
@@ -952,6 +1063,57 @@ class _AdminPanelPageState extends State<AdminPanelPage> {
         backgroundColor: isError ? Colors.red : const Color(0xFF009E60),
       ),
     );
+  }
+
+  // Calculer le temps d'attente dans la file de vérification
+  Map<String, dynamic> _calculateWaitingTime(UserModel user) {
+    final now = DateTime.now();
+    Duration waitingDuration;
+
+    // Si vérifié mais expiré → temps depuis expiration
+    if (user.isVerified && user.verificationExpiresAt != null &&
+        user.verificationExpiresAt!.isBefore(now)) {
+      waitingDuration = now.difference(user.verificationExpiresAt!);
+    }
+    // Sinon (non vérifié) → temps depuis création du compte
+    else {
+      waitingDuration = now.difference(user.createdAt);
+    }
+
+    final days = waitingDuration.inDays;
+    final hours = waitingDuration.inHours;
+    final minutes = waitingDuration.inMinutes;
+
+    // Déterminer le texte et la couleur selon l'urgence
+    String text;
+    Color color;
+    IconData icon;
+
+    if (days > 7) {
+      text = 'En attente depuis $days jours';
+      color = Colors.red;
+      icon = Icons.error_outline;
+    } else if (days > 0) {
+      text = 'En attente depuis $days jour${days > 1 ? "s" : ""}';
+      color = Colors.orange;
+      icon = Icons.warning_amber;
+    } else if (hours > 0) {
+      text = 'En attente depuis $hours heure${hours > 1 ? "s" : ""}';
+      color = Colors.blue;
+      icon = Icons.access_time;
+    } else {
+      text = 'En attente depuis $minutes minute${minutes > 1 ? "s" : ""}';
+      color = Colors.green;
+      icon = Icons.schedule;
+    }
+
+    return {
+      'text': text,
+      'color': color,
+      'icon': icon,
+      'days': days,
+      'duration': waitingDuration,
+    };
   }
 
   String _getInitials(String name) {

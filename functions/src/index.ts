@@ -6,14 +6,6 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 const db = admin.firestore();
 
-/**
- * Exemple de fonction Cloud Function
- * Toutes les fonctions de paiement ont été retirées
- */
-export const helloWorld = functions.https.onRequest((request, response) => {
-  response.send("Hello from Firebase!");
-});
-
 // Exporter les fonctions de synchronisation Algolia
 export {
   syncUserToAlgolia,

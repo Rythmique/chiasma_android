@@ -23,7 +23,70 @@ class FirestoreService {
   Future<void> createUser(UserModel user) async {
     return FirestoreErrorHandler.handleOperation(() async {
       await _usersCollection.doc(user.uid).set(user.toMap());
+
+      // Notifier les admins qu'un nouvel utilisateur attend vérification
+      if (!user.isVerified) {
+        await _notifyAdminsNewVerificationRequest(user);
+      }
     });
+  }
+
+  // Notifier tous les admins d'une nouvelle demande de vérification
+  Future<void> _notifyAdminsNewVerificationRequest(UserModel newUser) async {
+    try {
+      // Récupérer tous les utilisateurs avec accountType = 'admin'
+      final adminsSnapshot = await _usersCollection
+          .where('accountType', isEqualTo: 'admin')
+          .get();
+
+      if (adminsSnapshot.docs.isEmpty) {
+        debugPrint('⚠️ Aucun admin trouvé pour notification');
+        return;
+      }
+
+      // Créer une notification pour chaque admin
+      final batch = _firestore.batch();
+      final notificationsRef = _firestore.collection('notifications');
+
+      for (var adminDoc in adminsSnapshot.docs) {
+        final notificationRef = notificationsRef.doc();
+        batch.set(notificationRef, {
+          'userId': adminDoc.id,
+          'type': 'new_verification_request',
+          'title': '🔔 Nouvelle vérification en attente',
+          'message':
+              '${newUser.nom} (${_getAccountTypeLabel(newUser.accountType)}) attend votre vérification',
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'data': {
+            'targetUserId': newUser.uid,
+            'userAccountType': newUser.accountType,
+            'userEmail': newUser.email,
+          },
+        });
+      }
+
+      await batch.commit();
+      debugPrint('✅ Notifications envoyées à ${adminsSnapshot.docs.length} admin(s)');
+    } catch (e) {
+      debugPrint('❌ Erreur notification admins: $e');
+      // Ne pas bloquer la création de compte si la notification échoue
+    }
+  }
+
+  String _getAccountTypeLabel(String accountType) {
+    switch (accountType) {
+      case 'teacher_transfer':
+        return 'Enseignant Permutation';
+      case 'teacher_candidate':
+        return 'Candidat Enseignant';
+      case 'school':
+        return 'École';
+      case 'admin':
+        return 'Administrateur';
+      default:
+        return accountType;
+    }
   }
 
   // Récupérer un utilisateur par UID
